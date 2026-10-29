@@ -1,0 +1,43 @@
+# builds the windows installer and attaches it to the workflow run as a download.
+# it does NOT publish a github release. start it from the actions tab ("run workflow").
+name: windows build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: check the server address is set
+        shell: bash
+        run: |
+          if [ -z "${{ vars.BRANCH_API_URL }}" ]; then
+            echo "::warning::the BRANCH_API_URL repository variable isn't set, so this build will look for a server on localhost:8080. set it under settings > secrets and variables > actions > variables."
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - name: build the installer
+        working-directory: app
+        env:
+          # the public server address isn't a secret, it's baked into the app on purpose
+          BRANCH_API_URL: ${{ vars.BRANCH_API_URL }}
+        run: npx --yes @tauri-apps/cli@2 build --bundles nsis
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: branch-windows-installer
+          path: app/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error

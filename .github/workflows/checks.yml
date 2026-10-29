@@ -1,0 +1,92 @@
+# runs on every push and pull request. no secrets are used here,
+# so it's safe for pull requests from anyone.
+name: checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  server:
+    name: server (rust + postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: branch
+          POSTGRES_PASSWORD: branch
+          POSTGRES_DB: branch_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U branch"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # a throwaway database that only exists during this job
+      TEST_DATABASE_URL: postgres://branch:branch@localhost:5432/branch_test
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+      - name: clippy
+        run: cargo clippy --all-targets
+      - name: tests
+        run: cargo test
+      - name: keep the lock file
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-cargo-lock
+          path: server/Cargo.lock
+
+  interface:
+    name: interface (markdown + click-through tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: markdown safety tests
+        run: node --test tests/markdown.test.mjs
+      - name: click through the app and admin panel with demo data
+        run: node dev/e2e.mjs
+        env:
+          BROWSER_PATH: /usr/bin/google-chrome
+      - name: screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: interface-screenshots
+          path: dev/.screens/
+
+  desktop:
+    name: desktop app (windows)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: app/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+      - name: clippy
+        run: cargo clippy --all-targets
+      - name: tests
+        run: cargo test

@@ -1,0 +1,407 @@
+// the rust side of the desktop app. it does the jobs a web page shouldn't do on
+// its own: talking to the branch server, showing the save dialog, writing files
+// to disk and opening links in the normal browser.
+
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
+
+use futures_util::StreamExt;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use tauri::{AppHandle, Emitter, Manager, State};
+use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_opener::OpenerExt;
+use tokio::io::AsyncWriteExt;
+
+/// the server address gets baked in at build time (the github workflow sets it).
+/// without it, the app talks to a server running on this computer.
+fn base_url() -> &'static str {
+    match option_env!("BRANCH_API_URL") {
+        Some(url) if !url.trim().is_empty() => url.trim().trim_end_matches('/'),
+        _ => "http://localhost:8080",
+    }
+}
+
+/// errors are sent to the page as plain objects it can show to people
+#[derive(Debug, Serialize)]
+struct CmdError {
+    kind: &'static str,
+    status: Option<u16>,
+    message: String,
+    fields: Option<serde_json::Value>,
+}
+
+impl CmdError {
+    fn new(kind: &'static str, message: impl Into<String>) -> Self {
+        Self { kind, status: None, message: message.into(), fields: None }
+    }
+}
+
+impl From<reqwest::Error> for CmdError {
+    fn from(err: reqwest::Error) -> Self {
+        if err.is_timeout() {
+            CmdError::new("network", "the Branch server took too long to answer. try again.")
+        } else {
+            CmdError::new("network", "couldn't reach the Branch server. check your internet connection.")
+        }
+    }
+}
+
+struct Http {
+    api: reqwest::Client,
+    files: reqwest::Client,
+}
+
+#[derive(Default)]
+struct Downloads {
+    cancel_flags: Mutex<HashMap<String, Arc<AtomicBool>>>,
+    // files saved this session. "show in folder" only works for these.
+    saved: Mutex<HashSet<PathBuf>>,
+    last_dir: Mutex<Option<PathBuf>>,
+}
+
+struct Material(&'static str);
+
+#[tauri::command]
+fn api_base() -> &'static str {
+    base_url()
+}
+
+#[tauri::command]
+fn window_material(material: State<'_, Material>) -> &'static str {
+    material.0
+}
+
+fn api_url(path: &str) -> Result<String, CmdError> {
+    // the page can only reach branch's own api, never some other address
+    let bad = !path.starts_with("/api/")
+        || path.contains("..")
+        || path.contains('#')
+        || path.chars().any(|c| c.is_whitespace() || c.is_control());
+    if bad {
+        return Err(CmdError::new("app", "bad request path"));
+    }
+    Ok(format!("{}{}", base_url(), path))
+}
+
+#[tauri::command]
+async fn api_request(
+    http: State<'_, Http>,
+    method: String,
+    path: String,
+    body: Option<serde_json::Value>,
+) -> Result<serde_json::Value, CmdError> {
+    let url = api_url(&path)?;
+    let request = match method.as_str() {
+        "GET" => http.api.get(&url),
+        "POST" => http.api.post(&url).json(&body.unwrap_or(serde_json::Value::Null)),
+        _ => return Err(CmdError::new("app", "unsupported request")),
+    };
+    let response = request.send().await?;
+    let status = response.status();
+    let data: serde_json::Value = response.json().await.unwrap_or(serde_json::Value::Null);
+    if status.is_success() {
+        return Ok(data);
+    }
+    let message = data
+        .get("error")
+        .and_then(|v| v.as_str())
+        .map(str::to_owned)
+        .unwrap_or_else(|| format!("the server answered with an error ({})", status.as_u16()));
+    Err(CmdError { kind: "http", status: Some(status.as_u16()), message, fields: data.get("fields").cloned() })
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DownloadArgs {
+    id: String,
+    release_id: String,
+    file_name: String,
+    sha256: Option<String>,
+}
+
+#[derive(Serialize)]
+#[serde(tag = "status", rename_all = "lowercase")]
+enum DownloadResult {
+    Saved { path: String },
+    Cancelled,
+}
+
+#[derive(Clone, Serialize)]
+struct Progress<'a> {
+    id: &'a str,
+    received: u64,
+    total: Option<u64>,
+}
+
+/// keeps a suggested file name to normal characters so windows accepts it
+fn safe_file_name(name: &str) -> String {
+    let base = name.rsplit(|c| c == '/' || c == '\\').next().unwrap_or("");
+    let cleaned: String = base
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | ' ') { c } else { '-' })
+        .collect();
+    let cleaned = cleaned.trim_matches(|c| c == '.' || c == ' ').to_string();
+    if cleaned.is_empty() { "mod-download".to_string() } else { cleaned }
+}
+
+fn partial_path(dest: &Path) -> PathBuf {
+    let mut name = dest.as_os_str().to_owned();
+    name.push(".part");
+    PathBuf::from(name)
+}
+
+#[tauri::command]
+async fn download_release(
+    app: AppHandle,
+    http: State<'_, Http>,
+    downloads: State<'_, Downloads>,
+    args: DownloadArgs,
+) -> Result<DownloadResult, CmdError> {
+    let id_ok = !args.release_id.is_empty()
+        && args.release_id.len() <= 64
+        && args.release_id.chars().all(|c| c.is_ascii_hexdigit() || c == '-');
+    if !id_ok {
+        return Err(CmdError::new("app", "bad release id"));
+    }
+    let file_name = safe_file_name(&args.file_name);
+
+    // the save location always comes from the windows dialog, never from the page
+    let start_dir = downloads.last_dir.lock().unwrap().clone().or_else(|| app.path().download_dir().ok());
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    let mut dialog = app.dialog().file().set_title("Save mod file").set_file_name(file_name);
+    if let Some(dir) = start_dir {
+        dialog = dialog.set_directory(dir);
+    }
+    dialog.save_file(move |picked| {
+        let _ = tx.send(picked);
+    });
+    let picked = rx.await.map_err(|_| CmdError::new("app", "the save dialog closed unexpectedly"))?;
+    let Some(picked) = picked else {
+        return Ok(DownloadResult::Cancelled);
+    };
+    let dest = picked.into_path().map_err(|_| CmdError::new("app", "that save location can't be used"))?;
+
+    let cancel = Arc::new(AtomicBool::new(false));
+    downloads.cancel_flags.lock().unwrap().insert(args.id.clone(), cancel.clone());
+    let result = stream_to_file(&app, &http.files, &args, &dest, &cancel).await;
+    downloads.cancel_flags.lock().unwrap().remove(&args.id);
+
+    match result {
+        Ok(true) => {
+            if let Some(parent) = dest.parent() {
+                *downloads.last_dir.lock().unwrap() = Some(parent.to_path_buf());
+            }
+            downloads.saved.lock().unwrap().insert(dest.clone());
+            Ok(DownloadResult::Saved { path: dest.display().to_string() })
+        }
+        Ok(false) => Ok(DownloadResult::Cancelled),
+        Err(err) => Err(err),
+    }
+}
+
+/// streams the file into "<name>.part", checks the checksum, then renames it.
+/// returns Ok(false) when the person cancelled.
+async fn stream_to_file(
+    app: &AppHandle,
+    client: &reqwest::Client,
+    args: &DownloadArgs,
+    dest: &Path,
+    cancel: &AtomicBool,
+) -> Result<bool, CmdError> {
+    let url = format!("{}/api/releases/{}/download", base_url(), args.release_id);
+    let response = client.get(&url).send().await?;
+    if !response.status().is_success() {
+        let status = response.status().as_u16();
+        let data: serde_json::Value = response.json().await.unwrap_or(serde_json::Value::Null);
+        let message = data
+            .get("error")
+            .and_then(|v| v.as_str())
+            .unwrap_or("the server couldn't send this file")
+            .to_string();
+        return Err(CmdError { kind: "http", status: Some(status), message, fields: None });
+    }
+
+    let total = response.content_length();
+    let partial = partial_path(dest);
+    let mut file = tokio::fs::File::create(&partial)
+        .await
+        .map_err(|e| CmdError::new("disk", format!("couldn't save the file there ({e}). try another folder.")))?;
+
+    let mut hasher = Sha256::new();
+    let mut received: u64 = 0;
+    let mut last_emit: Option<Instant> = None;
+    let mut quiet_ticks = 0u32;
+    let mut stream = response.bytes_stream();
+
+    let outcome: Result<bool, CmdError> = loop {
+        if cancel.load(Ordering::Relaxed) {
+            break Ok(false);
+        }
+        // wake up every quarter second so cancel works even if the server goes quiet
+        let next = match tokio::time::timeout(Duration::from_millis(250), stream.next()).await {
+            Ok(next) => next,
+            Err(_) => {
+                quiet_ticks += 1;
+                if quiet_ticks > 120 {
+                    break Err(CmdError::new("network", "the download stalled for 30 seconds. try again."));
+                }
+                continue;
+            }
+        };
+        quiet_ticks = 0;
+        let Some(chunk) = next else {
+            break Ok(true);
+        };
+        let chunk = match chunk {
+            Ok(chunk) => chunk,
+            Err(_) => break Err(CmdError::new("network", "the download stopped. check your connection and try again.")),
+        };
+        hasher.update(&chunk);
+        if let Err(e) = file.write_all(&chunk).await {
+            break Err(CmdError::new("disk", format!("couldn't write the file ({e}). check that the drive has space.")));
+        }
+        received += chunk.len() as u64;
+        if last_emit.map_or(true, |t| t.elapsed() >= Duration::from_millis(100)) {
+            let _ = app.emit("download-progress", Progress { id: &args.id, received, total });
+            last_emit = Some(Instant::now());
+        }
+    };
+
+    let flushed = file.flush().await;
+    // windows can't delete or rename a file that's still open
+    drop(file);
+
+    let finished = match outcome {
+        Ok(true) => flushed.map(|_| true).map_err(|e| CmdError::new("disk", format!("couldn't finish writing the file ({e})."))),
+        other => other.map(|_| false),
+    };
+
+    if !matches!(finished, Ok(true)) {
+        let _ = tokio::fs::remove_file(&partial).await;
+        return finished;
+    }
+
+    let _ = app.emit("download-progress", Progress { id: &args.id, received, total: Some(received) });
+
+    if let Some(expected) = args.sha256.as_deref().filter(|s| !s.is_empty()) {
+        let actual = hex::encode(hasher.finalize());
+        if !actual.eq_ignore_ascii_case(expected) {
+            let _ = tokio::fs::remove_file(&partial).await;
+            return Err(CmdError::new(
+                "checksum",
+                "the file didn't match its checksum, so it was deleted. try again, and report the mod if it keeps happening.",
+            ));
+        }
+    }
+
+    tokio::fs::rename(&partial, dest)
+        .await
+        .map_err(|e| CmdError::new("disk", format!("couldn't save the file there ({e}).")))?;
+    Ok(true)
+}
+
+#[tauri::command]
+fn cancel_download(downloads: State<'_, Downloads>, id: String) {
+    if let Some(flag) = downloads.cancel_flags.lock().unwrap().get(&id) {
+        flag.store(true, Ordering::Relaxed);
+    }
+}
+
+#[tauri::command]
+fn reveal_download(app: AppHandle, downloads: State<'_, Downloads>, path: String) -> Result<(), CmdError> {
+    let path = PathBuf::from(path);
+    if !downloads.saved.lock().unwrap().contains(&path) {
+        return Err(CmdError::new("app", "that file wasn't downloaded by Branch"));
+    }
+    app.opener()
+        .reveal_item_in_dir(&path)
+        .map_err(|_| CmdError::new("app", "couldn't open the folder"))
+}
+
+#[tauri::command]
+fn open_external(app: AppHandle, url: String) -> Result<(), CmdError> {
+    let parsed = url::Url::parse(&url).map_err(|_| CmdError::new("app", "that link isn't valid"))?;
+    if !matches!(parsed.scheme(), "https" | "http") {
+        return Err(CmdError::new("app", "only web links can be opened"));
+    }
+    app.opener()
+        .open_url(parsed.as_str(), None::<&str>)
+        .map_err(|_| CmdError::new("app", "couldn't open your browser"))
+}
+
+#[cfg(windows)]
+fn apply_window_material(app: &tauri::App) -> &'static str {
+    // mica only exists on windows 11. on windows 10 this fails and the app
+    // just uses its normal solid background.
+    match app.get_webview_window("main") {
+        Some(window) if window_vibrancy::apply_mica(&window, None).is_ok() => "mica",
+        _ => "none",
+    }
+}
+
+#[cfg(not(windows))]
+fn apply_window_material(_app: &tauri::App) -> &'static str {
+    "none"
+}
+
+pub fn run() {
+    let user_agent = concat!("Branch/", env!("CARGO_PKG_VERSION"));
+    let api = reqwest::Client::builder()
+        .user_agent(user_agent)
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(30))
+        .build()
+        .expect("couldn't set up the http client");
+    // no total timeout for files, big downloads on slow internet are fine
+    let files = reqwest::Client::builder()
+        .user_agent(user_agent)
+        .connect_timeout(Duration::from_secs(15))
+        .build()
+        .expect("couldn't set up the http client");
+
+    tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
+        .manage(Http { api, files })
+        .manage(Downloads::default())
+        .setup(|app| {
+            let material = apply_window_material(app);
+            app.manage(Material(material));
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            api_base,
+            window_material,
+            api_request,
+            download_release,
+            cancel_download,
+            reveal_download,
+            open_external
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running branch");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn file_names_are_cleaned() {
+        assert_eq!(safe_file_name("..\\..\\evil.dll"), "evil.dll");
+        assert_eq!(safe_file_name("my mod?.zip"), "my mod-.zip");
+        assert_eq!(safe_file_name("..."), "mod-download");
+    }
+
+    #[test]
+    fn only_api_paths_are_allowed() {
+        assert!(api_url("/api/mods?q=x").is_ok());
+        assert!(api_url("/admin").is_err());
+        assert!(api_url("/api/../admin").is_err());
+        assert!(api_url("https://evil.example/api/").is_err());
+    }
+}

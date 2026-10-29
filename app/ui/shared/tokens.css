@@ -1,0 +1,363 @@
+/*
+  branch design tokens. shared by the desktop app and the admin panel.
+  colors are named by what they do, not what they look like, so dark mode
+  only has to swap values here.
+*/
+
+:root {
+  color-scheme: light;
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+
+  --bg: #f6f7f5;
+  --surface: #ffffff;
+  --surface-2: #eff2ee;
+  --surface-hover: rgba(27, 31, 28, 0.05);
+  --surface-press: rgba(27, 31, 28, 0.09);
+  --sidebar: #eceeea;
+  --glass: rgba(246, 247, 245, 0.78);
+
+  --text: #1b1f1c;
+  --text-2: #49514b;
+  --text-3: #646d66;
+  --line: rgba(27, 31, 28, 0.1);
+  --line-strong: rgba(27, 31, 28, 0.2);
+
+  /* canopy green. only used for primary actions, selection and links */
+  --accent: #1e7a4c;
+  --accent-hover: #186a41;
+  --accent-press: #145a37;
+  --on-accent: #ffffff;
+  --accent-soft: rgba(30, 122, 76, 0.12);
+  --accent-text: #17663f;
+  --focus: #1e7a4c;
+
+  --ok: #1e7a4c;
+  --ok-soft: rgba(30, 122, 76, 0.12);
+  --warn: #8a5300;
+  --warn-soft: rgba(196, 128, 0, 0.14);
+  --danger: #b42318;
+  --danger-soft: rgba(180, 35, 24, 0.1);
+  --neutral-soft: rgba(27, 31, 28, 0.07);
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.03);
+  --shadow-2: 0 12px 32px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.06);
+
+  --r-s: 6px;
+  --r-m: 10px;
+  --r-l: 14px;
+  --r-xl: 20px;
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --fast: 120ms;
+  --med: 200ms;
+}
+
+/* dark values. used when the system is dark and the person didn't pick light,
+   or when they picked dark */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #141715;
+    --surface: #1c201d;
+    --surface-2: #232825;
+    --surface-hover: rgba(236, 239, 236, 0.06);
+    --surface-press: rgba(236, 239, 236, 0.1);
+    --sidebar: #191c1a;
+    --glass: rgba(20, 23, 21, 0.76);
+    --text: #eceeec;
+    --text-2: #b8beb9;
+    --text-3: #959d96;
+    --line: rgba(236, 239, 236, 0.1);
+    --line-strong: rgba(236, 239, 236, 0.2);
+    --accent: #3fae78;
+    --accent-hover: #4dbb85;
+    --accent-press: #369a69;
+    --on-accent: #06180e;
+    --accent-soft: rgba(63, 174, 120, 0.16);
+    --accent-text: #6fd3a0;
+    --focus: #6fd3a0;
+    --ok: #6fd3a0;
+    --ok-soft: rgba(63, 174, 120, 0.16);
+    --warn: #f0b75a;
+    --warn-soft: rgba(240, 183, 90, 0.14);
+    --danger: #ff8a7f;
+    --danger-soft: rgba(255, 138, 127, 0.13);
+    --neutral-soft: rgba(236, 239, 236, 0.08);
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.04);
+    --shadow-2: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #141715;
+  --surface: #1c201d;
+  --surface-2: #232825;
+  --surface-hover: rgba(236, 239, 236, 0.06);
+  --surface-press: rgba(236, 239, 236, 0.1);
+  --sidebar: #191c1a;
+  --glass: rgba(20, 23, 21, 0.76);
+  --text: #eceeec;
+  --text-2: #b8beb9;
+  --text-3: #959d96;
+  --line: rgba(236, 239, 236, 0.1);
+  --line-strong: rgba(236, 239, 236, 0.2);
+  --accent: #3fae78;
+  --accent-hover: #4dbb85;
+  --accent-press: #369a69;
+  --on-accent: #06180e;
+  --accent-soft: rgba(63, 174, 120, 0.16);
+  --accent-text: #6fd3a0;
+  --focus: #6fd3a0;
+  --ok: #6fd3a0;
+  --ok-soft: rgba(63, 174, 120, 0.16);
+  --warn: #f0b75a;
+  --warn-soft: rgba(240, 183, 90, 0.14);
+  --danger: #ff8a7f;
+  --danger-soft: rgba(255, 138, 127, 0.13);
+  --neutral-soft: rgba(236, 239, 236, 0.08);
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-2: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --line: rgba(127, 127, 127, 0.55);
+    --line-strong: rgba(127, 127, 127, 0.8);
+    --text-3: var(--text-2);
+  }
+}
+
+/* ---------- base ---------- */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+/* components set their own display, so make sure hidden always wins */
+[hidden] { display: none !important; }
+
+html, body { margin: 0; height: 100%; }
+
+body {
+  font: 14px/1.45 var(--font);
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 { font-family: var(--font-display); margin: 0; line-height: 1.2; }
+p { margin: 0; }
+a { color: var(--accent-text); text-underline-offset: 2px; }
+code, pre { font-family: var(--mono); font-size: 0.92em; }
+img { display: block; max-width: 100%; }
+button, input, select, textarea { font: inherit; color: inherit; }
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--r-s);
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  overflow: hidden; clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- buttons ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-m);
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--fast) var(--ease), border-color var(--fast) var(--ease), transform var(--fast) var(--ease);
+}
+.btn:hover { background: var(--surface-2); }
+.btn:active { transform: scale(0.98); background: var(--surface-press); }
+.btn:disabled { opacity: 0.5; cursor: default; transform: none; }
+.btn svg { width: 16px; height: 16px; flex: none; }
+
+.btn-primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--on-accent);
+}
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:active { background: var(--accent-press); }
+
+.btn-large { min-height: 40px; padding: 0 20px; font-size: 15px; border-radius: var(--r-l); }
+
+.btn-quiet { border-color: transparent; background: transparent; }
+.btn-quiet:hover { background: var(--surface-hover); }
+
+.btn-danger { color: var(--danger); }
+.btn-danger-solid { background: var(--danger); color: #fff; border-color: transparent; }
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 32px; height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-m);
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.icon-btn:hover { background: var(--surface-hover); color: var(--text); }
+.icon-btn:active { background: var(--surface-press); }
+.icon-btn svg { width: 18px; height: 18px; }
+
+/* ---------- form controls ---------- */
+
+.field { display: grid; gap: 6px; }
+.field > label, .field-label { font-weight: 600; font-size: 13px; }
+.field .hint { color: var(--text-3); font-size: 12.5px; }
+.field .error { color: var(--danger); font-size: 12.5px; }
+.req { color: var(--danger); margin-left: 2px; }
+
+.input, .select, .textarea {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-m);
+  background: var(--surface);
+  color: var(--text);
+  transition: border-color var(--fast) var(--ease), box-shadow var(--fast) var(--ease);
+}
+.textarea { min-height: 96px; resize: vertical; line-height: 1.5; }
+.input:focus, .select:focus, .textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.input[aria-invalid="true"], .textarea[aria-invalid="true"], .select[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+.select {
+  appearance: none;
+  padding-right: 30px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-2) 50%), linear-gradient(135deg, var(--text-2) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+.select option { background: var(--surface); color: var(--text); }
+
+/* segmented control built from radio buttons, so arrow keys work for free */
+.segmented {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: var(--r-m);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+.segmented label { position: relative; }
+.segmented input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.segmented span {
+  display: block;
+  padding: 5px 14px;
+  border-radius: 8px;
+  font-weight: 500;
+  color: var(--text-2);
+  transition: background var(--fast) var(--ease), color var(--fast) var(--ease);
+}
+.segmented input:checked + span { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
+.segmented input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+.switch { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
+.switch input { appearance: none; width: 36px; height: 20px; margin: 0; border-radius: 999px; background: var(--line-strong); position: relative; cursor: pointer; transition: background var(--fast) var(--ease); }
+.switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform var(--med) var(--ease); }
+.switch input:checked { background: var(--accent); }
+.switch input:checked::after { transform: translateX(16px); }
+
+/* ---------- badges ---------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--neutral-soft);
+  color: var(--text-2);
+}
+.badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.badge.plain::before { display: none; }
+.badge.tested { background: var(--ok-soft); color: var(--ok); }
+.badge.unconfirmed { background: var(--neutral-soft); color: var(--text-2); }
+.badge.outdated { background: var(--warn-soft); color: var(--warn); }
+.badge.broken { background: var(--danger-soft); color: var(--danger); }
+
+/* ---------- markdown output ---------- */
+
+.prose { line-height: 1.6; color: var(--text); overflow-wrap: anywhere; }
+.prose > * + * { margin-top: 10px; }
+.prose h3, .prose h4, .prose h5 { margin-top: 18px; font-size: 15px; }
+.prose ul, .prose ol { padding-left: 22px; margin-bottom: 0; }
+.prose li + li { margin-top: 4px; }
+.prose code { background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
+.prose pre { background: var(--surface-2); padding: 12px 14px; border-radius: var(--r-m); overflow-x: auto; }
+.prose pre code { background: none; padding: 0; }
+.prose blockquote { margin-left: 0; padding-left: 12px; border-left: 3px solid var(--line-strong); color: var(--text-2); }
+.prose hr { border: 0; border-top: 1px solid var(--line); }
+
+/* ---------- dialogs ---------- */
+
+dialog.sheet {
+  width: min(520px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-xl);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+}
+dialog.sheet[open] { animation: sheet-in var(--med) var(--ease); }
+dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.32); animation: fade-in var(--med) var(--ease); }
+.sheet-body { padding: 22px 24px; display: grid; gap: 16px; overflow-y: auto; max-height: calc(100vh - 140px); }
+.sheet-title { font-size: 18px; font-weight: 600; }
+.sheet-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 24px 18px; border-top: 1px solid var(--line); }
+
+@keyframes sheet-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---------- skeletons ---------- */
+
+.skeleton {
+  border-radius: var(--r-s);
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-hover) 50%, var(--surface-2) 75%);
+  background-size: 300% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
+
+/* ---------- motion and transparency preferences ---------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+}
+:root[data-motion="reduce"] *, :root[data-motion="reduce"] *::before, :root[data-motion="reduce"] *::after {
+  animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important;
+}

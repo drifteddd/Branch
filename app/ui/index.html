@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Branch</title>
+  <link rel="icon" href="shared/branch-mark.svg">
+  <link rel="stylesheet" href="shared/tokens.css">
+  <link rel="stylesheet" href="styles/app.css">
+  <!-- runs before paint so the saved theme doesn't flash -->
+  <script src="js/boot.js"></script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <div class="shell">
+    <nav class="sidebar" id="sidebar" aria-label="Sections">
+      <div class="brand">
+        <img src="shared/branch-mark.svg" alt="" width="26" height="26">
+        <span>Branch</span>
+      </div>
+
+      <ul class="nav" role="list">
+        <li><a href="#/browse" data-nav="all"><span data-icon="grid"></span>All mods</a></li>
+        <li><a href="#/featured" data-nav="featured"><span data-icon="sparkle"></span>Featured</a></li>
+        <li><a href="#/favorites" data-nav="favorites"><span data-icon="star"></span>Favorites</a></li>
+        <li><a href="#/recent" data-nav="recent"><span data-icon="clock"></span>Recently viewed</a></li>
+      </ul>
+
+      <p class="nav-heading" id="categories-heading">Categories</p>
+      <ul class="nav" role="list" id="category-nav" aria-labelledby="categories-heading"></ul>
+
+      <ul class="nav nav-bottom" role="list">
+        <li><a href="#/settings" data-nav="settings"><span data-icon="sliders"></span>Settings</a></li>
+        <li><a href="#/about" data-nav="about"><span data-icon="info"></span>About</a></li>
+      </ul>
+    </nav>
+    <div class="sidebar-scrim" id="sidebar-scrim" hidden></div>
+
+    <main id="main" class="main" tabindex="-1">
+      <div class="toolbar" role="toolbar" aria-label="Navigation and search">
+        <button class="icon-btn sidebar-toggle" id="sidebar-toggle" type="button" aria-label="Show sections" aria-controls="sidebar" aria-expanded="false"><span data-icon="sidebar"></span></button>
+        <button class="icon-btn" id="back-button" type="button" aria-label="Back" title="Back (Alt+Left)" hidden><span data-icon="back"></span></button>
+        <div class="search" role="search">
+          <span data-icon="search" class="search-icon"></span>
+          <label for="search" class="visually-hidden">Search mods</label>
+          <input id="search" class="search-input" type="search" placeholder="Search mods, authors and tags" autocomplete="off" spellcheck="false">
+          <kbd class="search-hint" aria-hidden="true">Ctrl F</kbd>
+        </div>
+      </div>
+      <div id="view"></div>
+    </main>
+  </div>
+
+  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+</body>
+</html>

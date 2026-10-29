@@ -1,0 +1,427 @@
+// clicks through the real interface in a headless browser against the demo server.
+// it uses edge or chrome through the devtools protocol, so nothing has to be installed.
+// run: node dev/e2e.mjs        (screenshots end up in dev/.screens/)
+import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { startMockServer } from "./mock-server.mjs";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const screens = join(here, ".screens");
+mkdirSync(screens, { recursive: true });
+
+const PORT = 5199;
+const DEBUG_PORT = 9339;
+const BASE = `http://127.0.0.1:${PORT}`;
+
+const candidates = [
+  process.env.BROWSER_PATH,
+  "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+  "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "/usr/bin/google-chrome",
+  "/usr/bin/chromium-browser",
+  "/usr/bin/chromium",
+].filter(Boolean);
+const browserPath = candidates.find((p) => existsSync(p));
+if (!browserPath) {
+  console.error("no edge or chrome found. set BROWSER_PATH.");
+  process.exit(1);
+}
+
+const server = await startMockServer(PORT);
+const profile = mkdtempSync(join(tmpdir(), "branch-e2e-"));
+const browser = spawn(browserPath, [
+  "--headless=new", `--remote-debugging-port=${DEBUG_PORT}`, `--user-data-dir=${profile}`,
+  "--no-first-run", "--no-default-browser-check", "--disable-gpu", "--window-size=1280,800",
+  // ci machines run chrome in a container where its sandbox isn't available
+  ...(process.platform === "linux" ? ["--no-sandbox"] : []),
+  "about:blank",
+], { stdio: "ignore" });
+
+async function waitForBrowser() {
+  for (let i = 0; i < 100; i++) {
+    try { return await (await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/version`)).json(); } catch { await sleep(100); }
+  }
+  throw new Error("browser didn't start");
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+await waitForBrowser();
+const target = await (await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/new?about:blank`, { method: "PUT" })).json();
+const ws = new WebSocket(target.webSocketDebuggerUrl);
+await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+
+let nextId = 1;
+const pending = new Map();
+const pageErrors = [];
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+  if (msg.id && pending.has(msg.id)) {
+    const { resolve, reject } = pending.get(msg.id);
+    pending.delete(msg.id);
+    msg.error ? reject(new Error(msg.error.message)) : resolve(msg.result);
+  } else if (msg.method === "Runtime.exceptionThrown") {
+    pageErrors.push(msg.params.exceptionDetails.exception?.description || msg.params.exceptionDetails.text);
+  } else if (msg.method === "Runtime.consoleAPICalled" && msg.params.type === "error") {
+    pageErrors.push(msg.params.args.map((a) => a.value ?? a.description).join(" "));
+  } else if (msg.method === "Page.javascriptDialogOpening") {
+    cdp("Page.handleJavaScriptDialog", { accept: true });
+  }
+};
+function cdp(method, params = {}) {
+  const id = nextId++;
+  ws.send(JSON.stringify({ id, method, params }));
+  return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
+}
+
+async function evaluate(expression) {
+  const result = await cdp("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true });
+  if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
+  return result.result.value;
+}
+async function waitFor(expression, what, timeout = 6000) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    try { if (await evaluate(`Boolean(${expression})`)) return; } catch { /* page still loading */ }
+    await sleep(80);
+  }
+  throw new Error(`timed out waiting for: ${what}`);
+}
+async function go(url) {
+  await cdp("Page.navigate", { url });
+  await waitFor("document.readyState === 'complete'", "page load");
+}
+async function screenshot(name) {
+  const { data } = await cdp("Page.captureScreenshot", { format: "png" });
+  writeFileSync(join(screens, `${name}.png`), Buffer.from(data, "base64"));
+}
+async function setSize(width, height) {
+  await cdp("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
+}
+
+// page helpers, injected as strings
+const type = (sel, text) => `(() => { const el = document.querySelector(${JSON.stringify(sel)}); el.focus(); el.value = ${JSON.stringify(text)}; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`;
+const choose = (sel, value) => `(() => { const el = document.querySelector(${JSON.stringify(sel)}); el.value = ${JSON.stringify(value)}; el.dispatchEvent(new Event('change', { bubbles: true })); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`;
+const click = (sel) => `(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) throw new Error('missing ' + ${JSON.stringify(sel)}); el.click(); return true; })()`;
+const clickText = (sel, text) => `(() => { const el = [...document.querySelectorAll(${JSON.stringify(sel)})].find(e => e.textContent.trim().includes(${JSON.stringify(text)})); if (!el) throw new Error('no ' + ${JSON.stringify(sel)} + ' with text ' + ${JSON.stringify(text)}); el.click(); return true; })()`;
+const rows = `[...document.querySelectorAll('.mod-row:not(.skeleton-row)')]`;
+const rowNames = `${rows}.map(r => r.querySelector('.row-link').textContent)`;
+
+const results = [];
+async function test(name, fn) {
+  const errorsBefore = pageErrors.length;
+  try {
+    await fn();
+    const newErrors = pageErrors.slice(errorsBefore);
+    if (newErrors.length) throw new Error(`page errors: ${newErrors.join(" | ")}`);
+    results.push([true, name]);
+    console.log(`  ok    ${name}`);
+  } catch (err) {
+    results.push([false, name, err.message]);
+    console.log(`  FAIL  ${name}\n        ${err.message}`);
+    await screenshot(`fail-${name.replace(/[^a-z0-9]+/gi, "-")}`).catch(() => {});
+  }
+}
+function assert(ok, message) {
+  if (!ok) throw new Error(message);
+}
+
+await cdp("Page.enable");
+await cdp("Runtime.enable");
+await cdp("Browser.setDownloadBehavior", { behavior: "deny" }).catch(() => {});
+await setSize(1280, 800);
+// start in light mode no matter what the computer is set to. dark mode gets its own test.
+await cdp("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] });
+
+console.log(`testing against the demo server with ${browserPath}`);
+
+// ---------- desktop app interface ----------
+
+await test("browse list loads with skeletons first", async () => {
+  await go(`${BASE}/`);
+  await waitFor(`${rows}.length >= 10`, "mod rows");
+  assert(await evaluate(`document.querySelector('.view-count').textContent.includes('mods')`), "count text missing");
+  assert(await evaluate(`document.querySelectorAll('#category-nav a').length === 5`), "sidebar categories missing");
+  await screenshot("browse-light");
+});
+
+await test("search narrows the list and clear filters resets it", async () => {
+  await evaluate(type("#search", "lantern"));
+  await waitFor(`${rows}.length === 1`, "one search result");
+  assert((await evaluate(rowNames))[0].includes("Lantern"), "wrong search result");
+  await evaluate(clickText(".filters button", "Clear filters"));
+  await waitFor(`${rows}.length >= 10 && document.querySelector('#search').value === ''`, "full list again");
+});
+
+await test("search with no results shows an empty state", async () => {
+  await evaluate(type("#search", "zzzz-nothing"));
+  await waitFor(`document.querySelector('.state-block h2')?.textContent === 'No mods match'`, "empty state");
+  await evaluate(clickText(".state-block button", "Clear filters"));
+  await waitFor(`${rows}.length >= 10`, "list back");
+});
+
+await test("category, compatibility and sort filters work", async () => {
+  await evaluate(choose("#filter-category", "maps"));
+  await waitFor(`${rows}.length > 0 && ${rows}.every(r => r.querySelector('.row-meta').textContent.includes('Maps'))`, "only maps");
+  assert(await evaluate(`location.hash.includes('category=maps')`), "hash didn't keep the category");
+  await evaluate(choose("#filter-category", ""));
+  await evaluate(choose("#filter-compat", "broken"));
+  await waitFor(`${rows}.length > 0 && ${rows}.every(r => r.querySelector('.badge').classList.contains('broken'))`, "only broken");
+  await evaluate(choose("#filter-compat", ""));
+  await evaluate(choose("#filter-sort", "name"));
+  await waitFor(`${rows}.length >= 10`, "sorted list");
+  const names = await evaluate(rowNames);
+  assert(JSON.stringify(names) === JSON.stringify([...names].sort((a, b) => a.localeCompare(b))), "not sorted by name");
+  await evaluate(choose("#filter-sort", "updated"));
+  await waitFor(`${rows}.length >= 10`, "list");
+});
+
+await test("opening a mod and going back keeps search and scroll", async () => {
+  await setSize(1280, 600);
+  await evaluate(type("#search", "demo"));
+  // the search waits 250ms before it runs, then the list reloads
+  await sleep(500);
+  await waitFor(`${rows}.length >= 10 && document.querySelector('.mod-list').getAttribute('aria-busy') === 'false'`, "results");
+  await sleep(200);
+  await evaluate(`document.getElementById('main').scrollTop = 300`);
+  await sleep(100);
+  await evaluate(`${rows}[6].querySelector('.row-link').click()`);
+  await waitFor(`document.querySelector('.detail-title')`, "mod page");
+  await evaluate(`history.back()`);
+  await waitFor(`${rows}.length >= 10`, "list after back");
+  await sleep(200);
+  assert(await evaluate(`document.querySelector('#search').value === 'demo'`), "search text was lost");
+  const top = await evaluate(`document.getElementById('main').scrollTop`);
+  assert(Math.abs(top - 300) < 5, `scroll position was ${top}, expected 300`);
+  await setSize(1280, 800);
+// start in light mode no matter what the computer is set to. dark mode gets its own test.
+await cdp("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] });
+  await evaluate(clickText(".filters button", "Clear filters"));
+});
+
+await test("favorites are saved and survive a reload", async () => {
+  await go(`${BASE}/#/browse`);
+  await waitFor(`${rows}.length >= 10`, "rows");
+  const first = await evaluate(`${rows}[0].dataset.slug`);
+  await evaluate(`${rows}[0].querySelector('.fav-toggle').click()`);
+  assert(await evaluate(`${rows}[0].querySelector('.fav-toggle').getAttribute('aria-pressed') === 'true'`), "star not pressed");
+  await go(`${BASE}/#/favorites`);
+  await waitFor(`${rows}.length === 1`, "one favorite");
+  await go(`${BASE}/#/favorites`);
+  await cdp("Page.reload");
+  await waitFor(`${rows}.length === 1 && ${rows}[0].dataset.slug === ${JSON.stringify(first)}`, "favorite after reload");
+});
+
+await test("hosted download shows progress and finishes", async () => {
+  await go(`${BASE}/#/mod/demo-lantern-trail`);
+  await waitFor(`document.querySelector('.detail-title')`, "mod page");
+  for (const heading of ["About this mod", "How to install", "Changelog"]) {
+    assert(await evaluate(`[...document.querySelectorAll('.detail-section h2')].some(h => h.textContent === ${JSON.stringify(heading)})`), `missing section ${heading}`);
+  }
+  assert(await evaluate(`document.querySelector('.checksum code').textContent.length === 64`), "checksum missing");
+  assert(await evaluate(`!document.querySelector('.prose script, .prose img, .prose iframe')`), "unsafe markup in description");
+  await screenshot("detail-light");
+  await evaluate(clickText(".download-area button", "Download"));
+  await waitFor(`document.querySelector('.progress')`, "progress bar", 3000);
+  await screenshot("detail-downloading");
+  await waitFor(`document.querySelector('.download-status .banner.ok')`, "download finished", 10000);
+});
+
+await test("recently viewed lists opened mods", async () => {
+  await go(`${BASE}/#/recent`);
+  await waitFor(`${rows}.length >= 1`, "recent rows");
+  assert((await evaluate(`${rows}[0].dataset.slug`)) === "demo-lantern-trail", "most recent mod should be first");
+});
+
+await test("failed download shows an error with retry", async () => {
+  await go(`${BASE}/#/mod/demo-practice-timer`);
+  await waitFor(`document.querySelector('.detail-title')`, "mod page");
+  await evaluate(clickText(".download-area button", "Download"));
+  await waitFor(`document.querySelector('.download-status .banner.danger')`, "error banner");
+  assert(await evaluate(`document.querySelector('.download-status').textContent.includes('fails on purpose')`), "error message not shown");
+  assert(await evaluate(`[...document.querySelectorAll('.download-status button')].some(b => b.textContent.includes('Try again'))`), "no retry button");
+});
+
+await test("turned-off downloads and author links are labeled", async () => {
+  await go(`${BASE}/#/mod/demo-old-menu-kit`);
+  await waitFor(`document.querySelector('.detail-title')`, "mod page");
+  assert(await evaluate(`document.querySelector('.download-area button').disabled && document.querySelector('.download-area').textContent.includes('turned off')`), "disabled download not explained");
+  assert(await evaluate(`document.querySelector('.banner.danger, .banner.warn')`), "compatibility warning missing");
+  await go(`${BASE}/#/mod/demo-canopy-camera`);
+  await waitFor(`document.querySelector('.detail-title')`, "mod page");
+  assert(await evaluate(`document.querySelector('.download-area button').textContent.includes('Get it from example.com')`), "external button label wrong");
+});
+
+await test("missing mods show a not available page", async () => {
+  await go(`${BASE}/#/mod/does-not-exist`);
+  await waitFor(`document.querySelector('.state-block h2')?.textContent.includes("isn't available")`, "not found state");
+});
+
+await test("report form validates and sends", async () => {
+  await go(`${BASE}/#/mod/demo-lantern-trail`);
+  await waitFor(`document.querySelector('.detail-title')`, "mod page");
+  await evaluate(clickText(".hero-secondary button", "Report"));
+  await waitFor(`document.querySelector('dialog[open] form')`, "report dialog");
+  await evaluate(click("dialog[open] button[type=submit]"));
+  await waitFor(`!document.querySelector('#report-reason-error').hidden`, "reason error");
+  await evaluate(click("dialog[open] input[value=other]"));
+  await evaluate(click("dialog[open] button[type=submit]"));
+  await waitFor(`!document.querySelector('#report-details-error').hidden`, "details error");
+  await evaluate(type("#report-details", "e2e test report: the link is broken"));
+  await screenshot("report-dialog");
+  await evaluate(click("dialog[open] button[type=submit]"));
+  await waitFor(`document.querySelector('dialog[open] .sheet-title')?.textContent === 'Report sent'`, "report sent");
+  await evaluate(clickText("dialog[open] button", "Done"));
+});
+
+await test("dark mode setting applies and persists", async () => {
+  await go(`${BASE}/#/settings`);
+  await waitFor(`document.querySelector('input[name=theme][value=dark]')`, "settings");
+  await evaluate(click("input[name=theme][value=dark]"));
+  assert(await evaluate(`document.documentElement.dataset.theme === 'dark'`), "theme not applied");
+  await screenshot("settings-dark");
+  await go(`${BASE}/#/browse`);
+  await waitFor(`${rows}.length >= 10 && document.documentElement.dataset.theme === 'dark'`, "dark browse");
+  await sleep(300);
+  await screenshot("browse-dark");
+  await go(`${BASE}/#/mod/demo-lantern-trail`);
+  await waitFor(`document.querySelector('.detail-title')`, "mod page");
+  await sleep(300);
+  await screenshot("detail-dark");
+  await go(`${BASE}/#/settings`);
+  await waitFor(`document.querySelector('input[name=theme][value=system]')`, "settings");
+  await evaluate(click("input[name=theme][value=system]"));
+});
+
+await test("about and legal pages open", async () => {
+  await go(`${BASE}/#/about`);
+  await waitFor(`document.querySelector('.made-by')?.textContent === 'made by Drifted'`, "about page");
+  await evaluate(clickText(".link-row", "Privacy notice"));
+  await waitFor(`document.querySelector('.legal-doc h3')?.textContent === 'Privacy notice'`, "privacy page");
+});
+
+await test("narrow window collapses the sidebar", async () => {
+  await setSize(760, 800);
+  await go(`${BASE}/#/browse`);
+  await waitFor(`${rows}.length >= 10`, "rows");
+  assert(await evaluate(`getComputedStyle(document.querySelector('.sidebar-toggle')).display !== 'none'`), "toggle hidden");
+  await screenshot("browse-narrow");
+  await evaluate(click("#sidebar-toggle"));
+  await waitFor(`document.getElementById('sidebar').classList.contains('open')`, "sidebar open");
+  await sleep(300);
+  await screenshot("browse-narrow-sidebar");
+  assert(await evaluate(`document.documentElement.scrollWidth <= 760`), "page scrolls sideways");
+  await setSize(1280, 800);
+// start in light mode no matter what the computer is set to. dark mode gets its own test.
+await cdp("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] });
+});
+
+await test("keyboard: ctrl+f focuses search and arrows move through rows", async () => {
+  await go(`${BASE}/#/browse`);
+  await waitFor(`${rows}.length >= 10`, "rows");
+  await cdp("Input.dispatchKeyEvent", { type: "keyDown", key: "f", code: "KeyF", modifiers: 2, windowsVirtualKeyCode: 70 });
+  await cdp("Input.dispatchKeyEvent", { type: "keyUp", key: "f", code: "KeyF", modifiers: 2, windowsVirtualKeyCode: 70 });
+  await waitFor(`document.activeElement?.id === 'search'`, "search focused");
+  await evaluate(`${rows}[0].querySelector('.row-link').focus()`);
+  await cdp("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowDown", code: "ArrowDown", windowsVirtualKeyCode: 40 });
+  assert(await evaluate(`document.activeElement === ${rows}[1].querySelector('.row-link')`), "arrow down didn't move focus");
+});
+
+// ---------- admin panel ----------
+
+await test("admin login rejects a wrong password", async () => {
+  await go(`${BASE}/admin`);
+  await waitFor(`document.querySelector('#login-username')`, "login form");
+  await evaluate(type("#login-username", "demo-admin"));
+  await evaluate(type("#login-password", "wrong"));
+  await evaluate(click("form button[type=submit]"));
+  await waitFor(`!document.querySelector('.form-error').classList.contains('hidden')`, "login error");
+  await screenshot("admin-login");
+});
+
+await test("admin must change the starting password", async () => {
+  await evaluate(type("#login-password", "demo-password-1234"));
+  await evaluate(click("form button[type=submit]"));
+  await waitFor(`document.querySelector('#pw-new')`, "password change screen");
+  await evaluate(type("#pw-current", "demo-password-1234"));
+  await evaluate(type("#pw-new", "short"));
+  await evaluate(type("#pw-again", "short"));
+  await evaluate(click("form button[type=submit]"));
+  await waitFor(`[...document.querySelectorAll('.error')].some(e => !e.classList.contains('hidden') && e.textContent.includes('12'))`, "too short error");
+  await evaluate(type("#pw-new", "a much better demo passphrase"));
+  await evaluate(type("#pw-again", "a much better demo passphrase"));
+  await evaluate(click("form button[type=submit]"));
+  await waitFor(`document.querySelector('.page-head h1')?.textContent === 'Mods'`, "mods list");
+  await screenshot("admin-mods");
+});
+
+await test("admin creates, publishes, unpublishes and deletes a mod", async () => {
+  await evaluate(clickText("a.btn", "New mod"));
+  await waitFor(`document.querySelector('#name')`, "editor");
+  await evaluate(clickText(".editor-bar button", "Save draft"));
+  await waitFor(`!document.querySelector('#name-error').classList.contains('hidden')`, "name required error");
+  await evaluate(type("#name", "E2E Test Mod"));
+  await evaluate(type("#summary", "kept after a failed save"));
+  await evaluate(clickText(".editor-bar button", "Save draft"));
+  await waitFor(`/#\\/mods\\/[0-9a-f-]{36}/.test(location.hash) && document.querySelector('.editor-bar .pill')?.textContent === 'draft'`, "saved draft");
+  assert(await evaluate(`document.querySelector('#summary').value === 'kept after a failed save'`), "form lost what was typed");
+
+  await evaluate(clickText(".editor-bar button", "Publish"));
+  await waitFor(`!document.querySelector('#author_name-error').classList.contains('hidden')`, "publish needs author");
+  await evaluate(type("#author_name", "E2E Author"));
+  await evaluate(choose("#category_id", await evaluate(`document.querySelector('#category_id option:nth-child(2)').value`)));
+  await evaluate(type("#license_name", "MIT"));
+  await evaluate(clickText(".editor-bar button", "Save"));
+  await waitFor(`document.querySelector('.unsaved').classList.contains('hidden')`, "saved");
+
+  await evaluate(clickText("button", "Add release"));
+  await waitFor(`document.querySelector('#rel-version-new')`, "release form");
+  await evaluate(type("#rel-version-new", "1.0.0"));
+  await evaluate(type("#rel-url-new", "https://example.com/e2e-release"));
+  await evaluate(clickText(".release-form button[type=submit]", "Add release"));
+  await waitFor(`document.querySelector('.release .pill.published')`, "working release");
+
+  await evaluate(clickText(".editor-bar button", "Publish"));
+  await waitFor(`document.querySelector('.editor-bar .pill')?.textContent === 'published'`, "published");
+  await screenshot("admin-editor");
+  const listed = await evaluate(`fetch('/api/mods?q=E2E').then(r => r.json()).then(d => d.items.length)`);
+  assert(listed === 1, "published mod not in the public list");
+
+  await evaluate(clickText(".editor-bar button", "Preview"));
+  await waitFor(`document.querySelector('dialog.preview[open]')`, "preview");
+  await evaluate(clickText("dialog.preview button", "Close preview"));
+
+  await evaluate(clickText(".editor-bar button", "Unpublish"));
+  await waitFor(`document.querySelector('.editor-bar .pill')?.textContent === 'unpublished'`, "unpublished");
+  const hidden = await evaluate(`fetch('/api/mods?q=E2E').then(r => r.json()).then(d => d.items.length)`);
+  assert(hidden === 0, "unpublished mod still public");
+
+  await evaluate(clickText(".editor-bar button", "Delete"));
+  await waitFor(`document.querySelector('dialog[open]')`, "confirm dialog");
+  await evaluate(clickText("dialog[open] button", "Delete forever"));
+  await waitFor(`document.querySelector('.page-head h1')?.textContent === 'Mods'`, "back on list");
+  assert(!(await evaluate(`document.body.textContent.includes('E2E Test Mod')`)), "deleted mod still listed");
+});
+
+await test("admin sees and resolves the report", async () => {
+  await go(`${BASE}/admin#/reports`);
+  await waitFor(`document.querySelector('.report')`, "report card");
+  assert(await evaluate(`document.querySelector('.report-body').textContent.includes('e2e test report')`), "report text missing");
+  await screenshot("admin-reports");
+  await evaluate(clickText(".report-actions button", "Mark resolved"));
+  await waitFor(`!document.querySelector('.report') || document.querySelector('.card p')?.textContent.includes('no open reports')`, "resolved");
+});
+
+// ---------- done ----------
+
+ws.close();
+browser.kill();
+server.close();
+try { rmSync(profile, { recursive: true, force: true }); } catch { /* the browser may still hold files */ }
+
+const failed = results.filter(([ok]) => !ok);
+console.log(`\n${results.length - failed.length} passed, ${failed.length} failed. screenshots: ${screens}`);
+process.exit(failed.length ? 1 : 0);

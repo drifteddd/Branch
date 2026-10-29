@@ -1,0 +1,24 @@
+# rust build output
+target/
+
+# tauri generates these while building
+app/src-tauri/gen/
+
+# real settings and secrets. only the example file goes in git.
+.env
+.env.*
+!.env.example
+
+# local upload folder used in development
+server/data/
+
+# test output
+dev/.screens/
+
+# editors and os junk
+node_modules/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
