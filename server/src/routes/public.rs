@@ -215,12 +215,13 @@ struct DownloadTarget {
     download_disabled: bool,
     disabled_reason: String,
     mod_status: String,
+    redistribution: String,
 }
 
 async fn find_release(state: &AppState, id: Uuid) -> ApiResult<DownloadTarget> {
     let target: Option<DownloadTarget> = sqlx::query_as(
         "select r.download_kind, r.external_url, r.file_key, r.file_name, r.download_disabled, r.disabled_reason,
-                m.status as mod_status
+                m.status as mod_status, m.redistribution
          from releases r join mods m on m.id = r.mod_id where r.id = $1",
     )
     .bind(id)
@@ -257,7 +258,9 @@ async fn count_download(state: &AppState, release_id: Uuid, visitor: &str) {
 
 pub async fn download(State(state): State<AppState>, visitor: Visitor, Path(id): Path<Uuid>) -> ApiResult<Response> {
     let target = find_release(&state, id).await?;
-    let (Some(key), Some(name)) = (target.file_key.filter(|_| target.download_kind == "hosted"), target.file_name) else {
+    // a hosted copy is only ever handed out when sharing is allowed
+    let hosted_ok = target.download_kind == "hosted" && target.redistribution == "allowed";
+    let (Some(key), Some(name)) = (target.file_key.filter(|_| hosted_ok), target.file_name) else {
         return Err(AppError::not_found("this release isn't hosted on Branch"));
     };
     if !state.limiter.check(&format!("download:{}", visitor.id), 60, Duration::from_secs(3600)) {

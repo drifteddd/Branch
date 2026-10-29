@@ -34,6 +34,8 @@ use crate::uploads::{check_mod_file, process_image, ImageKind, MAX_IMAGE_BYTES, 
 use crate::util::{clean_url, slugify, too_long, valid_slug, Visitor};
 
 const MAX_SCREENSHOTS: i64 = 12;
+/// one upload to the bulk importer (a single mod or a zip full of them)
+const MAX_IMPORT_BYTES: usize = 150 * 1024 * 1024;
 
 pub fn router() -> Router<AppState> {
     let image_limit = DefaultBodyLimit::max(MAX_IMAGE_BYTES + 64 * 1024);
@@ -66,6 +68,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/admin/requests", get(list_requests))
         .route("/api/admin/requests/{id}", put(update_request).delete(delete_request))
         .route("/api/admin/requests/{id}/draft", post(request_to_draft))
+        .route("/api/admin/import", post(import_mods).layer(DefaultBodyLimit::max(MAX_IMPORT_BYTES + 64 * 1024)))
 }
 
 fn ok() -> Json<Value> {
@@ -222,6 +225,7 @@ async fn overview(State(state): State<AppState>, Admin(_): Admin) -> ApiResult<J
 struct AdminListQuery {
     q: Option<String>,
     status: Option<String>,
+    imported: Option<bool>,
 }
 
 #[derive(FromRow, Serialize)]
@@ -237,6 +241,8 @@ struct AdminModRow {
     release_count: i64,
     open_reports: i64,
     updated_at: DateTime<Utc>,
+    imported_at: Option<DateTime<Utc>>,
+    import_info: Option<Value>,
 }
 
 async fn list_mods(State(state): State<AppState>, Admin(_): Admin, Query(query): Query<AdminListQuery>) -> ApiResult<Json<Value>> {
@@ -246,15 +252,17 @@ async fn list_mods(State(state): State<AppState>, Admin(_): Admin, Query(query):
         "select m.id, m.slug, m.name, m.author_name, m.status, m.featured, m.compatibility, c.name as category_name,
                 (select count(*) from releases r where r.mod_id = m.id) as release_count,
                 (select count(*) from reports p where p.mod_id = m.id and p.status = 'open') as open_reports,
-                m.updated_at
+                m.updated_at, m.imported_at, m.import_info
          from mods m left join categories c on c.id = m.category_id
          where ($1::text is null or m.name ilike $1 or m.author_name ilike $1 or m.slug ilike $1)
            and ($2::text is null or m.status = $2)
+           and ($3::bool is null or (m.imported_at is not null) = $3)
          order by m.updated_at desc
          limit 500",
     )
     .bind(q)
     .bind(status)
+    .bind(query.imported)
     .fetch_all(&state.db)
     .await?;
     Ok(Json(json!({ "items": rows })))
@@ -527,8 +535,11 @@ async fn get_mod(State(state): State<AppState>, Admin(_): Admin, Path(id): Path<
         .bind(id)
         .fetch_one(&state.db)
         .await?;
+    let import: (Option<DateTime<Utc>>, Option<Value>) = sqlx::query_as("select imported_at, import_info from mods where id = $1").bind(id).fetch_one(&state.db).await?;
     let mut value = serde_json::to_value(detail).map_err(AppError::internal)?;
     value["open_reports"] = json!(open_reports);
+    value["imported_at"] = json!(import.0);
+    value["import_info"] = import.1.unwrap_or(Value::Null);
     Ok(Json(value))
 }
 
@@ -580,17 +591,24 @@ async fn update_mod(State(state): State<AppState>, Admin(admin): Admin, Path(id)
 
 /// what a mod needs before people can see it
 async fn check_publishable(conn: &mut PgConnection, id: Uuid) -> ApiResult<()> {
-    let row: Option<(String, String, Option<Uuid>, String)> =
-        sqlx::query_as("select summary, author_name, category_id, license_name from mods where id = $1")
+    let row: Option<(String, String, Option<Uuid>, String, String)> =
+        sqlx::query_as("select summary, author_name, category_id, license_name, redistribution from mods where id = $1")
             .bind(id)
             .fetch_optional(&mut *conn)
             .await?;
-    let Some((summary, author, category, license)) = row else { return Err(AppError::not_found("that mod doesn't exist")) };
-    let working: i64 = sqlx::query_scalar(
-        "select count(*) from releases where mod_id = $1 and not download_disabled
-           and ((download_kind = 'hosted' and file_key is not null) or (download_kind = 'external' and external_url is not null))",
+    let Some((summary, author, category, license, redistribution)) = row else { return Err(AppError::not_found("that mod doesn't exist")) };
+    // hosted files only count when sharing copies is allowed
+    let (working, hosted_files, unknown_versions): (i64, i64, i64) = sqlx::query_as(
+        "select
+            count(*) filter (where not download_disabled and (
+                (download_kind = 'hosted' and file_key is not null and $2 = 'allowed')
+                or (download_kind = 'external' and external_url is not null))),
+            count(*) filter (where download_kind = 'hosted' and file_key is not null),
+            count(*) filter (where lower(version) = 'unknown')
+         from releases where mod_id = $1",
     )
     .bind(id)
+    .bind(&redistribution)
     .fetch_one(&mut *conn)
     .await?;
 
@@ -599,6 +617,12 @@ async fn check_publishable(conn: &mut PgConnection, id: Uuid) -> ApiResult<()> {
     e.check(!author.is_empty(), "author_name", "add the author's name before publishing");
     e.check(category.is_some(), "category_id", "pick a category before publishing");
     e.check(!license.is_empty(), "license_name", "add the license (or write \"unknown\") before publishing");
+    e.check(
+        hosted_files == 0 || redistribution == "allowed",
+        "redistribution",
+        "this mod has a file hosted on Branch, so sharing has to be marked \"allowed\" first (only if the license or author allows it). otherwise remove the file and link to the author's release.",
+    );
+    e.check(unknown_versions == 0, "releases", "set the version number of every release (imported ones start as \"unknown\")");
     e.check(working > 0, "releases", "add at least one release with a working download before publishing");
     e.finish()
 }
@@ -1349,35 +1373,7 @@ async fn request_to_draft(State(state): State<AppState>, Admin(admin): Admin, Pa
     }
 
     let is_github = url::Url::parse(&url).ok().and_then(|u| u.host_str().map(|h| h == "github.com" || h == "www.github.com")).unwrap_or(false);
-    let base = {
-        let s = slugify(&name);
-        if s.is_empty() { "requested-mod".to_string() } else { s }
-    };
-    let mod_id = Uuid::new_v4();
-    let mut created = false;
-    for n in 1..=20 {
-        let slug = if n == 1 { base.clone() } else { format!("{base}-{n}") };
-        let result = sqlx::query("insert into mods (id, slug, name, author_name, source_url, project_url) values ($1, $2, $3, $4, $5, $6)")
-            .bind(mod_id)
-            .bind(&slug)
-            .bind(name.chars().take(80).collect::<String>())
-            .bind(author.chars().take(80).collect::<String>())
-            .bind(if is_github { Some(url.clone()) } else { None })
-            .bind(&url)
-            .execute(&state.db)
-            .await;
-        match result {
-            Ok(_) => {
-                created = true;
-                break;
-            }
-            Err(err) if slug_taken(&err) => continue,
-            Err(err) => return Err(err.into()),
-        }
-    }
-    if !created {
-        return Err(AppError::new(StatusCode::CONFLICT, "slug_taken", "couldn't find a free link name for this mod. create it by hand instead."));
-    }
+    let mod_id = insert_draft(&state.db, &name, &author, if is_github { Some(url.clone()) } else { None }, Some(url.clone())).await?;
 
     sqlx::query("update mod_requests set status = 'accepted', created_mod_id = $1, decided_at = now(), decided_by = $2 where id = $3")
         .bind(mod_id)
@@ -1387,4 +1383,206 @@ async fn request_to_draft(State(state): State<AppState>, Admin(admin): Admin, Pa
         .await?;
     audit(&state.db, &admin, "accept_request", &name, "created a draft").await;
     Ok(Json(json!({ "mod_id": mod_id })))
+}
+/// makes a new draft with a free link name based on the mod's name
+async fn insert_draft(db: &PgPool, name: &str, author: &str, source_url: Option<String>, project_url: Option<String>) -> ApiResult<Uuid> {
+    let name: String = name.chars().take(80).collect();
+    let base = {
+        let s = slugify(&name);
+        if s.is_empty() { "new-mod".to_string() } else { s }
+    };
+    let mod_id = Uuid::new_v4();
+    for n in 1..=50 {
+        let slug = if n == 1 { base.clone() } else { format!("{base}-{n}") };
+        let result = sqlx::query("insert into mods (id, slug, name, author_name, source_url, project_url) values ($1, $2, $3, $4, $5, $6)")
+            .bind(mod_id)
+            .bind(&slug)
+            .bind(&name)
+            .bind(author.chars().take(80).collect::<String>())
+            .bind(&source_url)
+            .bind(&project_url)
+            .execute(db)
+            .await;
+        match result {
+            Ok(_) => return Ok(mod_id),
+            Err(err) if slug_taken(&err) => continue,
+            Err(err) => return Err(err.into()),
+        }
+    }
+    Err(AppError::new(StatusCode::CONFLICT, "slug_taken", "couldn't find a free link name for this mod. create it by hand instead."))
+}
+
+// ---------- bulk import ----------
+
+/// "GorillaFlyMenu_v1.2.dll" -> "Gorilla Fly Menu"
+fn name_from_file(file_name: &str) -> String {
+    let stem = file_name.rsplit_once('.').map(|(s, _)| s).unwrap_or(file_name);
+    let stem = match version_from_file(stem) {
+        Some(v) => stem.replace(&v, "").replace("_v", " ").replace("-v", " "),
+        None => stem.to_string(),
+    };
+    let mut out = String::new();
+    let mut prev: Option<char> = None;
+    for c in stem.chars() {
+        let c = if matches!(c, '_' | '-' | '.' | '+') { ' ' } else { c };
+        // split camelCase into words
+        if let Some(p) = prev {
+            if c.is_uppercase() && p.is_lowercase() {
+                out.push(' ');
+            }
+        }
+        out.push(c);
+        prev = Some(c);
+    }
+    let words: Vec<&str> = out.split_whitespace().filter(|w| !w.eq_ignore_ascii_case("v")).collect();
+    let name = words.join(" ");
+    if name.is_empty() { "Imported mod".to_string() } else { name.chars().take(80).collect() }
+}
+
+/// finds a version number like 1.2 or v2.0.1 in a file name
+fn version_from_file(name: &str) -> Option<String> {
+    let chars: Vec<char> = name.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i].is_ascii_digit() && (i == 0 || !chars[i - 1].is_ascii_alphanumeric() || chars[i - 1] == 'v' || chars[i - 1] == 'V') {
+            let start = i;
+            let mut dots = 0;
+            while i < chars.len() && (chars[i].is_ascii_digit() || (chars[i] == '.' && i + 1 < chars.len() && chars[i + 1].is_ascii_digit())) {
+                if chars[i] == '.' {
+                    dots += 1;
+                }
+                i += 1;
+            }
+            if dots >= 1 {
+                return Some(chars[start..i].iter().collect());
+            }
+        }
+        i += 1;
+    }
+    None
+}
+
+/// a zip "full of mods" is split into one entry per .dll or .zip inside it.
+/// anything else (one mod, or a zip with no mods inside) stays as one entry.
+fn split_upload(file_name: &str, data: Vec<u8>, split: bool) -> Vec<(String, Vec<u8>)> {
+    use std::io::Read;
+    let is_zip = data.starts_with(b"PK\x03\x04");
+    if !(split && is_zip) {
+        return vec![(file_name.to_string(), data)];
+    }
+    // the archive borrows `data`, so it lives in its own block and is gone before `data` is returned
+    let units = {
+        let mut units: Vec<(String, Vec<u8>)> = Vec::new();
+        if let Ok(mut archive) = zip::ZipArchive::new(std::io::Cursor::new(data.as_slice())) {
+            let mut total: u64 = 0;
+            for i in 0..archive.len().min(2000) {
+                let Ok(entry) = archive.by_index(i) else { continue };
+                let path = entry.name().to_string();
+                let lower = path.to_lowercase();
+                if entry.is_dir() || lower.starts_with("__macosx") || !(lower.ends_with(".dll") || lower.ends_with(".zip")) {
+                    continue;
+                }
+                if entry.size() > crate::uploads::MAX_MOD_FILE_BYTES as u64 || total > 400 * 1024 * 1024 || units.len() >= 200 {
+                    continue;
+                }
+                let mut buf = Vec::new();
+                if entry.take(crate::uploads::MAX_MOD_FILE_BYTES as u64 + 1).read_to_end(&mut buf).is_ok() {
+                    total += buf.len() as u64;
+                    let base = path.rsplit('/').next().unwrap_or(&path).to_string();
+                    units.push((base, buf));
+                }
+            }
+        }
+        units
+    };
+    if units.is_empty() {
+        vec![(file_name.to_string(), data)]
+    } else {
+        units
+    }
+}
+async fn import_one(state: &AppState, admin: &AdminUser, file_name: String, data: Vec<u8>) -> Result<Value, String> {
+    let (checked, report, data) = tokio::task::spawn_blocking(move || {
+        let checked = check_mod_file(&file_name, &data)?;
+        let report = crate::scan::scan(&file_name, &data)?;
+        Ok::<_, String>((checked, report, data))
+    })
+    .await
+    .map_err(|_| "the import crashed".to_string())??;
+
+    let name = name_from_file(&checked.name);
+    let version = version_from_file(&checked.name).unwrap_or_else(|| "unknown".into());
+    let mod_id = insert_draft(&state.db, &name, "", None, None).await.map_err(|e| e.message)?;
+
+    let info = json!({
+        "file_name": checked.name,
+        "scan_score": report.heuristic_score,
+        "signals": report.indicators.iter().map(|i| i.label).collect::<Vec<_>>(),
+        "mod_markers": report.mod_markers,
+    });
+    let key = format!("files/{}/{}", Uuid::new_v4(), checked.name);
+    storage::put(state.store.as_ref(), &key, data).await.map_err(|_| "couldn't store the file".to_string())?;
+
+    let db_result: Result<(), sqlx::Error> = async {
+        sqlx::query("update mods set imported_at = now(), import_info = $1 where id = $2").bind(&info).bind(mod_id).execute(&state.db).await?;
+        sqlx::query(
+            "insert into releases (id, mod_id, version, released_on, download_kind, file_key, file_name, file_size, file_sha256, file_type)
+             values ($1, $2, $3, current_date, 'hosted', $4, $5, $6, $7, $8)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(mod_id)
+        .bind(&version)
+        .bind(&key)
+        .bind(&checked.name)
+        .bind(checked.size)
+        .bind(&checked.sha256)
+        .bind(checked.kind)
+        .execute(&state.db)
+        .await?;
+        Ok(())
+    }
+    .await;
+    if let Err(err) = db_result {
+        tracing::error!(error = %err, "import failed");
+        storage::delete_quietly(state.store.as_ref(), &key).await;
+        let _ = sqlx::query("delete from mods where id = $1").bind(mod_id).execute(&state.db).await;
+        return Err("couldn't save this mod".into());
+    }
+
+    audit(&state.db, admin, "import_mod", &name, &checked.name).await;
+    Ok(json!({ "mod_id": mod_id, "name": name, "file_name": checked.name, "version": version, "scan_score": report.heuristic_score }))
+}
+
+/// bulk import: every mod file becomes a private draft with its file attached
+async fn import_mods(State(state): State<AppState>, Admin(admin): Admin, multipart: Multipart) -> ApiResult<Json<Value>> {
+    let upload = read_upload(multipart, MAX_IMPORT_BYTES).await?;
+    let split = upload.fields.get("split").map(|v| v == "true").unwrap_or(true);
+    let file_name = upload.file_name.rsplit(|c| c == '/' || c == '\\').next().unwrap_or("upload").to_string();
+    let data = upload.data.to_vec();
+    let units = tokio::task::spawn_blocking(move || split_upload(&file_name, data, split)).await.map_err(AppError::internal)?;
+
+    let mut imported = Vec::new();
+    let mut failed = Vec::new();
+    for (name, bytes) in units {
+        match import_one(&state, &admin, name.clone(), bytes).await {
+            Ok(item) => imported.push(item),
+            Err(error) => failed.push(json!({ "file_name": name, "error": error })),
+        }
+    }
+    Ok(Json(json!({ "imported": imported, "failed": failed })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn names_and_versions_come_from_file_names() {
+        assert_eq!(name_from_file("GorillaFlyMenu_v1.2.dll"), "Gorilla Fly Menu");
+        assert_eq!(version_from_file("GorillaFlyMenu_v1.2.dll").as_deref(), Some("1.2"));
+        assert_eq!(name_from_file("cool-hats.zip"), "cool hats");
+        assert_eq!(version_from_file("cool-hats.zip"), None);
+        assert_eq!(version_from_file("Utilla-2.0.1.zip").as_deref(), Some("2.0.1"));
+        assert_eq!(name_from_file("Utilla-2.0.1.zip"), "Utilla");
+    }
 }

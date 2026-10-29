@@ -352,6 +352,44 @@ async fn full_flow() {
     c.upload("/api/check", "hat.dll", clean).await;
     let r = c.upload("/api/check", "hat.dll", clean).await;
     assert_eq!(r.status, StatusCode::TOO_MANY_REQUESTS, "daily limit");
+    // ---- bulk import: a zip full of mods becomes one draft per mod ----
+    let mut pack = std::io::Cursor::new(Vec::new());
+    {
+        use std::io::Write;
+        let mut zip = zip::ZipWriter::new(&mut pack);
+        let opts = zip::write::SimpleFileOptions::default();
+        zip.start_file("mods/GorillaHats_v1.4.dll", opts).unwrap();
+        zip.write_all(b"MZ hats BepInEx").unwrap();
+        zip.start_file("mods/SpeedReadout.dll", opts).unwrap();
+        zip.write_all(b"MZ speed BepInEx").unwrap();
+        zip.start_file("readme.txt", opts).unwrap();
+        zip.write_all(b"not a mod").unwrap();
+        zip.finish().unwrap();
+    }
+    let r = c.upload("/api/admin/import", "pack.zip", pack.get_ref()).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    let imported = r.json["imported"].as_array().unwrap().clone();
+    assert_eq!(imported.len(), 2, "{}", r.json);
+    let hats = imported.iter().find(|m| m["file_name"] == "GorillaHats_v1.4.dll").unwrap();
+    assert_eq!(hats["name"], "Gorilla Hats");
+    assert_eq!(hats["version"], "1.4");
+    let speed = imported.iter().find(|m| m["file_name"] == "SpeedReadout.dll").unwrap();
+    assert_eq!(speed["version"], "unknown");
+    let r = c.get("/api/admin/mods?imported=true").await;
+    assert_eq!(r.json["items"].as_array().unwrap().len(), 2);
+    assert_eq!(r.json["items"][0]["status"], "draft");
+
+    // imported drafts can't go public until they're filled in, and a hosted copy needs permission
+    let speed_id = speed["mod_id"].as_str().unwrap().to_string();
+    let mut filled = full.clone();
+    filled["name"] = json!("Speed Readout");
+    let r = c.json("PUT", &format!("/api/admin/mods/{speed_id}"), filled).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    let r = c.json("POST", &format!("/api/admin/mods/{speed_id}/status"), json!({ "status": "published" })).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(r.json["fields"]["redistribution"].is_string(), "{}", r.json);
+    assert!(r.json["fields"]["releases"].is_string(), "{}", r.json);
+
     // ---- activity log and logout ----
     let actions: Vec<String> = c.get("/api/admin/audit").await.json["items"].as_array().unwrap().iter().map(|a| a["action"].as_str().unwrap().to_string()).collect();
     for action in ["login", "change_password", "create_mod", "set_status", "upload_file", "disable_download", "delete_mod", "accept_request"] {

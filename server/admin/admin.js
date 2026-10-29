@@ -255,6 +255,7 @@ function renderPasswordChange(forced) {
 
 const NAV = [
   ["mods", "Mods"],
+  ["import", "Import"],
   ["reports", "Reports"],
   ["requests", "Requests"],
   ["categories", "Categories & tags"],
@@ -308,6 +309,7 @@ async function route() {
     if (section === "mods" && id) await renderEditor(id === "new" ? null : id);
     else if (section === "reports") await renderReports();
     else if (section === "requests") await renderRequests();
+    else if (section === "import") await renderImport();
     else if (section === "categories") await renderCategories();
     else if (section === "activity") await renderActivity();
     else if (section === "account") renderAccount();
@@ -828,6 +830,15 @@ async function renderEditor(id) {
     bar,
     h("div", { class: "page-head" }, h("h1", null, mod.id ? mod.name : "New mod"), mod.open_reports ? h("a", { class: "pill open", href: "#/reports" }, `${mod.open_reports} open report${mod.open_reports === 1 ? "" : "s"}`) : null),
     formError,
+    mod.import_info
+      ? h(
+          "div",
+          { class: "notice-box" },
+          `imported from ${mod.import_info.file_name}. basic malware scan: ${mod.import_info.scan_score}/100`,
+          mod.import_info.signals?.length ? ` (${mod.import_info.signals.join("; ")})` : " (nothing suspicious found)",
+          ". fill in the details below, check the license, then publish.",
+        )
+      : null,
     basics,
     compat,
     help,
@@ -1104,3 +1115,108 @@ function renderAccount() {
     if (err.status !== 401 && err.code !== "password_change_required") renderLogin(err.status === 0 ? err.message : "");
   }
 })();
+
+// ---------- bulk import ----------
+
+async function renderImport() {
+  const filesInput = h("input", { type: "file", multiple: true, accept: ".dll,.zip", class: "hidden", id: "import-files" });
+  const folderInput = h("input", { type: "file", multiple: true, webkitdirectory: true, class: "hidden", id: "import-folder" });
+  const split = h("input", { type: "checkbox", checked: true, id: "import-split" });
+  const queue = h("ul", { class: "import-queue", role: "list" });
+  const listArea = h("div");
+
+  async function drawImported() {
+    const { items } = await api("/api/admin/mods?imported=true&status=draft");
+    listArea.replaceChildren(
+      h("h2", { class: "import-heading" }, `Imported drafts waiting to be filled in (${items.length})`),
+      items.length
+        ? h(
+            "div",
+            { class: "table-wrap" },
+            h(
+              "table",
+              { class: "table" },
+              h("thead", null, h("tr", null, ["Mod", "File", "Basic scan", "Imported", ""].map((t) => h("th", { scope: "col" }, t)))),
+              h(
+                "tbody",
+                null,
+                items.map((m) =>
+                  h(
+                    "tr",
+                    { class: "clickable", onclick: (e) => { if (!e.target.closest("a")) location.hash = `#/mods/${m.id}`; } },
+                    h("td", null, h("a", { href: `#/mods/${m.id}` }, m.name)),
+                    h("td", { class: "small code" }, m.import_info?.file_name || ""),
+                    h("td", null, h("span", { class: `pill ${(m.import_info?.scan_score ?? 0) > 45 ? "open" : (m.import_info?.scan_score ?? 0) > 20 ? "draft" : "published"}` }, `${m.import_info?.scan_score ?? "?"}/100`)),
+                    h("td", { class: "muted small" }, fmtDate(m.imported_at)),
+                    h("td", null, h("a", { class: "btn", href: `#/mods/${m.id}` }, "Fill in")),
+                  ),
+                ),
+              ),
+            ),
+          )
+        : h("div", { class: "card" }, h("p", { class: "muted" }, "nothing waiting. imported mods show up here until you publish them.")),
+    );
+  }
+
+  async function run(files) {
+    const mods = [...files].filter((f) => /\.(dll|zip)$/i.test(f.name));
+    if (!mods.length) {
+      toast("no .dll or .zip files were found", "error");
+      return;
+    }
+    queue.replaceChildren();
+    let created = 0;
+    for (const file of mods) {
+      const status = h("span", { class: "muted small" }, "waiting");
+      queue.append(h("li", null, h("span", { class: "code small" }, file.webkitRelativePath || file.name), status));
+    }
+    const rows = [...queue.children];
+    for (let i = 0; i < mods.length; i++) {
+      const status = rows[i].lastChild;
+      status.textContent = "uploading…";
+      const data = new FormData();
+      data.append("split", split.checked ? "true" : "false");
+      data.append("file", mods[i]);
+      try {
+        const result = await api("/api/admin/import", { method: "POST", form: data });
+        created += result.imported.length;
+        const bits = [];
+        if (result.imported.length) bits.push(`added ${result.imported.length} draft${result.imported.length === 1 ? "" : "s"}`);
+        if (result.failed.length) bits.push(`${result.failed.length} skipped: ${result.failed.map((f) => `${f.file_name} (${f.error})`).join(", ")}`);
+        status.textContent = bits.join(" · ") || "nothing to import";
+        status.className = result.failed.length ? "small warn-text" : "small ok-text";
+      } catch (err) {
+        status.textContent = err.message;
+        status.className = "small error";
+      }
+    }
+    toast(`Imported ${created} mod${created === 1 ? "" : "s"}`);
+    filesInput.value = "";
+    folderInput.value = "";
+    await drawImported();
+  }
+
+  filesInput.addEventListener("change", () => run(filesInput.files));
+  folderInput.addEventListener("change", () => run(folderInput.files));
+
+  shell("import", [
+    h("div", { class: "page-head" }, h("h1", null, "Import mods")),
+    h(
+      "section",
+      { class: "card" },
+      h("p", { class: "card-intro" }, "each .dll or .zip becomes a private draft with its file attached and a basic malware scan. nothing goes public until you open it, fill it in and press publish."),
+      h(
+        "div",
+        { class: "upload-row" },
+        h("button", { class: "btn btn-primary", type: "button", onclick: () => filesInput.click() }, "Choose files"),
+        h("button", { class: "btn", type: "button", onclick: () => folderInput.click() }, "Choose a folder"),
+        filesInput,
+        folderInput,
+      ),
+      h("label", { class: "checks import-split", for: "import-split" }, split, "a zip full of mods: make each .dll or .zip inside it its own draft"),
+      queue,
+    ),
+    listArea,
+  ]);
+  await drawImported();
+}

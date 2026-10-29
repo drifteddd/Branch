@@ -105,7 +105,7 @@ async function go(url) {
 }
 async function setFile(selector, path) {
   const { result } = await cdp("Runtime.evaluate", { expression: `document.querySelector(${JSON.stringify(selector)})` });
-  await cdp("DOM.setFileInputFiles", { files: [path], objectId: result.objectId });
+  await cdp("DOM.setFileInputFiles", { files: Array.isArray(path) ? path : [path], objectId: result.objectId });
 }
 async function screenshot(name) {
   const { data } = await cdp("Page.captureScreenshot", { format: "png" });
@@ -487,6 +487,23 @@ await test("admin accepts a mod request into a draft", async () => {
   await evaluate(clickText(".report-actions button", "Accept and create draft"));
   await waitFor(`/#\\/mods\\/[0-9a-f-]{36}/.test(location.hash) && document.querySelector("#name")?.value === "E2E Requested Mod"`, "draft editor");
   assert(await evaluate(`document.querySelector("#source_url").value === "https://github.com/someone/e2e-mod"`), "source link not carried over");
+});
+
+await test("admin bulk-imports mods into a private drafts list", async () => {
+  const a = join(profile, "GorillaHats_v1.4.dll");
+  const b = join(profile, "SpeedReadout.dll");
+  writeFileSync(a, Buffer.from("MZ demo hats"));
+  writeFileSync(b, Buffer.from("MZ demo speed"));
+  await go(`${BASE}/admin#/import`);
+  await waitFor(`document.querySelector("#import-files")`, "import page");
+  await setFile("#import-files", [a, b]);
+  await waitFor(`[...document.querySelectorAll(".import-queue li")].filter(li => li.textContent.includes("added 1 draft")).length === 2`, "both imported", 8000);
+  await waitFor(`document.querySelector(".import-heading")?.textContent.includes("(2)")`, "imported drafts list");
+  assert(await evaluate(`document.body.textContent.includes("Gorilla Hats")`), "name not taken from the file name");
+  await screenshot("admin-import");
+  assert((await evaluate(`fetch("/api/mods?q=Gorilla%20Hats").then(r => r.json()).then(d => d.total)`)) === 0, "imported drafts must not be public");
+  await evaluate(clickText("a.btn", "Fill in"));
+  await waitFor(`document.querySelector(".notice-box")?.textContent.includes("imported from")`, "import note in editor");
 });
 
 await test("admin sees and resolves the report", async () => {

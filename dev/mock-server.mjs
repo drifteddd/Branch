@@ -241,14 +241,15 @@ async function adminApi(req, res, path, url) {
     }
     const q = url.searchParams.get("q")?.toLowerCase() || "";
     const status = url.searchParams.get("status") || "";
-    const items = mods.filter((m) => (!q || m.name.toLowerCase().includes(q)) && (!status || m.status === status)).map((m) => ({ id: m.id, slug: m.slug, name: m.name, author_name: m.author.name, status: m.status, featured: m.featured, compatibility: m.compatibility.status, category_name: m.category?.name || null, release_count: m.releases.length, open_reports: reports.filter((r) => r.mod_id === m.id && r.status === "open").length, updated_at: m.updated_at }));
+    const imported = url.searchParams.get("imported");
+    const items = mods.filter((m) => (!q || m.name.toLowerCase().includes(q)) && (!status || m.status === status) && (imported == null || Boolean(m.imported_at) === (imported === "true"))).map((m) => ({ id: m.id, slug: m.slug, name: m.name, author_name: m.author.name, status: m.status, featured: m.featured, compatibility: m.compatibility.status, category_name: m.category?.name || null, release_count: m.releases.length, open_reports: reports.filter((r) => r.mod_id === m.id && r.status === "open").length, updated_at: m.updated_at, imported_at: m.imported_at || null, import_info: m.import_info || null }));
     return send(res, 200, { items });
   }
   if (parts[0] === "mods" && parts[1]) {
     const m = find(parts[1]);
     if (!m) return fail(res, 404, "that mod doesn't exist");
     if (!parts[2]) {
-      if (method === "GET") return send(res, 200, { ...m, open_reports: reports.filter((r) => r.mod_id === m.id && r.status === "open").length });
+      if (method === "GET") return send(res, 200, { ...m, imported_at: m.imported_at || null, import_info: m.import_info || null, open_reports: reports.filter((r) => r.mod_id === m.id && r.status === "open").length });
       if (method === "PUT") {
         const result = modPayloadToMod(m, await json(req));
         if (result.errors) return fail(res, 422, Object.values(result.errors)[0], result.errors);
@@ -356,6 +357,19 @@ async function adminApi(req, res, path, url) {
     return send(res, 200, { ok: true });
   }
   if (parts[0] === "audit") return send(res, 200, { items: audit.slice(0, 300) });
+  if (parts[0] === "import" && method === "POST") {
+    // demo only: no zip splitting here, one draft per uploaded file
+    const { file } = parseMultipart(req, await readBody(req));
+    if (!file || !/\.(dll|zip)$/i.test(file.name)) return send(res, 200, { imported: [], failed: [{ file_name: file?.name || "?", error: "only .dll and .zip files can be hosted" }] });
+    const name = file.name.replace(/\.(dll|zip)$/i, "").replace(/[_-]?v?\d+(\.\d+)+/, "").replace(/[_\-.]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").trim() || "Imported mod";
+    const version = /\d+(\.\d+)+/.exec(file.name)?.[0] || "unknown";
+    const m = { id: randomUUID(), status: "draft", featured: false, releases: [], screenshots: [], thumbnail_url: null, downloads: 0, created_at: new Date().toISOString(), published_at: null, open_reports: 0, imported_at: new Date().toISOString(), import_info: { file_name: file.name, scan_score: 4, signals: [], mod_markers: [] } };
+    modPayloadToMod(m, { name, slug: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${mods.length}` });
+    files.set(m.id, file.data);
+    m.releases.push(refreshRelease({ id: randomUUID(), version, released_on: new Date().toISOString().slice(0, 10), changelog: "", game_version: "", kind: "hosted", external_url: null, file: { name: file.name, size: file.data.length, sha256: createHash("sha256").update(file.data).digest("hex"), type: "dll" }, disabled: false, disabled_reason: "", created_at: new Date().toISOString() }));
+    mods.unshift(m);
+    return send(res, 200, { imported: [{ mod_id: m.id, name, file_name: file.name, version, scan_score: 4 }], failed: [] });
+  }
   if (parts[0] === "requests") {
     if (!parts[1]) { const s = url.searchParams.get("status"); return send(res, 200, { items: requests.filter((r) => !s || r.status === s) }); }
     const r = requests.find((x) => x.id === parts[1]);

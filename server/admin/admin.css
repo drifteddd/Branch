@@ -202,3 +202,11 @@ dialog.preview { width: min(980px, calc(100vw - 32px)); }
 }
 
 .grow { flex: 1; }
+
+/* ---------- import ---------- */
+.import-split { margin-top: 12px; }
+.import-queue { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+.import-queue li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 10px; border-radius: var(--r-s); background: var(--surface-2); }
+.import-heading { font-size: 15px; margin: 22px 0 10px; }
+.ok-text { color: var(--ok); }
+.warn-text { color: var(--warn); }
