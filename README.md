@@ -92,7 +92,9 @@ railway hosts the server, the database and the file storage. railway is a paid s
 
 1. **make a project** on railway and choose **deploy from github repo**, then pick this repo. railway reads `railway.json` and builds `server/Dockerfile`.
 2. **add postgres**: in the project press **new > database > postgresql**.
-3. **add storage for uploads**: add a railway **bucket** (or use any s3-style storage like cloudflare r2). uploads can't go on the server's normal disk because railway wipes it on every deploy. the server refuses to start if you try.
+3. **add storage for uploads**. uploads can't go on the server's normal disk because railway wipes it on every deploy (the server refuses to start if you try). pick one:
+   - **a volume** (what Branch's own server uses): attach a volume to the server service at `/data`, then set `STORAGE_DRIVER=local`, `LOCAL_STORAGE_DIR=/data/uploads` and `RAILWAY_RUN_UID=0` (volumes are owned by root, so the container needs to run as root to write to it). simple and cheap, but it only works with one server instance
+   - **a bucket**: add a railway bucket or any s3-style storage like cloudflare r2, and use the `S3_*` variables below
 4. **set the server's variables** (service > variables). `.env.example` lists all of them:
 
    | variable | what to put |
