@@ -110,6 +110,12 @@ async fn setup() -> Option<Client> {
         storage: StorageConfig::Local { dir },
         bootstrap_username: Some(ADMIN.into()),
         bootstrap_password: Some(START_PASSWORD.into()),
+        // no key in tests, so the checker falls back to the basic scan and never spends money
+        ai_api_key: None,
+        ai_model: "test".into(),
+        ai_base_url: "http://127.0.0.1:9".into(),
+        ai_daily_per_visitor: 3,
+        ai_daily_global: 10,
     };
     let state = branch_server::build_state(config).await.unwrap();
     Some(Client { app: branch_server::routes::router(state), cookie: None })
