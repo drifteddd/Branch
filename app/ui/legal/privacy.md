@@ -2,7 +2,7 @@
 
 last updated: october 29, 2026
 
-Branch is run by Drifted. this page explains what Branch actually collects. the short version: no accounts, no ads, no tracking.
+Branch is run by Drifted (contact: drifted1000@outlook.com). this page explains what Branch actually collects. the short version: no accounts, no ads, no tracking.
 
 ## what stays on your computer
 
@@ -38,9 +38,9 @@ if you're under 13, please don't put contact info in a report.
 
 some mods link to the author's own page (like GitHub). when you open those, you're on their website and their privacy policy applies.
 
-## asking for something to be removed
+## contact and removal requests
 
-if you sent a report with contact info and want it removed, send another report on the same mod with the reason "Other" and explain what to remove. Branch doesn't have a separate contact address yet.
+for privacy questions, or to ask for a report you sent to be deleted, email **drifted1000@outlook.com**. say which mod you reported and roughly when, so the right report can be found.
 
 ## changes
 

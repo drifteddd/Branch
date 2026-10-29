@@ -154,12 +154,15 @@ keep code simple and comments short. explain *why*, not *what*.
 
 these need decisions or things I can't make up:
 
-- **a contact address** for privacy and copyright requests. right now the report button is the only way to reach the admin. a real email or form should be added to the privacy notice and takedown page
 - **code signing** for the installer, so windows doesn't show the smartscreen warning. that needs a code signing certificate (paid)
 - **real mods with permission**. no real mods are included. each one needs its license checked before hosting a copy
 - **legal review**. the privacy notice and terms are written to match what the app actually does, but they haven't been checked by a lawyer
 - **one server only**. rate limits are kept in memory, which is fine for one railway instance. running more than one would need them moved into the database
 - a full list of every third-party package and license can be generated from the `Cargo.lock` files that ci produces
+
+## contact
+
+privacy, copyright and takedown requests, or anything else: **drifted1000@outlook.com**
 
 ## license
 

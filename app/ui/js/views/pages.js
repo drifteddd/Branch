@@ -6,7 +6,8 @@ import { appVersion, isDesktop } from "../platform.js";
 import { settings, favorites, recent } from "../store.js";
 import { confirmDialog, toast, stateBlock } from "../ui.js";
 
-export const REPO_URL = "https://github.com/drifteddd/gt-mod-finder";
+export const REPO_URL = "https://github.com/drifteddd/Branch";
+export const CONTACT_EMAIL = "drifted1000@outlook.com";
 
 export function createSettingsView(ctx) {
   const el = h("section", { class: "view page", "aria-labelledby": "settings-title" });
@@ -101,6 +102,7 @@ export function createAboutView(ctx) {
       linkRow("#/legal/terms", "Terms of use"),
       linkRow("#/legal/takedown", "Copyright and takedown requests"),
       linkRow("#/legal/licenses", "Licenses and credits"),
+      h("div", { class: "settings-row" }, h("span", null, "Contact"), h("span", { class: "muted contact-email" }, CONTACT_EMAIL)),
       h("div", { class: "settings-row" }, h("span", null, "Source code"), h("a", { href: REPO_URL, "data-external": true }, "GitHub", icon("external", "inline-icon"))),
     ),
   );

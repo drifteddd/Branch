@@ -38,6 +38,10 @@ the Branch admin can change, hide or remove any listing or download at any time.
 
 Branch's own code is open source under the MIT license. that license only covers Branch itself. it doesn't cover the mods listed in it or anything from Gorilla Tag.
 
+## contact
+
+questions about these terms: **drifted1000@outlook.com**
+
 ## changes
 
 these terms can change. if they do, the date at the top will change too.
