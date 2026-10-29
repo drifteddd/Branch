@@ -18,7 +18,7 @@ jobs:
         shell: bash
         run: |
           if [ -z "${{ vars.BRANCH_API_URL }}" ]; then
-            echo "::warning::the BRANCH_API_URL repository variable isn't set, so this build will look for a server on localhost:8080. set it under settings > secrets and variables > actions > variables."
+            echo "::warning::BRANCH_API_URL isn't set, so this build uses http://localhost:8080."
           fi
 
       - uses: actions/setup-node@v4

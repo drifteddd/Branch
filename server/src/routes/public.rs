@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use axum::body::Body;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Multipart, Path, Query, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::Json;
@@ -388,6 +388,220 @@ pub async fn create_report(State(state): State<AppState>, visitor: Visitor, Json
     Ok((StatusCode::CREATED, Json(json!({ "ok": true }))))
 }
 
+// ---------- mod requests ----------
+
+#[derive(Deserialize)]
+pub struct RequestInput {
+    #[serde(default)]
+    mod_name: String,
+    #[serde(default)]
+    url: String,
+    #[serde(default)]
+    author: String,
+    #[serde(default)]
+    details: String,
+    #[serde(default)]
+    contact: String,
+    #[serde(default)]
+    website: String,
+}
+
+pub async fn create_request(State(state): State<AppState>, visitor: Visitor, Json(input): Json<RequestInput>) -> ApiResult<(StatusCode, Json<Value>)> {
+    if !state.limiter.check(&format!("request:{}", visitor.id), 5, Duration::from_secs(3600)) {
+        return Err(AppError::too_many("you've sent a lot of requests. wait an hour and try again."));
+    }
+    if !input.website.trim().is_empty() {
+        return Ok((StatusCode::CREATED, Json(json!({ "ok": true }))));
+    }
+
+    let mod_name = input.mod_name.trim().to_string();
+    let author = input.author.trim().to_string();
+    let details = input.details.trim().to_string();
+    let contact = input.contact.trim().to_string();
+    let mut errors = FieldErrors::default();
+    errors.check(!mod_name.is_empty(), "mod_name", "what's the mod called?");
+    errors.check(!too_long(&mod_name, 80), "mod_name", "keep the name under 80 characters");
+    let url = match crate::util::clean_url(&input.url) {
+        Ok(Some(url)) => Some(url),
+        Ok(None) => {
+            errors.add("url", "add a link to the mod, like its github page");
+            None
+        }
+        Err(message) => {
+            errors.add("url", message);
+            None
+        }
+    };
+    errors.check(!too_long(&author, 80), "author", "keep the author under 80 characters");
+    errors.check(!too_long(&details, 1000), "details", "keep this under 1000 characters");
+    errors.check(!too_long(&contact, 200), "contact", "keep the contact info under 200 characters");
+    errors.finish()?;
+    let url = url.unwrap_or_default();
+
+    let today: i64 = sqlx::query_scalar("select count(*) from mod_requests where visitor = $1 and created_at > now() - interval '1 day'")
+        .bind(&visitor.id)
+        .fetch_one(&state.db)
+        .await?;
+    if today >= 15 {
+        return Err(AppError::too_many("you've sent a lot of requests today. try again tomorrow."));
+    }
+    let duplicate: bool = sqlx::query_scalar("select exists(select 1 from mod_requests where visitor = $1 and url = $2 and created_at > now() - interval '7 days')")
+        .bind(&visitor.id)
+        .bind(&url)
+        .fetch_one(&state.db)
+        .await?;
+    if !duplicate {
+        sqlx::query("insert into mod_requests (id, mod_name, url, author, details, contact, visitor) values ($1, $2, $3, $4, $5, $6, $7)")
+            .bind(Uuid::new_v4())
+            .bind(&mod_name)
+            .bind(&url)
+            .bind(&author)
+            .bind(&details)
+            .bind(&contact)
+            .bind(&visitor.id)
+            .execute(&state.db)
+            .await?;
+        tracing::info!("new mod request received");
+    }
+    Ok((StatusCode::CREATED, Json(json!({ "ok": true }))))
+}
+
+// ---------- mod checker ----------
+
+const AI_CALLS_KEY: &str = "__ai_calls__";
+
+async fn usage_today(state: &AppState, visitor: &str) -> Result<i32, sqlx::Error> {
+    let used: Option<i32> = sqlx::query_scalar("select count from ai_usage where visitor = $1 and day = current_date")
+        .bind(visitor)
+        .fetch_optional(&state.db)
+        .await?;
+    Ok(used.unwrap_or(0))
+}
+
+async fn bump_usage(state: &AppState, visitor: &str) -> Result<i32, sqlx::Error> {
+    sqlx::query_scalar(
+        "insert into ai_usage (visitor, day, count) values ($1, current_date, 1)
+         on conflict (visitor, day) do update set count = ai_usage.count + 1
+         returning count",
+    )
+    .bind(visitor)
+    .fetch_one(&state.db)
+    .await
+}
+
+pub async fn check_usage(State(state): State<AppState>, visitor: Visitor) -> ApiResult<Json<Value>> {
+    let used = usage_today(&state, &visitor.id).await?;
+    let limit = state.config.ai_daily_per_visitor;
+    Ok(Json(json!({ "used": used, "limit": limit, "remaining": (limit - used).max(0) })))
+}
+
+pub fn verdict_label(score: u8) -> &'static str {
+    match score {
+        0..=20 => "Looks clean",
+        21..=45 => "A few odd things",
+        46..=70 => "Suspicious",
+        _ => "Likely malicious",
+    }
+}
+
+pub async fn check_mod(State(state): State<AppState>, visitor: Visitor, mut multipart: Multipart) -> ApiResult<Json<Value>> {
+    if !state.limiter.check(&format!("check:{}", visitor.id), 30, Duration::from_secs(3600)) {
+        return Err(AppError::too_many("slow down a little. try again in a few minutes."));
+    }
+    let limit = state.config.ai_daily_per_visitor;
+    if usage_today(&state, &visitor.id).await? >= limit {
+        return Err(AppError::too_many(format!("you've used all {limit} checks for today. they reset at midnight (UTC).")));
+    }
+
+    let mut upload: Option<(String, bytes::Bytes)> = None;
+    loop {
+        let field = match multipart.next_field().await {
+            Ok(Some(field)) => field,
+            Ok(None) => break,
+            Err(_) => return Err(AppError::new(StatusCode::PAYLOAD_TOO_LARGE, "too_large", "the upload was cut off or is bigger than 50 MB")),
+        };
+        if field.name() == Some("file") {
+            let name = field.file_name().unwrap_or("upload").to_string();
+            let data = field
+                .bytes()
+                .await
+                .map_err(|_| AppError::new(StatusCode::PAYLOAD_TOO_LARGE, "too_large", "the upload was cut off or is bigger than 50 MB"))?;
+            upload = Some((name, data));
+        }
+    }
+    let (name, data) = upload.ok_or_else(|| AppError::bad_request("no file was attached"))?;
+
+    // the file only lives in memory for this request. it's never written anywhere.
+    let report = tokio::task::spawn_blocking(move || crate::scan::scan(&name, &data))
+        .await
+        .map_err(AppError::internal)?
+        .map_err(|message| AppError::field("file", &message))?;
+
+    let used = bump_usage(&state, &visitor.id).await?;
+
+    let cached: Option<Value> = sqlx::query_scalar("select result from ai_results where sha256 = $1 and created_at > now() - interval '30 days'")
+        .bind(&report.sha256)
+        .fetch_optional(&state.db)
+        .await?;
+
+    let (verdict, from_cache) = match cached {
+        Some(value) => (value, true),
+        None => {
+            let ai_allowed = state.config.ai_api_key.is_some() && usage_today(&state, AI_CALLS_KEY).await? < state.config.ai_daily_global;
+            let ai = if ai_allowed {
+                bump_usage(&state, AI_CALLS_KEY).await?;
+                match crate::ai::ask(&state.http, &state.config, &report).await {
+                    Ok(v) => Some(v),
+                    Err(err) => {
+                        tracing::warn!(error = %err, "ai check failed, using the basic scan");
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+            let value = match ai {
+                Some(v) => {
+                    // the model has the final say, but it can't wave away strong warning signs completely
+                    let score = v.score.max((report.heuristic_score as f32 * 0.6).round() as u8);
+                    json!({ "score": score, "summary": v.summary, "reasons": v.reasons, "source": "ai" })
+                }
+                None => {
+                    let (summary, reasons): (String, Vec<String>) = if report.indicators.is_empty() {
+                        ("Branch's basic scan didn't find any of the usual malware signs.".into(), vec!["no webhooks, code injection, hidden commands, miners or packed programs were found.".into()])
+                    } else {
+                        ("the AI check isn't available right now, so this score comes from Branch's basic scan only.".into(), report.indicators.iter().map(|i| i.label.to_string()).collect())
+                    };
+                    json!({ "score": report.heuristic_score, "summary": summary, "reasons": reasons, "source": "basic" })
+                }
+            };
+            if value["source"] == "ai" {
+                sqlx::query("insert into ai_results (sha256, result) values ($1, $2) on conflict (sha256) do update set result = excluded.result, created_at = now()")
+                    .bind(&report.sha256)
+                    .bind(&value)
+                    .execute(&state.db)
+                    .await?;
+            }
+            (value, false)
+        }
+    };
+
+    let score = verdict["score"].as_u64().unwrap_or(0).min(100) as u8;
+    Ok(Json(json!({
+        "file": { "name": report.file_name, "size": report.size, "sha256": report.sha256, "kind": report.kind },
+        "score": score,
+        "verdict": verdict_label(score),
+        "summary": verdict["summary"],
+        "reasons": verdict["reasons"],
+        "source": verdict["source"],
+        "cached": from_cache,
+        "indicators": report.indicators,
+        "mod_markers": report.mod_markers,
+        "used": used,
+        "limit": limit,
+        "remaining": (limit - used).max(0),
+    })))
+}
 #[cfg(test)]
 mod tests {
     use super::image_key_type;

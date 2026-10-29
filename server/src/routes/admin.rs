@@ -63,6 +63,9 @@ pub fn router() -> Router<AppState> {
         .route("/api/admin/reports", get(list_reports))
         .route("/api/admin/reports/{id}", put(update_report).delete(delete_report))
         .route("/api/admin/audit", get(list_audit))
+        .route("/api/admin/requests", get(list_requests))
+        .route("/api/admin/requests/{id}", put(update_request).delete(delete_request))
+        .route("/api/admin/requests/{id}/draft", post(request_to_draft))
 }
 
 fn ok() -> Json<Value> {
@@ -199,7 +202,9 @@ async fn overview(State(state): State<AppState>, Admin(_): Admin) -> ApiResult<J
     .fetch_one(&state.db)
     .await?;
     let open_reports: i64 = sqlx::query_scalar("select count(*) from reports where status = 'open'").fetch_one(&state.db).await?;
+    let open_requests: i64 = sqlx::query_scalar("select count(*) from mod_requests where status = 'open'").fetch_one(&state.db).await?;
     Ok(Json(json!({
+        "open_requests": open_requests,
         "published": published,
         "drafts": drafts,
         "hidden": hidden,
@@ -1259,4 +1264,127 @@ async fn list_audit(State(state): State<AppState>, Admin(_): Admin) -> ApiResult
     .fetch_all(&state.db)
     .await?;
     Ok(Json(json!({ "items": rows })))
+}
+
+// ---------- mod requests ----------
+
+#[derive(FromRow, Serialize)]
+struct RequestRow {
+    id: Uuid,
+    mod_name: String,
+    url: String,
+    author: String,
+    details: String,
+    contact: String,
+    status: String,
+    admin_note: String,
+    created_mod_id: Option<Uuid>,
+    created_at: DateTime<Utc>,
+    decided_at: Option<DateTime<Utc>>,
+    decided_by: Option<String>,
+}
+
+async fn list_requests(State(state): State<AppState>, Admin(_): Admin, Query(query): Query<ReportQuery>) -> ApiResult<Json<Value>> {
+    let status = query.status.filter(|s| matches!(s.as_str(), "open" | "accepted" | "denied"));
+    let rows: Vec<RequestRow> = sqlx::query_as(
+        "select r.id, r.mod_name, r.url, r.author, r.details, r.contact, r.status, r.admin_note, r.created_mod_id,
+                r.created_at, r.decided_at, a.username as decided_by
+         from mod_requests r left join admins a on a.id = r.decided_by
+         where ($1::text is null or r.status = $1)
+         order by (r.status = 'open') desc, r.created_at desc
+         limit 500",
+    )
+    .bind(status)
+    .fetch_all(&state.db)
+    .await?;
+    Ok(Json(json!({ "items": rows })))
+}
+
+#[derive(Deserialize)]
+struct RequestUpdate {
+    status: String,
+    #[serde(default)]
+    admin_note: String,
+}
+
+async fn update_request(State(state): State<AppState>, Admin(admin): Admin, Path(id): Path<Uuid>, Json(input): Json<RequestUpdate>) -> ApiResult<Json<Value>> {
+    if !matches!(input.status.as_str(), "open" | "accepted" | "denied") {
+        return Err(AppError::bad_request("unknown request status"));
+    }
+    let note = input.admin_note.trim();
+    if too_long(note, 2000) {
+        return Err(AppError::field("admin_note", "keep the note under 2000 characters"));
+    }
+    let name: Option<String> = sqlx::query_scalar(
+        "update mod_requests set status = $1, admin_note = $2,
+            decided_at = case when $1 = 'open' then null else now() end,
+            decided_by = case when $1 = 'open' then null else $3 end
+         where id = $4 returning mod_name",
+    )
+    .bind(&input.status)
+    .bind(note)
+    .bind(admin.id)
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?;
+    let name = name.ok_or_else(|| AppError::not_found("that request doesn't exist"))?;
+    audit(&state.db, &admin, "update_request", &name, &input.status).await;
+    Ok(ok())
+}
+
+async fn delete_request(State(state): State<AppState>, Admin(admin): Admin, Path(id): Path<Uuid>) -> ApiResult<Json<Value>> {
+    let name: Option<String> = sqlx::query_scalar("delete from mod_requests where id = $1 returning mod_name").bind(id).fetch_optional(&state.db).await?;
+    let name = name.ok_or_else(|| AppError::not_found("that request doesn't exist"))?;
+    audit(&state.db, &admin, "delete_request", &name, "").await;
+    Ok(ok())
+}
+
+/// accepts the request and starts a draft listing with what the person sent in
+async fn request_to_draft(State(state): State<AppState>, Admin(admin): Admin, Path(id): Path<Uuid>) -> ApiResult<Json<Value>> {
+    let row: Option<(String, String, String, Option<Uuid>)> =
+        sqlx::query_as("select mod_name, url, author, created_mod_id from mod_requests where id = $1").bind(id).fetch_optional(&state.db).await?;
+    let (name, url, author, existing) = row.ok_or_else(|| AppError::not_found("that request doesn't exist"))?;
+    if let Some(mod_id) = existing {
+        return Ok(Json(json!({ "mod_id": mod_id })));
+    }
+
+    let is_github = url::Url::parse(&url).ok().and_then(|u| u.host_str().map(|h| h == "github.com" || h == "www.github.com")).unwrap_or(false);
+    let base = {
+        let s = slugify(&name);
+        if s.is_empty() { "requested-mod".to_string() } else { s }
+    };
+    let mod_id = Uuid::new_v4();
+    let mut created = false;
+    for n in 1..=20 {
+        let slug = if n == 1 { base.clone() } else { format!("{base}-{n}") };
+        let result = sqlx::query("insert into mods (id, slug, name, author_name, source_url, project_url) values ($1, $2, $3, $4, $5, $6)")
+            .bind(mod_id)
+            .bind(&slug)
+            .bind(name.chars().take(80).collect::<String>())
+            .bind(author.chars().take(80).collect::<String>())
+            .bind(if is_github { Some(url.clone()) } else { None })
+            .bind(&url)
+            .execute(&state.db)
+            .await;
+        match result {
+            Ok(_) => {
+                created = true;
+                break;
+            }
+            Err(err) if slug_taken(&err) => continue,
+            Err(err) => return Err(err.into()),
+        }
+    }
+    if !created {
+        return Err(AppError::new(StatusCode::CONFLICT, "slug_taken", "couldn't find a free link name for this mod. create it by hand instead."));
+    }
+
+    sqlx::query("update mod_requests set status = 'accepted', created_mod_id = $1, decided_at = now(), decided_by = $2 where id = $3")
+        .bind(mod_id)
+        .bind(admin.id)
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+    audit(&state.db, &admin, "accept_request", &name, "created a draft").await;
+    Ok(Json(json!({ "mod_id": mod_id })))
 }

@@ -52,7 +52,7 @@
   font-weight: 500;
 }
 .side a:hover { background: var(--surface-hover); }
-.side a[aria-current="page"] { background: var(--accent-soft); color: var(--accent-text); }
+.side a[aria-current="page"] { background: var(--selected); color: var(--text); font-weight: 600; }
 .side .count { font-size: 12px; padding: 0 7px; border-radius: 999px; background: var(--danger); color: #fff; font-weight: 600; }
 .side .spacer { flex: 1; }
 .side .who { padding: 8px 10px; font-size: 12.5px; color: var(--text-3); }
@@ -200,3 +200,5 @@ dialog.preview { width: min(980px, calc(100vw - 32px)); }
   .dep-row { grid-template-columns: 1fr; }
   .preview-head { grid-template-columns: 1fr; }
 }
+
+.grow { flex: 1; }

@@ -14,7 +14,7 @@ export function createSettingsView(ctx) {
 
   function render() {
     const current = settings.get();
-    const themes = [["system", "Match Windows"], ["light", "Light"], ["dark", "Dark"]];
+    const themes = [["light", "Light"], ["dark", "Dark"], ["system", "Match Windows"]];
     const themeGroup = h(
       "div",
       { class: "segmented", role: "radiogroup", "aria-labelledby": "appearance-label" },

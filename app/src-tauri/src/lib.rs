@@ -100,7 +100,11 @@ async fn api_request(
         "POST" => http.api.post(&url).json(&body.unwrap_or(serde_json::Value::Null)),
         _ => return Err(CmdError::new("app", "unsupported request")),
     };
-    let response = request.send().await?;
+    read_json(request.send().await?).await
+}
+
+/// turns a server reply into json, or into an error the page can show
+async fn read_json(response: reqwest::Response) -> Result<serde_json::Value, CmdError> {
     let status = response.status();
     let data: serde_json::Value = response.json().await.unwrap_or(serde_json::Value::Null);
     if status.is_success() {
@@ -112,6 +116,67 @@ async fn api_request(
         .map(str::to_owned)
         .unwrap_or_else(|| format!("the server answered with an error ({})", status.as_u16()));
     Err(CmdError { kind: "http", status: Some(status.as_u16()), message, fields: data.get("fields").cloned() })
+}
+
+/// read-only calls to github's public api, for the in-app source code viewer.
+/// only "/repos/..." paths on api.github.com are allowed.
+#[tauri::command]
+async fn github_api(http: State<'_, Http>, path: String) -> Result<serde_json::Value, CmdError> {
+    let bad = !path.starts_with("/repos/")
+        || path.contains("..")
+        || path.contains('#')
+        || path.contains('@')
+        || path.chars().any(|c| c.is_whitespace() || c.is_control());
+    if bad {
+        return Err(CmdError::new("app", "bad github path"));
+    }
+    let response = http
+        .api
+        .get(format!("https://api.github.com{path}"))
+        .header("Accept", "application/vnd.github+json")
+        .send()
+        .await?;
+    match response.status().as_u16() {
+        403 | 429 => Err(CmdError::new("http", "github's free limit (60 requests an hour) was hit. try again a bit later.")),
+        404 => Err(CmdError::new("http", "github couldn't find that repo or file. it might be private or deleted.")),
+        _ => read_json(response).await,
+    }
+}
+
+const MAX_CHECK_BYTES: u64 = 50 * 1024 * 1024;
+
+/// lets someone pick a mod file and sends it to the mod checker.
+/// the file is only read, never opened or run.
+#[tauri::command]
+async fn check_mod_file(app: AppHandle, http: State<'_, Http>) -> Result<serde_json::Value, CmdError> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .set_title("Choose a mod to check")
+        .add_filter("Mod files", &["dll", "zip"])
+        .pick_file(move |picked| {
+            let _ = tx.send(picked);
+        });
+    let picked = rx.await.map_err(|_| CmdError::new("app", "the file picker closed unexpectedly"))?;
+    let Some(picked) = picked else {
+        return Ok(serde_json::json!({ "cancelled": true }));
+    };
+    let path = picked.into_path().map_err(|_| CmdError::new("app", "that file can't be used"))?;
+    let size = tokio::fs::metadata(&path).await.map_err(|e| CmdError::new("disk", format!("couldn't read that file ({e})")))?.len();
+    if size > MAX_CHECK_BYTES {
+        return Err(CmdError::new("app", "files can be up to 50 MB"));
+    }
+    let data = tokio::fs::read(&path).await.map_err(|e| CmdError::new("disk", format!("couldn't read that file ({e})")))?;
+    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("mod.dll").to_string();
+    let form = reqwest::multipart::Form::new().part("file", reqwest::multipart::Part::bytes(data).file_name(name));
+    let response = http
+        .files
+        .post(format!("{}/api/check", base_url()))
+        .multipart(form)
+        .timeout(Duration::from_secs(120))
+        .send()
+        .await?;
+    read_json(response).await
 }
 
 #[derive(Deserialize)]
@@ -377,6 +442,8 @@ pub fn run() {
             api_base,
             window_material,
             api_request,
+            check_mod_file,
+            github_api,
             download_release,
             cancel_download,
             reveal_download,

@@ -310,9 +310,45 @@ async fn full_flow() {
     assert_eq!(c.get(&thumb).await.status, StatusCode::NOT_FOUND, "stored files are removed too");
     assert_eq!(c.get("/api/admin/reports").await.json["items"][0]["mod_name"], "Test Mod", "reports keep the name");
 
+    // ---- mod requests ----
+    let r = c.json("POST", "/api/requests", json!({ "mod_name": "Cool Hat", "url": "not a link" })).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(r.json["fields"]["url"].is_string());
+    let r = c.json("POST", "/api/requests", json!({ "mod_name": "Cool Hat", "url": "https://github.com/someone/cool-hat", "author": "someone", "details": "it's great" })).await;
+    assert_eq!(r.status, StatusCode::CREATED);
+    let r = c.get("/api/admin/requests?status=open").await;
+    let requests = r.json["items"].as_array().unwrap().clone();
+    assert_eq!(requests.len(), 1);
+    let request_id = requests[0]["id"].as_str().unwrap().to_string();
+    let r = c.json("POST", &format!("/api/admin/requests/{request_id}/draft"), json!({})).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    let draft_id = r.json["mod_id"].as_str().unwrap().to_string();
+    let r = c.get(&format!("/api/admin/mods/{draft_id}")).await;
+    assert_eq!(r.json["status"], "draft");
+    assert_eq!(r.json["source_url"], "https://github.com/someone/cool-hat");
+    assert_eq!(c.get("/api/admin/requests?status=accepted").await.json["items"].as_array().unwrap().len(), 1);
+
+    // ---- mod checker (no ai key in tests, so it uses the basic scan and spends nothing) ----
+    let r = c.get("/api/check/usage").await;
+    assert_eq!(r.json["used"], 0);
+    assert_eq!(r.json["limit"], 3);
+    let r = c.upload("/api/check", "notes.txt", b"just some text").await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "only dll and zip can be checked");
+    let stealer = b"MZ\x90\x00\x00https://discord.com/api/webhooks/1/x\x00\\Local Storage\\leveldb\x00CreateRemoteThread\x00";
+    let r = c.upload("/api/check", "free-cosmetics.dll", stealer).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    assert!(r.json["score"].as_u64().unwrap() >= 70, "{}", r.json);
+    assert_eq!(r.json["source"], "basic");
+    assert_eq!(r.json["used"], 1, "a refused file doesn't use up a check");
+    let clean = b"MZ\x90\x00\x00BepInEx\x00HarmonyLib\x00UnityEngine\x00";
+    let r = c.upload("/api/check", "hat.dll", clean).await;
+    assert!(r.json["score"].as_u64().unwrap() <= 20, "{}", r.json);
+    c.upload("/api/check", "hat.dll", clean).await;
+    let r = c.upload("/api/check", "hat.dll", clean).await;
+    assert_eq!(r.status, StatusCode::TOO_MANY_REQUESTS, "daily limit");
     // ---- activity log and logout ----
     let actions: Vec<String> = c.get("/api/admin/audit").await.json["items"].as_array().unwrap().iter().map(|a| a["action"].as_str().unwrap().to_string()).collect();
-    for action in ["login", "change_password", "create_mod", "set_status", "upload_file", "disable_download", "delete_mod"] {
+    for action in ["login", "change_password", "create_mod", "set_status", "upload_file", "disable_download", "delete_mod", "accept_request"] {
         assert!(actions.iter().any(|a| a == action), "audit log is missing {action}");
     }
     let r = c.json("POST", "/api/admin/logout", json!({})).await;

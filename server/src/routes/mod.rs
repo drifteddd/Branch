@@ -26,6 +26,9 @@ pub fn router(state: AppState) -> Router {
         .route("/api/releases/{id}/download", get(public::download))
         .route("/api/releases/{id}/out", get(public::outbound))
         .route("/api/reports", post(public::create_report))
+        .route("/api/requests", post(public::create_request))
+        .route("/api/check/usage", get(public::check_usage))
+        .route("/api/check", post(public::check_mod).layer(DefaultBodyLimit::max(crate::scan::MAX_CHECK_BYTES + 64 * 1024)))
         .route("/files/{*key}", get(public::file));
 
     Router::new()

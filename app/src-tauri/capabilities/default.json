@@ -1,10 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "what the branch window is allowed to do. file dialogs and opening links happen in rust, so the page itself gets almost nothing.",
+  "description": "what the branch window is allowed to do. file dialogs and opening links happen in rust, so the page itself only gets window controls.",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "core:window:allow-set-theme"
+    "core:window:allow-set-theme",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-internal-toggle-maximize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging"
   ]
 }

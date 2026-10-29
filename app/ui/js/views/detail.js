@@ -2,7 +2,8 @@
 import { h, clear, formatDate, formatBytes, formatNumber, hostOf } from "../dom.js";
 import { icon } from "../icons.js";
 import { renderMarkdown } from "../../shared/markdown.js";
-import { api, assetUrl, downloadRelease, cancelDownload, revealFile, canRevealFiles, openExternal, outboundUrl, isDesktop } from "../platform.js";
+import { api, assetUrl, downloadRelease, cancelDownload, revealFile, canRevealFiles, openExternal, outboundUrl, isDesktop, githubFetch } from "../platform.js";
+import { openSourceViewer, parseGithub } from "../../shared/source-viewer.js";
 import { favorites, recent, changes } from "../store.js";
 import { compatBadge, errorBlock, stateBlock, thumbnail, toast, showCompatHelp } from "../ui.js";
 import { openReportDialog } from "./report.js";
@@ -88,6 +89,10 @@ export function createDetailView(ctx) {
     });
 
     const reportButton = h("button", { class: "btn btn-quiet", type: "button", onclick: () => openReportDialog(ctx, mod) }, icon("flag"), "Report");
+    // only shown when the mod has a github source link
+    const sourceButton = parseGithub(mod.source_url || "")
+      ? h("button", { class: "btn btn-quiet", type: "button", onclick: () => openSourceViewer(mod.source_url, { fetchJson: githubFetch, openLink: (u) => openExternal(u) }) }, icon("code"), "View source code")
+      : null;
 
     const head = h(
       "header",
@@ -108,7 +113,7 @@ export function createDetailView(ctx) {
           latest ? h("span", null, `Released ${formatDate(latest.released_on)}`) : null,
         ),
         downloadArea(mod, latest),
-        h("div", { class: "hero-secondary" }, favButton, reportButton),
+        h("div", { class: "hero-secondary" }, favButton, sourceButton, reportButton),
       ),
     );
 

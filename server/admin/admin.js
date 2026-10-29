@@ -2,6 +2,11 @@
 // every request sends the x-branch-admin header and the session cookie.
 // the server checks both on every call, this page is just the interface.
 import { renderMarkdown } from "/shared/markdown.js";
+import { openSourceViewer as openViewer, parseGithub } from "/shared/source-viewer.js";
+
+function openSourceViewer(url) {
+  if (!openViewer(url)) toast("only github links can be viewed inside Branch", "error");
+}
 
 const app = document.getElementById("app");
 let me = null;
@@ -251,6 +256,7 @@ function renderPasswordChange(forced) {
 const NAV = [
   ["mods", "Mods"],
   ["reports", "Reports"],
+  ["requests", "Requests"],
   ["categories", "Categories & tags"],
   ["activity", "Activity"],
   ["account", "Account"],
@@ -272,7 +278,7 @@ async function start() {
 
 function shell(active, content) {
   const nav = NAV.map(([key, text]) =>
-    h("a", { href: `#/${key}`, "aria-current": active === key ? "page" : null }, text, key === "reports" && overview?.open_reports ? h("span", { class: "count", "aria-label": `${overview.open_reports} open` }, String(overview.open_reports)) : null),
+    h("a", { href: `#/${key}`, "aria-current": active === key ? "page" : null }, text, key === "reports" && overview?.open_reports ? h("span", { class: "count", "aria-label": `${overview.open_reports} open` }, String(overview.open_reports)) : key === "requests" && overview?.open_requests ? h("span", { class: "count", "aria-label": `${overview.open_requests} open` }, String(overview.open_requests)) : null),
   );
   app.replaceChildren(
     h(
@@ -301,6 +307,7 @@ async function route() {
   try {
     if (section === "mods" && id) await renderEditor(id === "new" ? null : id);
     else if (section === "reports") await renderReports();
+    else if (section === "requests") await renderRequests();
     else if (section === "categories") await renderCategories();
     else if (section === "activity") await renderActivity();
     else if (section === "account") renderAccount();
@@ -535,7 +542,7 @@ async function renderEditor(id) {
     h(
       "div",
       { class: "grid-2" },
-      field("source_url", "Source code", text("source_url", { type: "url", placeholder: "https://github.com/..." })),
+      h("div", null, field("source_url", "Source code", text("source_url", { type: "url", placeholder: "https://github.com/..." })), h("button", { class: "btn btn-quiet", type: "button", onclick: () => openSourceViewer(form.source_url) }, "View source in Branch")),
       field("project_url", "Original project page", text("project_url", { type: "url", placeholder: "https://" })),
       field("license_name", "License", text("license_name", { maxlength: "80", placeholder: "e.g. MIT, or unknown" }), { needed: true }),
       field("license_url", "License link", text("license_url", { type: "url", placeholder: "https://" })),
@@ -1004,6 +1011,66 @@ async function renderCategories() {
     h("section", { class: "card" }, h("h2", null, "Categories"), h("p", { class: "card-intro" }, "these show in the app's sidebar and filters."), h("div", { class: "table-wrap" }, h("table", { class: "table" }, h("thead", null, h("tr", null, ["Category", "Description", "Mods", ""].map((t) => h("th", { scope: "col" }, t)))), h("tbody", null, catRows)))),
     h("section", { class: "card" }, h("h2", null, "Add a category"), categoryForm(null)),
     h("section", { class: "card" }, h("h2", null, "Tags"), h("p", { class: "card-intro" }, "tags are added from the mod editor. rename or clean them up here."), tags.length ? h("div", { class: "table-wrap" }, h("table", { class: "table" }, h("thead", null, h("tr", null, ["Tag", "Mods", ""].map((t) => h("th", { scope: "col" }, t)))), h("tbody", null, tagRows))) : h("p", { class: "muted" }, "no tags yet.")),
+  ]);
+}
+
+// ---------- mod requests ----------
+
+let requestFilter = "open";
+
+async function renderRequests() {
+  const { items } = await api(`/api/admin/requests${requestFilter ? `?status=${requestFilter}` : ""}`);
+  const filter = h("div", { class: "segmented", role: "radiogroup", "aria-label": "Request status" }, [["open", "Open"], ["accepted", "Accepted"], ["denied", "Denied"], ["", "All"]].map(([v, t]) => {
+    const radio = h("input", { type: "radio", name: "request-filter", value: v, checked: requestFilter === v });
+    radio.addEventListener("change", () => { requestFilter = v; renderRequests(); });
+    return h("label", null, radio, h("span", null, t));
+  }));
+
+  const cards = items.map((r) => {
+    const note = h("textarea", { class: "textarea", rows: "2", maxlength: "2000", "aria-label": "Private admin note" });
+    note.value = r.admin_note;
+    const decide = async (status) => {
+      await api(`/api/admin/requests/${r.id}`, { method: "PUT", body: { status, admin_note: note.value } });
+      toast(status === "denied" ? "Request denied" : status === "open" ? "Reopened" : "Saved");
+      await refreshOverview();
+      renderRequests();
+    };
+    const github = parseGithub(r.url);
+    return h(
+      "article",
+      { class: "card report" },
+      h("div", { class: "report-head" }, h("h2", null, r.mod_name), h("span", { class: `pill ${r.status === "accepted" ? "resolved" : r.status === "denied" ? "dismissed" : "open"}` }, r.status), h("span", { class: "muted small" }, fmtTime(r.created_at))),
+      h("p", { class: "small code" }, r.url),
+      r.author ? h("p", { class: "small" }, `made by ${r.author}`) : null,
+      r.details ? h("p", { class: "report-body" }, r.details) : h("p", { class: "muted" }, "no details given."),
+      r.contact ? h("p", { class: "small" }, "contact: ", h("span", { class: "code" }, r.contact)) : null,
+      r.decided_by ? h("p", { class: "muted small" }, `${r.status} by ${r.decided_by} on ${fmtTime(r.decided_at)}`) : null,
+      h("div", { class: "field" }, h("span", { class: "field-label" }, "Private note"), note),
+      h(
+        "div",
+        { class: "report-actions" },
+        github ? h("button", { class: "btn", type: "button", onclick: () => openSourceViewer(r.url) }, "View source code") : null,
+        h("a", { class: "btn btn-quiet", href: r.url, target: "_blank", rel: "noopener noreferrer" }, "Open link"),
+        r.created_mod_id
+          ? h("a", { class: "btn btn-primary", href: `#/mods/${r.created_mod_id}` }, "Open the draft")
+          : h("button", { class: "btn btn-primary", type: "button", onclick: async () => {
+              const { mod_id } = await api(`/api/admin/requests/${r.id}/draft`, { method: "POST", body: {} });
+              toast("Accepted. a draft was created.");
+              await refreshOverview();
+              location.hash = `#/mods/${mod_id}`;
+            } }, "Accept and create draft"),
+        r.status !== "denied" ? h("button", { class: "btn btn-danger", type: "button", onclick: () => decide("denied") }, "Deny") : h("button", { class: "btn", type: "button", onclick: () => decide("open") }, "Reopen"),
+        h("button", { class: "btn btn-quiet", type: "button", onclick: () => decide(r.status) }, "Save note"),
+        h("span", { class: "grow" }),
+        h("button", { class: "btn btn-quiet btn-danger", type: "button", onclick: async () => { if (await confirmDialog("Delete this request?", "it's removed for good, including any contact info.", "Delete request")) { await api(`/api/admin/requests/${r.id}`, { method: "DELETE" }); await refreshOverview(); renderRequests(); } } }, "Delete"),
+      ),
+    );
+  });
+
+  shell("requests", [
+    h("div", { class: "page-head" }, h("h1", null, "Mod requests"), filter),
+    h("p", { class: "muted" }, "mods people asked for in the app. accepting one creates a draft listing for you to finish. remember: only host a copy when the license allows it."),
+    h("div", { class: "stack" }, cards.length ? cards : h("div", { class: "card" }, h("p", null, requestFilter === "open" ? "no open requests." : "nothing here."))),
   ]);
 }
 

@@ -11,9 +11,9 @@ const out = join(root, "app", "src-tauri", "icons");
 mkdirSync(out, { recursive: true });
 
 const hex = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
-const TOP = hex("#36ab74");
-const BOTTOM = hex("#13633f");
-const LEAF = hex("#d6f5e3");
+const PAPER = hex("#ffffff");
+const EDGE = hex("#d9d9de");
+const INK = hex("#111111");
 
 function inRoundRect(x, y) {
   const [x0, y0, x1, y1, r] = [64, 64, 960, 960, 216];
@@ -39,10 +39,17 @@ function inLeaf(x, y) {
 // color of one point in the 1024 grid, or null if it's outside the icon
 function sample(x, y) {
   if (!inRoundRect(x, y)) return null;
-  if (inLeaf(x, y)) return LEAF;
-  if (inCapsule(x, y, 392, 808, 600, 232, 46) || inCapsule(x, y, 488, 540, 700, 420, 38)) return [255, 255, 255];
-  const t = Math.min(1, Math.max(0, (x + y - 128) / 1792));
-  return TOP.map((c, i) => Math.round(c + (BOTTOM[i] - c) * t));
+  if (inLeaf(x, y) || inCapsule(x, y, 392, 808, 600, 232, 46) || inCapsule(x, y, 488, 540, 700, 420, 38)) return INK;
+  // a thin grey edge so the white tile still shows up on white backgrounds
+  if (!inRoundRectInset(x, y, 12)) return EDGE;
+  return PAPER;
+}
+
+function inRoundRectInset(x, y, inset) {
+  const [x0, y0, x1, y1, r] = [64 + inset, 64 + inset, 960 - inset, 960 - inset, 216 - inset];
+  const cx = Math.min(Math.max(x, x0 + r), x1 - r);
+  const cy = Math.min(Math.max(y, y0 + r), y1 - r);
+  return x >= x0 && x <= x1 && y >= y0 && y <= y1 && (x - cx) ** 2 + (y - cy) ** 2 <= r * r;
 }
 
 function render(size) {

@@ -1,10 +1,12 @@
 pub mod admin_ui;
+pub mod ai;
 pub mod auth;
 pub mod config;
 pub mod error;
 pub mod models;
 pub mod ratelimit;
 pub mod routes;
+pub mod scan;
 pub mod state;
 pub mod storage;
 pub mod uploads;
@@ -46,6 +48,11 @@ pub async fn build_state(config: Config) -> anyhow::Result<AppState> {
         config: Arc::new(config),
         limiter: Arc::new(RateLimiter::new()),
         dummy_hash: Arc::new(dummy_hash),
+        http: reqwest::Client::builder()
+            .user_agent("branch-server")
+            .connect_timeout(Duration::from_secs(10))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()?,
     })
 }
 
@@ -77,6 +84,9 @@ fn spawn_cleanup(state: AppState) {
                 "delete from admin_sessions where expires_at < now() or last_seen_at < now() - interval '1 day'",
                 "delete from download_events where day < current_date - 30",
                 "delete from reports where status <> 'open' and resolved_at < now() - interval '180 days'",
+                "delete from mod_requests where status <> 'open' and decided_at < now() - interval '180 days'",
+                "delete from ai_usage where day < current_date - 7",
+                "delete from ai_results where created_at < now() - interval '30 days'",
             ];
             for sql in jobs {
                 if let Err(err) = sqlx::query(sql).execute(&state.db).await {

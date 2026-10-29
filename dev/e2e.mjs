@@ -93,6 +93,19 @@ async function waitFor(expression, what, timeout = 6000) {
 async function go(url) {
   await cdp("Page.navigate", { url });
   await waitFor("document.readyState === 'complete'", "page load");
+  // the app shows its ~3 second startup screen first. the admin panel has none.
+  await waitFor("!document.getElementById('splash') || document.getElementById('splash').classList.contains('done')", "startup screen", 15000);
+  if (await evaluate("Boolean(document.getElementById('splash'))")) await sleep(450); // let it finish fading out
+  // the first launch asks to accept the terms
+  if (await evaluate("Boolean(document.querySelector('dialog.terms-sheet[open]'))")) {
+    await evaluate("document.getElementById('terms-agree').click()");
+    await evaluate("[...document.querySelectorAll('dialog.terms-sheet button')].find(b => b.textContent.includes('Agree')).click()");
+    await waitFor("!document.querySelector('dialog.terms-sheet')", "terms accepted");
+  }
+}
+async function setFile(selector, path) {
+  const { result } = await cdp("Runtime.evaluate", { expression: `document.querySelector(${JSON.stringify(selector)})` });
+  await cdp("DOM.setFileInputFiles", { files: [path], objectId: result.objectId });
 }
 async function screenshot(name) {
   const { data } = await cdp("Page.captureScreenshot", { format: "png" });
@@ -139,6 +152,33 @@ await cdp("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-sche
 console.log(`testing against the demo server with ${browserPath}`);
 
 // ---------- desktop app interface ----------
+
+await test("startup screen shows what it loads and takes about 3 seconds", async () => {
+  const started = Date.now();
+  await cdp("Page.navigate", { url: `${BASE}/` });
+  await waitFor(`document.getElementById("splash-detail")?.textContent.includes("(demo)")`, "a mod name on the startup screen", 4000);
+  await screenshot("startup");
+  await waitFor(`document.getElementById("splash")?.classList.contains("done") || !document.getElementById("splash")`, "startup finished", 8000);
+  const took = Date.now() - started;
+  assert(took >= 2800 && took < 6000, `startup took ${took}ms`);
+  assert(await evaluate(`document.documentElement.dataset.theme === undefined`), "light mode should be the default");
+});
+
+await test("terms must be accepted before using the app, once", async () => {
+  await waitFor(`document.querySelector("dialog.terms-sheet[open]")`, "terms screen");
+  await sleep(400);
+  await screenshot("terms");
+  const agree = `[...document.querySelectorAll("dialog.terms-sheet button")].find(b => b.textContent.includes("Agree"))`;
+  assert(await evaluate(`${agree}.disabled`), "agree should start disabled");
+  await cdp("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 });
+  await sleep(200);
+  assert(await evaluate(`Boolean(document.querySelector("dialog.terms-sheet[open]"))`), "escape must not skip the terms");
+  await evaluate(click("#terms-agree"));
+  await evaluate(`${agree}.click()`);
+  await waitFor(`!document.querySelector("dialog.terms-sheet")`, "terms closed");
+  await go(`${BASE}/`);
+  assert(!(await evaluate(`Boolean(document.querySelector("dialog.terms-sheet"))`)), "terms asked twice");
+});
 
 await test("browse list loads with skeletons first", async () => {
   await go(`${BASE}/`);
@@ -223,6 +263,7 @@ await test("hosted download shows progress and finishes", async () => {
   }
   assert(await evaluate(`document.querySelector('.checksum code').textContent.length === 64`), "checksum missing");
   assert(await evaluate(`!document.querySelector('.prose script, .prose img, .prose iframe')`), "unsafe markup in description");
+  assert(await evaluate(`[...document.querySelectorAll(".hero-secondary button")].some(b => b.textContent.includes("View source code"))`), "github source button missing");
   await screenshot("detail-light");
   await evaluate(clickText(".download-area button", "Download"));
   await waitFor(`document.querySelector('.progress')`, "progress bar", 3000);
@@ -330,6 +371,38 @@ await test("keyboard: ctrl+f focuses search and arrows move through rows", async
   assert(await evaluate(`document.activeElement === ${rows}[1].querySelector('.row-link')`), "arrow down didn't move focus");
 });
 
+await test("mod request form validates and sends", async () => {
+  await go(`${BASE}/#/request`);
+  await waitFor(`document.querySelector("#req-mod_name")`, "request form");
+  await evaluate(click(".form-card button[type=submit]"));
+  await waitFor(`!document.querySelector("#req-mod_name-error").hidden`, "name required");
+  await evaluate(type("#req-mod_name", "E2E Requested Mod"));
+  await evaluate(type("#req-url", "https://github.com/someone/e2e-mod"));
+  await evaluate(type("#req-details", "it adds e2e hats"));
+  await screenshot("request");
+  await evaluate(click(".form-card button[type=submit]"));
+  await waitFor(`document.querySelector(".state-block h2")?.textContent === "Request sent"`, "request sent");
+});
+
+await test("mod checker uploads a file and animates the suspicion meter", async () => {
+  const sample = join(profile, "free-cosmetics.dll");
+  writeFileSync(sample, Buffer.from("MZ demo https://discord.com/api/webhooks/1/x CreateRemoteThread \\Local Storage\\leveldb", "latin1"));
+  await go(`${BASE}/#/check`);
+  await waitFor(`document.querySelector(".usage")?.textContent.includes("20 of 20")`, "usage text");
+  await setFile("#checker-file", sample);
+  await waitFor(`document.querySelector(".drop-card.scanning")`, "scanning state", 3000);
+  await waitFor(`document.querySelector(".result-card")`, "result", 8000);
+  await sleep(300);
+  const midway = await evaluate(`Number(document.querySelector(".meter-number").textContent)`);
+  await sleep(1500);
+  const final = await evaluate(`Number(document.querySelector(".meter-number").textContent)`);
+  assert(final === 100 || final >= 90, `final score ${final}`);
+  assert(midway < final, "the meter should count up");
+  assert(await evaluate(`document.querySelector(".verdict").textContent === "Likely malicious"`), "verdict wrong");
+  assert(await evaluate(`document.querySelector(".usage").textContent.includes("19 of 20")`), "usage didn't go down");
+  await screenshot("checker-result");
+});
+
 // ---------- admin panel ----------
 
 await test("admin login rejects a wrong password", async () => {
@@ -404,6 +477,16 @@ await test("admin creates, publishes, unpublishes and deletes a mod", async () =
   await evaluate(clickText("dialog[open] button", "Delete forever"));
   await waitFor(`document.querySelector('.page-head h1')?.textContent === 'Mods'`, "back on list");
   assert(!(await evaluate(`document.body.textContent.includes('E2E Test Mod')`)), "deleted mod still listed");
+});
+
+await test("admin accepts a mod request into a draft", async () => {
+  await go(`${BASE}/admin#/requests`);
+  await waitFor(`document.querySelector(".report h2")?.textContent === "E2E Requested Mod"`, "request card");
+  assert(await evaluate(`[...document.querySelectorAll(".report-actions button")].some(b => b.textContent === "View source code")`), "no view source button for a github link");
+  await screenshot("admin-requests");
+  await evaluate(clickText(".report-actions button", "Accept and create draft"));
+  await waitFor(`/#\\/mods\\/[0-9a-f-]{36}/.test(location.hash) && document.querySelector("#name")?.value === "E2E Requested Mod"`, "draft editor");
+  assert(await evaluate(`document.querySelector("#source_url").value === "https://github.com/someone/e2e-mod"`), "source link not carried over");
 });
 
 await test("admin sees and resolves the report", async () => {

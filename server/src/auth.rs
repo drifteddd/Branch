@@ -186,8 +186,7 @@ pub async fn audit(db: &PgPool, admin: &AdminUser, action: &str, target: &str, d
     }
 }
 
-/// creates the first admin from ADMIN_BOOTSTRAP_USERNAME / ADMIN_BOOTSTRAP_PASSWORD,
-/// but only while there are no admins at all. the password has to be changed on first login.
+/// creates the first account when none exist yet. it has to pick a new password on first login.
 pub async fn bootstrap_admin(db: &PgPool, config: &Config) -> anyhow::Result<()> {
     let count: i64 = sqlx::query_scalar("select count(*) from admins").fetch_one(db).await?;
 
@@ -207,16 +206,16 @@ pub async fn bootstrap_admin(db: &PgPool, config: &Config) -> anyhow::Result<()>
                 .bind(hash)
                 .execute(db)
                 .await?;
-            tracing::warn!("created the first admin account '{username}'. remove ADMIN_BOOTSTRAP_PASSWORD from the environment now. you'll be asked to pick a new password when you log in.");
+            tracing::warn!("first account created");
         }
         (None, Some(_)) if count == 0 => {
-            tracing::warn!("ADMIN_BOOTSTRAP_PASSWORD is set but ADMIN_BOOTSTRAP_USERNAME isn't, so no admin was created");
+            tracing::warn!("first account not created: username missing");
         }
         (_, Some(_)) => {
-            tracing::warn!("ADMIN_BOOTSTRAP_PASSWORD is still set, but an admin already exists so it was ignored. remove it from the environment.");
+            tracing::warn!("first-account settings ignored: an account already exists");
         }
         _ if count == 0 => {
-            tracing::warn!("there are no admin accounts yet. set ADMIN_BOOTSTRAP_USERNAME and ADMIN_BOOTSTRAP_PASSWORD, then restart.");
+            tracing::warn!("no accounts exist yet");
         }
         _ => {}
     }

@@ -95,13 +95,16 @@ const mods = DEMO_NAMES.map(([title, cat, summary], i) => {
     compatibility: { status: COMPAT_CYCLE[i % COMPAT_CYCLE.length], note: i % 4 === 3 ? "demo note: broke after a game update." : "", checked_on: day },
     game_versions: "demo", platforms: ["steam", "oculus_pc"], mod_loader: "BepInEx 5 (demo)", dependencies: i % 2 ? [{ name: "Bark Library (demo)", url: null, required: true }] : [],
     install_instructions: "1. this is demo text.\n2. real install steps go here.", known_issues: i % 3 === 1 ? "- demo: menu flickers sometimes." : "",
-    source_url: "https://example.com/source", project_url: null, license: { name: "MIT (demo)", url: null }, redistribution: hosted ? "allowed" : "unknown", redistribution_note: "",
+    source_url: i === 0 ? "https://github.com/drifteddd/Branch" : "https://example.com/source", project_url: null, license: { name: "MIT (demo)", url: null }, redistribution: hosted ? "allowed" : "unknown", redistribution_note: "",
     downloads: (i * 37) % 200, featured: i < 3, status: i === 11 ? "draft" : "published", created_at: day, updated_at: day + "T12:00:00Z", published_at: day, releases: [release], open_reports: 0,
   };
 });
 for (const m of mods) for (const t of m.tags) tags.set(t, { id: randomUUID(), slug: t, name: t });
 
 const reports = [];
+const requests = [];
+const checkUsage = new Map();
+const CHECK_LIMIT = 20;
 const audit = [];
 
 // ---------- helpers ----------
@@ -225,7 +228,7 @@ async function adminApi(req, res, path, url) {
   const findRelease = (id) => { for (const m of mods) { const r = m.releases.find((x) => x.id === id); if (r) return [m, r]; } return [null, null]; };
 
   if (parts[0] === "overview") {
-    return send(res, 200, { published: mods.filter((m) => m.status === "published").length, drafts: mods.filter((m) => m.status === "draft").length, hidden: mods.filter((m) => ["unpublished", "archived"].includes(m.status)).length, open_reports: reports.filter((r) => r.status === "open").length, compatibility: COMPATIBILITY, platforms: PLATFORMS, report_reasons: REASONS });
+    return send(res, 200, { published: mods.filter((m) => m.status === "published").length, drafts: mods.filter((m) => m.status === "draft").length, hidden: mods.filter((m) => ["unpublished", "archived"].includes(m.status)).length, open_reports: reports.filter((r) => r.status === "open").length, open_requests: requests.filter((r) => r.status === "open").length, compatibility: COMPATIBILITY, platforms: PLATFORMS, report_reasons: REASONS });
   }
   if (parts[0] === "mods" && !parts[1]) {
     if (method === "POST") {
@@ -353,6 +356,24 @@ async function adminApi(req, res, path, url) {
     return send(res, 200, { ok: true });
   }
   if (parts[0] === "audit") return send(res, 200, { items: audit.slice(0, 300) });
+  if (parts[0] === "requests") {
+    if (!parts[1]) { const s = url.searchParams.get("status"); return send(res, 200, { items: requests.filter((r) => !s || r.status === s) }); }
+    const r = requests.find((x) => x.id === parts[1]);
+    if (!r) return fail(res, 404, "that request doesn't exist");
+    if (parts[2] === "draft") {
+      if (!r.created_mod_id) {
+        const m = { id: randomUUID(), status: "draft", featured: false, releases: [], screenshots: [], thumbnail_url: null, downloads: 0, created_at: new Date().toISOString(), published_at: null, open_reports: 0 };
+        modPayloadToMod(m, { name: r.mod_name, slug: `${r.mod_name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${mods.length}`, author_name: r.author, project_url: r.url, source_url: r.url.includes("github.com") ? r.url : "" });
+        mods.unshift(m);
+        r.created_mod_id = m.id;
+      }
+      r.status = "accepted"; r.decided_at = new Date().toISOString(); r.decided_by = admin.username;
+      return send(res, 200, { mod_id: r.created_mod_id });
+    }
+    if (method === "DELETE") requests.splice(requests.indexOf(r), 1);
+    else { const p = await json(req); r.status = p.status; r.admin_note = p.admin_note; r.decided_at = p.status === "open" ? null : new Date().toISOString(); r.decided_by = p.status === "open" ? null : admin.username; }
+    return send(res, 200, { ok: true });
+  }
   return fail(res, 404, "not found");
 }
 
@@ -416,6 +437,39 @@ async function publicApi(req, res, path, url) {
     if (!m) return fail(res, 404, "that mod isn't listed anymore");
     reports.unshift({ id: randomUUID(), mod_id: m.id, mod_slug: m.slug, mod_name: m.name, reason: body.reason, details: body.details || "", contact: body.contact || "", status: "open", admin_note: "", created_at: new Date().toISOString(), resolved_at: null, resolved_by: null });
     return send(res, 201, { ok: true });
+  }
+  if (path === "/api/requests" && req.method === "POST") {
+    const body = await json(req);
+    if (body.website) return send(res, 201, { ok: true });
+    const fields = {};
+    if (!body.mod_name?.trim()) fields.mod_name = "what's the mod called?";
+    if (!/^https?:\/\/\S+\.\S+/.test(body.url || "")) fields.url = "use a full link that starts with https://";
+    if (Object.keys(fields).length) return fail(res, 422, Object.values(fields)[0], fields);
+    requests.unshift({ id: randomUUID(), mod_name: body.mod_name.trim(), url: body.url.trim(), author: body.author || "", details: body.details || "", contact: body.contact || "", status: "open", admin_note: "", created_mod_id: null, created_at: new Date().toISOString(), decided_at: null, decided_by: null });
+    return send(res, 201, { ok: true });
+  }
+  if (path === "/api/check/usage") { const used = checkUsage.get("me") || 0; return send(res, 200, { used, limit: CHECK_LIMIT, remaining: CHECK_LIMIT - used }); }
+  if (path === "/api/check" && req.method === "POST") {
+    const used = checkUsage.get("me") || 0;
+    if (used >= CHECK_LIMIT) return fail(res, 429, `you've used all ${CHECK_LIMIT} checks for today.`);
+    const { file } = parseMultipart(req, await readBody(req));
+    if (!file) return fail(res, 400, "no file was attached");
+    const head = file.data.subarray(0, 2).toString("latin1");
+    if (head !== "MZ" && head !== "PK") return fail(res, 422, "only .dll and .zip files can be checked", { file: "only .dll and .zip files can be checked" });
+    // demo only: a fake verdict based on a few words in the file. the real server runs the full scan and the ai.
+    const text = file.data.toString("latin1").toLowerCase();
+    const signs = [["discord.com/api/webhooks", "has a discord webhook (often used to send stolen data)"], ["createremotethread", "injects code into other programs"], ["leveldb", "reads browser or discord login storage"]].filter(([n]) => text.includes(n));
+    const score = Math.min(100, signs.length * 33 + 4);
+    checkUsage.set("me", used + 1);
+    await new Promise((r) => setTimeout(r, 900));
+    return send(res, 200, {
+      file: { name: file.name, size: file.data.length, sha256: createHash("sha256").update(file.data).digest("hex"), kind: head === "MZ" ? "dll" : "zip" },
+      score, verdict: score <= 20 ? "Looks clean" : score <= 45 ? "A few odd things" : score <= 70 ? "Suspicious" : "Likely malicious",
+      summary: signs.length ? "demo: this file has several signs of a password stealer." : "demo: nothing unusual was found.",
+      reasons: signs.length ? signs.map(([, l]) => l) : ["demo: no webhooks, injection or hidden commands."],
+      source: "ai", cached: false, indicators: signs.map(([n, l]) => ({ category: "stealing", label: l, weight: 30, evidence: [n] })), mod_markers: text.includes("bepinex") ? ["BepInEx"] : [],
+      used: used + 1, limit: CHECK_LIMIT, remaining: CHECK_LIMIT - used - 1,
+    });
   }
   return fail(res, 404, "not found");
 }

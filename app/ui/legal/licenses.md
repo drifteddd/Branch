@@ -18,9 +18,13 @@ the desktop app is built with these open source projects. their licenses still a
 - **window-vibrancy** (MIT or Apache-2.0)
 - **Microsoft Edge WebView2** runtime, which Windows provides to show the app's interface (Microsoft's license)
 
-the Branch server uses axum, tokio, sqlx, object_store, image, argon2, tower-http and other Rust crates, mostly under MIT or Apache-2.0. the exact list of every package and version is in each project's Cargo.lock in the source code.
+the Branch server uses axum, tokio, sqlx, object_store, image, zip, reqwest, argon2, tower-http and other Rust crates, mostly under MIT or Apache-2.0. the exact list of every package and version is in each project's Cargo.lock in the source code.
 
 the app uses the fonts that already come with Windows (Segoe UI). no fonts are bundled.
+
+## the mod checker
+
+the mod checker's AI runs on [SiliconFlow](https://siliconflow.com) using the Qwen2.5-7B-Instruct model by the Qwen team (Apache-2.0 license). source code viewing uses GitHub's public API.
 
 ## the Branch icon
 

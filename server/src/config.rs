@@ -33,6 +33,14 @@ pub struct Config {
     pub storage: StorageConfig,
     pub bootstrap_username: Option<String>,
     pub bootstrap_password: Option<String>,
+    /// siliconflow key for the mod checker. without it, the checker uses the basic scan only.
+    pub ai_api_key: Option<String>,
+    pub ai_model: String,
+    pub ai_base_url: String,
+    /// checks one visitor gets per day
+    pub ai_daily_per_visitor: i32,
+    /// paid ai calls for everyone together per day. a hard ceiling on spending.
+    pub ai_daily_global: i32,
 }
 
 fn optional(key: &str) -> Option<String> {
@@ -40,7 +48,7 @@ fn optional(key: &str) -> Option<String> {
 }
 
 fn required(key: &str) -> anyhow::Result<String> {
-    optional(key).with_context(|| format!("{key} is missing. see .env.example for what it should look like"))
+    optional(key).with_context(|| format!("{key} is missing"))
 }
 
 fn flag(key: &str, default: bool) -> anyhow::Result<bool> {
@@ -49,6 +57,13 @@ fn flag(key: &str, default: bool) -> anyhow::Result<bool> {
         Some("1" | "true" | "yes") => Ok(true),
         Some("0" | "false" | "no") => Ok(false),
         Some(other) => bail!("{key} should be true or false, not '{other}'"),
+    }
+}
+
+fn number(key: &str, default: i32) -> anyhow::Result<i32> {
+    match optional(key) {
+        Some(v) => v.parse::<i32>().with_context(|| format!("{key} must be a number")),
+        None => Ok(default),
     }
 }
 
@@ -106,6 +121,11 @@ impl Config {
             storage,
             bootstrap_username: optional("ADMIN_BOOTSTRAP_USERNAME"),
             bootstrap_password: optional("ADMIN_BOOTSTRAP_PASSWORD"),
+            ai_api_key: optional("SILICONFLOW_API_KEY"),
+            ai_model: optional("SILICONFLOW_MODEL").unwrap_or_else(|| "Qwen/Qwen2.5-7B-Instruct".into()),
+            ai_base_url: optional("SILICONFLOW_BASE_URL").unwrap_or_else(|| "https://api.siliconflow.com/v1".into()).trim_end_matches('/').to_string(),
+            ai_daily_per_visitor: number("AI_CHECKS_PER_DAY", 20)?,
+            ai_daily_global: number("AI_GLOBAL_CALLS_PER_DAY", 600)?,
         })
     }
 }

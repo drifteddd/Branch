@@ -1,12 +1,16 @@
 // app shell: routing, sidebar, search box, theme and keyboard shortcuts.
 import { h, clear, debounce } from "./dom.js";
 import { icon, hydrateIcons } from "./icons.js";
-import { api, initPlatform, openExternal, setNativeTheme, windowMaterial } from "./platform.js";
-import { settings } from "./store.js";
+import { api, appWindow, initPlatform, isDesktop, openExternal, setNativeTheme, windowMaterial } from "./platform.js";
+import { settings, favorites, recent } from "./store.js";
+import { runSplash } from "./splash.js";
+import { requireTerms } from "./terms.js";
 import { toast } from "./ui.js";
 import { createBrowseView } from "./views/browse.js";
 import { createDetailView } from "./views/detail.js";
 import { createSettingsView, createAboutView, createLegalView } from "./views/pages.js";
+import { createRequestView } from "./views/request.js";
+import { createCheckerView } from "./views/checker.js";
 
 const root = document.documentElement;
 const main = document.getElementById("main");
@@ -58,6 +62,8 @@ const views = {
   settings: createSettingsView(ctx),
   about: createAboutView(ctx),
   legal: createLegalView(ctx),
+  request: createRequestView(ctx),
+  check: createCheckerView(ctx),
 };
 
 let currentRoute = null;
@@ -74,6 +80,8 @@ function parseRoute() {
   if (first === "mod" && parts[1]) return { name: "detail", path, slug: decodeURIComponent(parts[1]) };
   if (first === "settings") return { name: "settings", path };
   if (first === "about") return { name: "about", path };
+  if (first === "request") return { name: "request", path };
+  if (first === "check") return { name: "check", path };
   if (first === "legal" && parts[1]) return { name: "legal", path, doc: parts[1] };
   return { name: "browse", path: "/browse", mode: "all", category: "" };
 }
@@ -114,7 +122,7 @@ function markSidebar() {
   if (route.name === "browse") {
     if (route.mode === "all" && ctx.browse.category) active = categoryNav.querySelector(`[data-category="${CSS.escape(ctx.browse.category)}"]`);
     else active = sidebar.querySelector(`[data-nav="${route.mode}"]`);
-  } else if (route.name === "settings" || route.name === "about") {
+  } else if (["settings", "about", "request", "check"].includes(route.name)) {
     active = sidebar.querySelector(`[data-nav="${route.name}"]`);
   } else if (route.name === "legal") {
     active = sidebar.querySelector('[data-nav="about"]');
@@ -147,7 +155,7 @@ async function loadMeta() {
 // ---------- theme ----------
 
 function applyTheme(theme) {
-  if (theme === "light" || theme === "dark") root.dataset.theme = theme;
+  if (theme === "system" || theme === "dark") root.dataset.theme = theme;
   else delete root.dataset.theme;
   setNativeTheme(theme);
 }
@@ -238,17 +246,62 @@ window.addEventListener("hashchange", route);
 
 // ---------- start ----------
 
+// ---------- window buttons ----------
+
+function setupWindow() {
+  if (!isDesktop || !appWindow) return;
+  root.classList.add("is-desktop");
+  document.getElementById("window-controls").hidden = false;
+  document.getElementById("wc-close").addEventListener("click", () => appWindow.close());
+  document.getElementById("wc-min").addEventListener("click", () => appWindow.minimize());
+  document.getElementById("wc-max").addEventListener("click", () => appWindow.toggleMaximize());
+  window.addEventListener("blur", () => root.classList.add("window-inactive"));
+  window.addEventListener("focus", () => root.classList.remove("window-inactive"));
+}
+
+// ---------- start ----------
+
 async function start() {
   hydrateIcons();
   applyTheme(settings.get().theme);
-  try {
-    await initPlatform();
-  } catch {
-    toast("Branch couldn't start its network helper. try restarting the app.", { tone: "error", timeout: 8000 });
-  }
-  if ((await windowMaterial()) === "mica") root.classList.add("material-mica");
-  route();
-  loadMeta();
+  setupWindow();
+
+  await runSplash(async (say) => {
+    say("Connecting to the Branch server");
+    try {
+      await initPlatform();
+    } catch {
+      say("Couldn't start the network helper");
+    }
+    if ((await windowMaterial()) === "mica") root.classList.add("material-mica");
+
+    try {
+      say("Loading categories");
+      ctx.meta = await api("/api/meta");
+      for (const c of ctx.meta.categories) say(`Loading ${c.name}`);
+      renderCategories();
+      // start loading the first screen behind the splash
+      route();
+      say("Loading the mod list");
+      for (let page = 1; page <= 10; page++) {
+        const data = await api(`/api/mods?sort=name&per_page=50&page=${page}`);
+        for (const m of data.items) say(`Loading ${m.name}`);
+        if (!data.has_more) break;
+      }
+    } catch {
+      say("Couldn't reach the Branch server");
+    }
+    say(`Loading favorites (${favorites.list().length})`);
+    say(`Loading recently viewed (${recent.list().length})`);
+    say("Loading settings");
+    say("Getting everything ready");
+  });
+
+  await requireTerms();
+
+  if (!currentRoute) route();
+  if (!ctx.meta) loadMeta();
+  else views.browse.metaChanged();
 }
 
 start();

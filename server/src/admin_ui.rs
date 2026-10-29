@@ -13,9 +13,10 @@ const ADMIN_JS: &str = include_str!("../admin/admin.js");
 const ADMIN_CSS: &str = include_str!("../admin/admin.css");
 const TOKENS_CSS: &str = include_str!("../../app/ui/shared/tokens.css");
 const MARKDOWN_JS: &str = include_str!("../../app/ui/shared/markdown.js");
+const SOURCE_VIEWER_JS: &str = include_str!("../../app/ui/shared/source-viewer.js");
 const MARK_SVG: &str = include_str!("../../app/ui/shared/branch-mark.svg");
 
-const CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; \
+const CSP: &str = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' https://api.github.com; \
                    frame-ancestors 'none'; form-action 'self'; base-uri 'none'; object-src 'none'";
 
 fn asset(body: &'static str, content_type: &'static str) -> Response {
@@ -39,5 +40,6 @@ pub fn router() -> Router<AppState> {
         .route("/admin/admin.css", get(|| async { asset(ADMIN_CSS, "text/css; charset=utf-8") }))
         .route("/shared/tokens.css", get(|| async { asset(TOKENS_CSS, "text/css; charset=utf-8") }))
         .route("/shared/markdown.js", get(|| async { asset(MARKDOWN_JS, "text/javascript; charset=utf-8") }))
+        .route("/shared/source-viewer.js", get(|| async { asset(SOURCE_VIEWER_JS, "text/javascript; charset=utf-8") }))
         .route("/shared/branch-mark.svg", get(|| async { asset(MARK_SVG, "image/svg+xml") }))
 }

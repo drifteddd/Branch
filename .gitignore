@@ -4,10 +4,10 @@ target/
 # tauri generates these while building
 app/src-tauri/gen/
 
-# real settings and secrets. only the example file goes in git.
+# real settings and secrets
+PRIVATE-NOTES.md
 .env
 .env.*
-!.env.example
 
 # local upload folder used in development
 server/data/

@@ -162,3 +162,44 @@ export async function windowMaterial() {
   if (!isDesktop) return "none";
   try { return await tauri.core.invoke("window_material"); } catch { return "none"; }
 }
+
+// ---------- mod checker ----------
+
+// opens a file picker and sends the file to the checker. returns the result,
+// or { cancelled: true } if the person closed the picker.
+export async function checkModFile(browserFile) {
+  if (isDesktop) {
+    try {
+      return await tauri.core.invoke("check_mod_file");
+    } catch (err) {
+      throw toApiError(err, "the check failed");
+    }
+  }
+  if (!browserFile) return { cancelled: true };
+  const form = new FormData();
+  form.append("file", browserFile);
+  let res;
+  try {
+    res = await fetch("/api/check", { method: "POST", body: form });
+  } catch {
+    throw new ApiError("couldn't reach the Branch server. check your internet connection.", { kind: "network" });
+  }
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(data?.error || `the check failed (${res.status})`, { status: res.status, fields: data?.fields || null });
+  return data;
+}
+
+// ---------- window (the app draws its own title bar) ----------
+
+export const appWindow = isDesktop ? tauri.window.getCurrentWindow() : null;
+// github's public api, for viewing a mod's source code. returns undefined in the browser
+// preview, where the viewer just uses fetch() directly.
+export const githubFetch = isDesktop
+  ? async (path) => {
+      try {
+        return await tauri.core.invoke("github_api", { path });
+      } catch (err) {
+        throw new Error(err?.message || "couldn't reach github.");
+      }
+    }
+  : undefined;
