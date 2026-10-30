@@ -5,7 +5,7 @@ import { renderMarkdown } from "../shared/markdown.js";
 import { appWindow, isDesktop } from "./platform.js";
 
 // bump this whenever terms.md or privacy.md change in an important way
-export const TERMS_VERSION = 6;
+export const TERMS_VERSION = 7;
 const KEY = "branch.termsAccepted";
 
 export function termsAccepted() {

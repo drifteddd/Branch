@@ -71,13 +71,14 @@ pub struct ModRow {
     pub updated_at: DateTime<Utc>,
     pub published_at: Option<DateTime<Utc>>,
     pub source: String,
+    pub ai_insights: Option<Value>,
 }
 
 const MOD_SELECT: &str = "select m.id, m.slug, m.name, m.summary, m.description, m.author_name, m.author_url,
     m.category_id, c.slug as category_slug, c.name as category_name, m.status, m.featured, m.thumbnail_key,
     m.compatibility, m.compatibility_note, m.compatibility_checked_on, m.game_versions, m.platforms, m.mod_loader,
     m.dependencies, m.install_instructions, m.known_issues, m.source_url, m.project_url, m.license_name,
-    m.license_url, m.redistribution, m.redistribution_note, m.download_count, m.created_at, m.updated_at, m.published_at, m.source
+    m.license_url, m.redistribution, m.redistribution_note, m.download_count, m.created_at, m.updated_at, m.published_at, m.source, m.ai_insights
     from mods m left join categories c on c.id = m.category_id";
 
 #[derive(FromRow, Clone)]
@@ -234,6 +235,8 @@ pub struct ModDetail {
     pub featured: bool,
     /// uploaded by someone in the community instead of the Branch admin
     pub community: bool,
+    /// what branch's automatic check wrote about an uploaded mod, if anything
+    pub ai: Option<Value>,
     pub status: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -321,6 +324,7 @@ pub async fn load_detail(db: &PgPool, lookup: Lookup<'_>) -> Result<Option<ModDe
         downloads: m.download_count,
         featured: m.featured,
         community: m.source == "community",
+        ai: m.ai_insights,
         status: m.status,
         created_at: m.created_at,
         updated_at: m.updated_at,

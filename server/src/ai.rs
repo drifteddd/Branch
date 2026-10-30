@@ -67,6 +67,34 @@ Respond with ONE JSON object and nothing else:
 }
 Give at most 6 capabilities, most important first. Write summary, reasons and details in plain, calm, simple English (mostly lowercase), like explaining to a teenager. If nothing looks wrong, say what you checked and that nothing stood out."#;
 
+/// added to the prompt for community uploads only. the same single call also writes
+/// the listing details, so an upload never costs more than one ai request.
+pub const UPLOAD_EXTRA_PROMPT: &str = r#"
+
+THIS FILE IS BEING UPLOADED TO BRANCH'S PUBLIC MOD LIST. Besides the safety fields above, also fill in these fields to help players, using the same evidence plus "claimed_name" and "claimed_description":
+  "overview": "<2-4 sentences: an independent, neutral overview of what the mod does and how it works, based mainly on the code evidence. Do not copy or just reword the uploader's description. Do not praise the mod. If the evidence is thin, say what you can tell and keep it short.>",
+  "highlights": ["<up to 4 short feature bullets, under 10 words each, only things the evidence supports>"],
+  "tags": ["<3 to 5 short lowercase tags, 1-2 words each. Prefer tags from \"existing_tags\" when they fit; only invent a new tag if none fit. Never use tags like 'mod', 'gorilla tag', 'dll' or 'safe'.>"],
+  "category": "<the best slug from \"categories\", or null if none fits>",
+  "requirements": ["<other mods or loaders it needs to run, e.g. 'BepInEx', 'Utilla', 'Newtilla', 'ComputerInterface'. Only list what appears in the evidence (references, mod markers). Empty if unsure.>"],
+  "ban_risk": "none" | "low" | "high",
+  "ban_risk_reason": "<one short sentence. 'high' for cheats, mod menus, anti-ban, abusing other players or the network; 'low' for things that only change your own view or are allowed in modded lobbies; 'none' for libraries and purely visual client-side mods. This is about getting banned in Gorilla Tag, not about malware.>",
+  "description_match": "matches" | "partly" | "mismatch"
+"description_match" says whether the uploader's description fits what the code does: "matches" if it fits, "partly" if it's vague or only covers part of it, "mismatch" if it describes something clearly different. Add all of these keys to the same JSON object."#;
+
+/// the listing details the ai writes for an upload
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct UploadInsights {
+    pub overview: String,
+    pub highlights: Vec<String>,
+    pub tags: Vec<String>,
+    pub category: Option<String>,
+    pub requirements: Vec<String>,
+    pub ban_risk: String,
+    pub ban_risk_reason: String,
+    pub description_match: String,
+}
+
 #[derive(Serialize, Clone, Debug)]
 pub struct AiCapability {
     pub name: String,
@@ -82,12 +110,17 @@ pub struct AiVerdict {
     pub summary: String,
     pub reasons: Vec<String>,
     pub capabilities: Vec<AiCapability>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub insights: Option<UploadInsights>,
 }
 
-/// what the uploader says the mod is, for community uploads
+/// what the uploader says the mod is, for community uploads, plus the tags and
+/// categories Branch already has so the ai can pick from them
 pub struct Claim<'a> {
     pub name: &'a str,
     pub description: &'a str,
+    pub existing_tags: &'a [String],
+    pub categories: &'a [String],
 }
 
 fn truncate_json(text: String, max: usize) -> String {
@@ -142,6 +175,8 @@ fn user_message(report: &ScanReport, claim: Option<&Claim>) -> String {
     if let Some(claim) = claim {
         facts["claimed_name"] = json!(claim.name.chars().take(80).collect::<String>());
         facts["claimed_description"] = json!(claim.description.chars().take(1200).collect::<String>());
+        facts["existing_tags"] = json!(claim.existing_tags.iter().take(80).collect::<Vec<_>>());
+        facts["categories"] = json!(claim.categories);
     }
     let text = truncate_json(facts.to_string(), 15_000);
     format!("Evidence from Branch's scanner for the uploaded file:\n\n{text}")
@@ -195,6 +230,42 @@ pub fn parse_reply(content: &str) -> Option<AiVerdict> {
         summary: text("summary", 400),
         reasons,
         capabilities,
+        insights: parse_insights(&value),
+    })
+}
+
+/// the upload-only fields. missing when the reply was for the mod checker.
+fn parse_insights(value: &Value) -> Option<UploadInsights> {
+    let overview = clean(value.get("overview")?.as_str()?, 900);
+    let list = |key: &str, max: usize, len: usize| -> Vec<String> {
+        value
+            .get(key)
+            .and_then(|v| v.as_array())
+            .map(|l| l.iter().filter_map(|x| x.as_str()).map(|x| clean(x, len)).filter(|x| !x.is_empty()).take(max).collect())
+            .unwrap_or_default()
+    };
+    let pick = |key: &str, allowed: &[&str], fallback: &str| -> String {
+        let v = value.get(key).and_then(|v| v.as_str()).unwrap_or("").trim().to_lowercase();
+        if allowed.contains(&v.as_str()) { v } else { fallback.to_string() }
+    };
+    let mut tags: Vec<String> = Vec::new();
+    for tag in list("tags", 8, 24) {
+        let tag = tag.to_lowercase();
+        let banned = ["mod", "mods", "gorilla tag", "gorillatag", "dll", "safe", "bepinex mod"];
+        if tag.chars().count() >= 2 && !banned.contains(&tag.as_str()) && !tags.contains(&tag) && tags.len() < 5 {
+            tags.push(tag);
+        }
+    }
+    let category = value.get("category").and_then(|c| c.as_str()).map(|c| c.trim().to_lowercase()).filter(|c| !c.is_empty() && c != "null");
+    Some(UploadInsights {
+        overview,
+        highlights: list("highlights", 4, 90),
+        tags,
+        category,
+        requirements: list("requirements", 6, 40),
+        ban_risk: pick("ban_risk", &["none", "low", "high"], "low"),
+        ban_risk_reason: clean(value.get("ban_risk_reason").and_then(|v| v.as_str()).unwrap_or(""), 220),
+        description_match: pick("description_match", &["matches", "partly", "mismatch"], "partly"),
     })
 }
 
@@ -214,14 +285,16 @@ async fn call(http: &reqwest::Client, config: &Config, key: &str, body: &Value) 
 
 pub async fn ask(http: &reqwest::Client, config: &Config, report: &ScanReport, claim: Option<&Claim<'_>>) -> Result<AiVerdict, String> {
     let key = config.ai_api_key.as_deref().ok_or("the ai key isn't set")?;
+    // uploads also get an overview, tags and the rest, so they need a longer answer
+    let (system, max_tokens) = if claim.is_some() { (format!("{SYSTEM_PROMPT}{UPLOAD_EXTRA_PROMPT}"), 1200) } else { (SYSTEM_PROMPT.to_string(), 700) };
     let mut body = json!({
         "model": config.ai_model,
         "messages": [
-            { "role": "system", "content": SYSTEM_PROMPT },
+            { "role": "system", "content": system },
             { "role": "user", "content": user_message(report, claim) },
         ],
         "temperature": 0.1,
-        "max_tokens": 700,
+        "max_tokens": max_tokens,
         "stream": false,
         // asks for strict json. if a model doesn't support it, we retry without it below.
         "response_format": { "type": "json_object" },
@@ -354,6 +427,25 @@ mod tests {
         assert_eq!(v.reasons.len(), 2);
         assert_eq!(v.capabilities.len(), 2);
         assert_eq!(v.capabilities[1].level, "normal", "unknown levels fall back to normal");
+    }
+
+    #[test]
+    fn parses_upload_insights() {
+        let v = parse_reply(
+            r#"{"score": 10, "confidence": "high", "what_it_does": "hats", "summary": "fine", "reasons": [], "capabilities": [],
+                "overview": "adds a hat menu.", "highlights": ["pick a hat", "", "saves your choice"],
+                "tags": ["Hats", "mod", "cosmetics", "hats", "x", "fun", "menu", "extra", "too many"],
+                "category": "Cosmetics", "requirements": ["BepInEx", "Utilla"], "ban_risk": "NONE", "description_match": "weird"}"#,
+        )
+        .unwrap();
+        let i = v.insights.expect("upload fields");
+        assert_eq!(i.overview, "adds a hat menu.");
+        assert_eq!(i.highlights, vec!["pick a hat", "saves your choice"]);
+        assert_eq!(i.tags, vec!["hats", "cosmetics", "fun", "menu", "extra"], "lowercased, no duplicates, no banned or 1-letter tags, max 5");
+        assert_eq!(i.category.as_deref(), Some("cosmetics"));
+        assert_eq!(i.ban_risk, "none");
+        assert_eq!(i.description_match, "partly", "unknown values fall back");
+        assert!(parse_reply(r#"{"score": 5}"#).unwrap().insights.is_none(), "mod checker replies have no upload fields");
     }
 
     #[test]

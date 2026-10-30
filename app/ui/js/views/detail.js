@@ -136,6 +136,7 @@ export function createDetailView(ctx) {
       "div",
       { class: "detail-main" },
       mod.screenshots.length ? section("Screenshots", gallery(mod)) : null,
+      aiSection(mod),
       section("About this mod", mod.description ? markdown(mod.description) : h("p", { class: "muted" }, "the author hasn't added a full description.")),
       section(
         "How to install",
@@ -154,6 +155,60 @@ export function createDetailView(ctx) {
     const side = h("aside", { class: "detail-side", "aria-label": "Mod details" }, detailsCard(mod, latest), requirementsCard(mod), fileCard(latest), licenseCard(mod), linksCard(mod), tagsCard(mod));
 
     return h("article", { class: "detail-page", "aria-labelledby": "detail-title" }, warnings, head, h("div", { class: "detail-body" }, main, side));
+  }
+
+  // what Branch's automatic check wrote when the mod was uploaded: an overview from the
+  // code (separate from the uploader's own description) and a built-in safety score
+  function aiSection(mod) {
+    const ai = mod.ai;
+    if (!ai || !ai.risk) return null;
+    const risk = ai.risk;
+    const score = Math.max(0, Math.min(100, Number(risk.score) || 0));
+    const tone = score <= 20 ? "ok" : score <= 40 ? "neutral" : score <= 70 ? "warn" : "danger";
+    const meter = h("div", { class: "ai-meter", role: "meter", "aria-label": "Safety risk score", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(score) }, h("span", { class: `ai-meter-fill ${tone}` }));
+    meter.firstChild.style.width = `${Math.max(3, score)}%`;
+    const BAN = {
+      none: ["No ban risk", "ok"],
+      low: ["Low ban risk", "neutral"],
+      high: ["High ban risk", "danger"],
+    };
+    const MATCH = {
+      matches: "the uploader's description matches what the code does.",
+      partly: "the uploader's description only partly covers what the code does.",
+      mismatch: "the uploader's description doesn't match what the code does. be careful.",
+    };
+    const ban = BAN[ai.ban_risk];
+    const facts = [
+      ai.requirements?.length ? ["Needs", h("div", { class: "chips" }, ai.requirements.map((r) => h("span", { class: "chip" }, r)))] : null,
+      ban ? ["In-game", h("div", null, h("span", { class: `ai-pill ${ban[1]}` }, ban[0]), ai.ban_risk_reason ? h("p", { class: "muted small" }, ai.ban_risk_reason) : null)] : null,
+      MATCH[ai.description_match] ? ["Description", h("p", { class: ai.description_match === "mismatch" ? "ai-mismatch" : "" }, MATCH[ai.description_match])] : null,
+    ].filter(Boolean);
+
+    return h(
+      "section",
+      { class: "detail-section ai-card", "aria-labelledby": "ai-title" },
+      h("div", { class: "ai-head" }, icon("sparkle"), h("h2", { id: "ai-title" }, ai.overview ? "AI overview" : "Automatic check")),
+      ai.overview ? h("p", { class: "ai-overview" }, ai.overview) : null,
+      ai.highlights?.length ? h("ul", { class: "ai-highlights" }, ai.highlights.map((t) => h("li", null, icon("check"), t))) : null,
+      h(
+        "div",
+        { class: "ai-risk" },
+        h("div", { class: "ai-risk-top" }, h("span", { class: "ai-risk-title" }, icon("shield"), "Safety risk"), h("span", { class: `ai-score ${tone}` }, h("strong", null, String(score)), h("span", { class: "muted" }, " / 100"))),
+        meter,
+        h("p", { class: "ai-risk-label" }, h("strong", null, risk.label || ""), risk.summary ? ` · ${risk.summary}` : ""),
+        risk.capabilities?.length
+          ? h("ul", { class: "ai-caps" }, risk.capabilities.map((c) => h("li", { class: `cap-${c.level}`, title: c.detail || "" }, c.name)))
+          : null,
+      ),
+      facts.length ? h("dl", { class: "info-list ai-facts" }, facts.map(([k, v]) => [h("dt", null, k), h("dd", null, v)])) : null,
+      h(
+        "p",
+        { class: "fine-print" },
+        risk.source === "ai"
+          ? `written automatically by Branch's AI from the mod's code${ai.checked_at ? ` on ${formatDate(ai.checked_at)}` : ""}. it can be wrong, so read the description and use your judgment.`
+          : `from Branch's basic scan when the mod was uploaded${ai.checked_at ? ` on ${formatDate(ai.checked_at)}` : ""}. the AI wasn't available at the time, so there's no overview.`,
+      ),
+    );
   }
 
   function compatWarning(mod, info) {
@@ -395,7 +450,11 @@ export function createDetailView(ctx) {
 
   function tagsCard(mod) {
     if (!mod.tags.length) return null;
-    return card("Tags", h("div", { class: "chips" }, mod.tags.map((t) => h("span", { class: "chip" }, t))));
+    return card(
+      "Tags",
+      h("div", { class: "chips" }, mod.tags.map((t) => h("span", { class: "chip" }, t))),
+      mod.ai?.tags_by_ai ? h("p", { class: "muted small" }, "picked by Branch's AI, since the uploader didn't add any.") : null,
+    );
   }
 
   function card(title, ...content) {

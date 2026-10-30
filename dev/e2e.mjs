@@ -407,10 +407,20 @@ await test("community upload needs a file, name, description and rights confirma
   await screenshot("upload");
   await evaluate(click(".form-card button[type=submit]"));
   await waitFor(`document.querySelector(".state-block h2")?.textContent === "Your mod is live"`, "upload done", 8000);
+  assert(await evaluate(`document.querySelector(".ai-note")?.textContent.includes("added tags: hats")`), "upload result should say what the ai added");
   await evaluate(clickText(".state-block a", "View your mod"));
   await waitFor(`document.querySelector(".detail-title")?.textContent === "E2E Tiny Hats"`, "uploaded mod page");
   assert(await evaluate(`document.querySelector(".byline").textContent.includes("Anonymous")`), "author should be Anonymous");
   await waitFor(`document.querySelector(".hero-media img")?.src.includes("/files/uploaded/") && document.querySelector(".hero-media img").naturalWidth === 960`, "uploaded thumbnail on the mod page");
+  // the ai's overview sits apart from the uploader's description, with a safety score
+  assert(await evaluate(`document.querySelector(".ai-card #ai-title")?.textContent === "AI overview" && document.querySelector(".ai-overview").textContent.includes("BepInEx plugin")`), "ai overview missing");
+  assert(await evaluate(`document.querySelector(".ai-score strong").textContent === "8" && document.querySelector(".ai-meter").getAttribute("aria-valuenow") === "8"`), "risk score missing");
+  assert(await evaluate(`document.querySelector(".ai-pill")?.textContent === "No ban risk"`), "ban risk missing");
+  assert(await evaluate(`[...document.querySelectorAll(".side-card")].some(c => c.textContent.includes("hats") && c.textContent.includes("picked by Branch's AI"))`), "ai tags missing");
+  assert(await evaluate(`document.querySelector(".eyebrow")?.textContent === "Cosmetics"`), "ai category missing");
+  await evaluate(`document.querySelector(".ai-card").scrollIntoView({ block: "center" })`);
+  await sleep(200);
+  await screenshot("detail-ai-overview");
   assert(await evaluate(`document.querySelector(".detail-warnings").textContent.includes("Community upload")`), "community note missing");
   await go(`${BASE}/#/browse`);
   await waitFor(`[...document.querySelectorAll(".mod-row")].some(r => r.textContent.includes("E2E Tiny Hats") && r.textContent.includes("Community"))`, "community badge in the list");

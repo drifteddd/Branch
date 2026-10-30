@@ -427,7 +427,7 @@ async fn full_flow() {
     assert!(r.json["fields"]["file"].as_str().unwrap().contains("safety check"));
     // uploads from the app carry the person's community key, so they count toward rewards
     let member_key = "f00d".repeat(16);
-    let upload_fields = [("name", "Tiny Hats"), ("description", description), ("anonymous", "true"), ("author", "should be hidden"), ("confirm", "true"), ("key", member_key.as_str())];
+    let upload_fields = [("name", "Tiny Hats"), ("description", description), ("anonymous", "true"), ("author", "should be hidden"), ("confirm", "true"), ("key", member_key.as_str()), ("tags", "Hats, cosmetics, hats")];
     // the thumbnail is optional, but a broken one is turned away
     let r = c.form_files("/api/submissions", &upload_fields, &[("file", "TinyHats_v2.1.dll", &b"MZ BepInEx hats"[..]), ("thumbnail", "thumb.png", &b"not really a png"[..])]).await;
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "{}", r.json);
@@ -440,6 +440,11 @@ async fn full_flow() {
     assert_eq!(r.status, StatusCode::OK, "community uploads go live right away");
     let thumbnail_url = r.json["thumbnail_url"].as_str().expect("the uploaded thumbnail is on the mod").to_string();
     assert_eq!(c.get(&thumbnail_url).await.status, StatusCode::OK);
+    // the uploader's own tags are used. the automatic check's findings are saved with the mod
+    assert_eq!(r.json["tags"], json!(["cosmetics", "hats"]), "{}", r.json);
+    assert!(r.json["ai"]["risk"]["score"].is_u64(), "{}", r.json["ai"]);
+    assert_eq!(r.json["ai"]["risk"]["source"], "basic", "no ai key in tests, so only the basic scan ran");
+    assert!(r.json["ai"]["overview"].is_null());
     assert_eq!(r.json["author"]["name"], "Anonymous");
     assert_eq!(r.json["community"], true);
     assert_eq!(r.json["releases"][0]["version"], "2.1");

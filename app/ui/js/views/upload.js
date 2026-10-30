@@ -67,6 +67,27 @@ export function createUploadView(ctx) {
     onPaste(item.getAsFile());
   }
 
+  // after an upload: what Branch's AI added to the listing
+  function aiNote(ai) {
+    if (!ai) return null;
+    const added = [
+      ai.overview ? "wrote an overview from the code" : null,
+      ai.tags?.length ? `added tags: ${ai.tags.join(", ")}` : null,
+      ai.category ? `put it in ${ai.category}` : null,
+    ].filter(Boolean);
+    return h(
+      "div",
+      { class: "ai-note" },
+      icon("sparkle"),
+      h(
+        "div",
+        null,
+        h("strong", null, added.length ? "Branch's AI helped with your listing" : "Automatic check done"),
+        h("p", null, added.length ? `it ${added.join(", ")}. ` : "", `safety risk score: ${ai.risk_score} / 100.`),
+      ),
+    );
+  }
+
   function render() {
     let chosen = null;
     let thumbnail = null;
@@ -153,6 +174,7 @@ export function createUploadView(ctx) {
       author.disabled = anonymous.checked;
       if (anonymous.checked) author.value = "";
     });
+    const tagsInput = h("input", { class: "input", maxlength: "140", autocomplete: "off", placeholder: "e.g. hats, cosmetics, menu" });
     const version = h("input", { class: "input", maxlength: "40", autocomplete: "off", placeholder: "e.g. 1.0.0" });
     const category = h("select", { class: "select" }, h("option", { value: "" }, "No category"), (ctx.meta?.categories || []).map((c) => h("option", { value: c.slug }, c.name)));
     const sourceUrl = h("input", { class: "input", type: "url", maxlength: "500", autocomplete: "off", placeholder: "https://github.com/…" });
@@ -188,6 +210,7 @@ export function createUploadView(ctx) {
         ),
         thumbError,
       ),
+      field("tags", "Tags", tagsInput, { optional: true, hint: "separate them with commas, up to 5. leave this empty and Branch's AI picks tags for you." }),
       h(
         "div",
         { class: "field", dataset: { field: "author" } },
@@ -268,6 +291,7 @@ export function createUploadView(ctx) {
       data.append("description", description.value.trim());
       data.append("anonymous", anonymous.checked ? "true" : "false");
       data.append("author", anonymous.checked ? "" : author.value.trim());
+      data.append("tags", tagsInput.value.trim());
       data.append("version", version.value.trim());
       data.append("category", category.value);
       data.append("source_url", sourceUrl.value.trim());
@@ -301,6 +325,7 @@ export function createUploadView(ctx) {
               result.slug ? h("a", { class: "btn btn-primary", href: `#/mod/${encodeURIComponent(result.slug)}` }, "View your mod") : null,
             ],
           }),
+          aiNote(result.ai),
           rewardNote ? h("div", { class: "reward-note-wrap" }, rewardNote) : null,
           ].filter(Boolean),
         );

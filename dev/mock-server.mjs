@@ -640,6 +640,30 @@ async function publicApi(req, res, path, url) {
     const author = fields.anonymous === "true" ? "Anonymous" : (fields.author || "").trim() || "Anonymous";
     modPayloadToMod(m, { name, slug: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${mods.length}`, author_name: author, description, summary: description.split(". ")[0].slice(0, 200), redistribution: "allowed" });
     m.status = "published";
+    // pretend ai: an overview, plus tags and a category when the uploader left them out
+    const text = `${name} ${description}`.toLowerCase();
+    const userTags = [...new Set((fields.tags || "").split(",").map((t) => t.trim().toLowerCase()).filter(Boolean))].slice(0, 5);
+    const guessed = [["hat", "hats"], ["cosmetic", "cosmetics"], ["menu", "menu"], ["fly", "movement"], ["speed", "movement"], ["map", "maps"], ["light", "visuals"], ["sound", "sounds"]].filter(([w]) => text.includes(w)).map(([, t]) => t);
+    const aiTags = [...new Set(guessed.length ? guessed : ["utility"])].slice(0, 5);
+    m.tags = userTags.length ? userTags : aiTags;
+    for (const t of m.tags) if (!tags.has(t)) tags.set(t, { id: randomUUID(), slug: t, name: t });
+    const chosenCategory = categories.find((c) => c.slug === fields.category);
+    const guessedCategory = chosenCategory ? null : categories.find((c) => (text.includes("hat") && c.slug === "cosmetics") || (text.includes("map") && c.slug === "maps"));
+    const finalCategory = chosenCategory || guessedCategory;
+    if (finalCategory) m.category = { id: finalCategory.id, slug: finalCategory.slug, name: finalCategory.name };
+    const cheat = /fly|speed|noclip|menu/.test(text);
+    m.ai = {
+      overview: `${name} is a BepInEx plugin. based on its code, it ${cheat ? "adds a menu that changes how your player moves" : "adds client-side changes described by its class names"} and patches a few game methods with Harmony. it doesn't touch files outside the game or connect to the internet.`,
+      highlights: cheat ? ["toggle menu in game", "movement changes"] : ["runs only on your game", "no network access"],
+      requirements: ["BepInEx", ...(text.includes("utilla") ? ["Utilla"] : [])],
+      ban_risk: cheat ? "high" : "none",
+      ban_risk_reason: cheat ? "it changes movement, which can get you banned in public lobbies." : "it only changes what you see on your own game.",
+      description_match: "matches",
+      tags_by_ai: !userTags.length,
+      category_by_ai: Boolean(guessedCategory),
+      risk: { score: 8, label: "Looks clean", summary: "nothing in the code looks harmful.", what_it_does: "a demo mod", confidence: "high", capabilities: [{ name: "Patches the game", level: "normal", detail: "uses harmony" }, { name: "Reads its config", level: "normal", detail: "its own settings file" }], source: "ai" },
+      checked_at: new Date().toISOString(),
+    };
     if (thumb) {
       const key = `${randomUUID()}.jpg`;
       uploadedImages.set(key, thumb.data);
@@ -660,7 +684,7 @@ async function publicApi(req, res, path, url) {
       }
     }
     const uploads = mods.filter((x) => x.community && x.uploader_key && x.uploader_key === m.uploader_key).length;
-    return send(res, 201, { ok: true, slug: m.slug, reward: { earned, reason: earned ? "earned" : "not in the rewards program", uploads, threshold: 10 } });
+    return send(res, 201, { ok: true, slug: m.slug, reward: { earned, reason: earned ? "earned" : "not in the rewards program", uploads, threshold: 10 }, ai: { overview: m.ai.overview, tags: m.ai.tags_by_ai ? m.tags : [], category: guessedCategory?.name || null, risk_score: 8 } });
   }
   if (path === "/api/requests" && req.method === "POST") {
     const body = await json(req);

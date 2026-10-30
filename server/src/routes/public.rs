@@ -691,6 +691,56 @@ fn first_sentence(text: &str) -> String {
     sentence.trim().to_string()
 }
 
+/// "hats, Cosmetics , fun" -> ["hats", "cosmetics", "fun"]. up to 5 short tags.
+fn parse_tags(raw: &str) -> Result<Vec<String>, &'static str> {
+    let mut tags: Vec<String> = Vec::new();
+    for part in raw.split(',') {
+        let tag: String = part.trim().to_lowercase().chars().filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '-').collect();
+        let tag = tag.split_whitespace().collect::<Vec<_>>().join(" ");
+        if tag.is_empty() || tags.contains(&tag) {
+            continue;
+        }
+        if tag.chars().count() < 2 || tag.chars().count() > 24 {
+            return Err("each tag should be 2 to 24 characters");
+        }
+        tags.push(tag);
+    }
+    if tags.len() > 5 {
+        return Err("add up to 5 tags");
+    }
+    Ok(tags)
+}
+
+/// what's saved with an upload and shown on its page: the overview and details the ai
+/// wrote, plus a safety score. without the ai, only the basic scan's findings are kept.
+fn upload_insights(report: &crate::scan::ScanReport, score: u8, verdict: Option<&crate::ai::AiVerdict>, tags_by_ai: bool, category_by_ai: bool) -> Value {
+    let insights = verdict.and_then(|v| v.insights.as_ref());
+    let requirements: Vec<String> = match insights {
+        Some(i) if !i.requirements.is_empty() => i.requirements.clone(),
+        _ => report.mod_markers.iter().map(|m| m.to_string()).collect(),
+    };
+    json!({
+        "overview": insights.map(|i| i.overview.clone()).filter(|o| !o.is_empty()),
+        "highlights": insights.map(|i| i.highlights.clone()).unwrap_or_default(),
+        "requirements": requirements,
+        "ban_risk": insights.map(|i| i.ban_risk.clone()),
+        "ban_risk_reason": insights.map(|i| i.ban_risk_reason.clone()).filter(|r| !r.is_empty()),
+        "description_match": insights.map(|i| i.description_match.clone()),
+        "tags_by_ai": tags_by_ai,
+        "category_by_ai": category_by_ai,
+        "risk": {
+            "score": score,
+            "label": verdict_label(score),
+            "summary": verdict.map(|v| v.summary.clone()).filter(|s| !s.is_empty()),
+            "what_it_does": verdict.map(|v| v.what_it_does.clone()).filter(|s| !s.is_empty()),
+            "confidence": verdict.map(|v| v.confidence.clone()),
+            "capabilities": verdict.map(|v| v.capabilities.clone()).unwrap_or_default(),
+            "source": if verdict.is_some() { "ai" } else { "basic" },
+        },
+        "checked_at": Utc::now(),
+    })
+}
+
 /// anyone can upload their own mod. it needs a real mod file, a name and a description.
 /// every file goes through the automatic safety check, and likely-harmful files are refused.
 pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, mut multipart: Multipart) -> ApiResult<(StatusCode, Json<Value>)> {
@@ -748,8 +798,11 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
     let author = if anonymous { String::new() } else { get("author") };
     let version = get("version");
     let category = get("category");
+    let user_tags = parse_tags(&get("tags"));
 
     let mut errors = FieldErrors::default();
+    errors.check(user_tags.is_ok(), "tags", user_tags.as_ref().err().copied().unwrap_or(""));
+    let user_tags = user_tags.unwrap_or_default();
     errors.check(name.chars().count() >= 2, "name", "give your mod a name");
     errors.check(!too_long(&name, 80), "name", "keep the name under 80 characters");
     errors.check(description.chars().count() >= 30, "description", "describe what your mod does (at least 30 characters)");
@@ -797,17 +850,22 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
     .map_err(AppError::internal)?
     .map_err(|message| AppError::field("file", &message))?;
 
-    // the same safety check as the mod checker, with the ai when it's available
+    // the same safety check as the mod checker, with the ai when it's available.
+    // that one call also writes the overview, tags and other listing details.
     let mut score = report.heuristic_score;
     let mut ai_used = false;
+    let mut verdict: Option<crate::ai::AiVerdict> = None;
     if state.config.ai_api_key.is_some() && usage_today(&state, AI_CALLS_KEY).await? < state.config.ai_daily_global {
         bump_usage(&state, AI_CALLS_KEY).await?;
+        let existing_tags: Vec<String> = sqlx::query_scalar("select name from tags order by name limit 200").fetch_all(&state.db).await?;
+        let categories: Vec<String> = sqlx::query_scalar("select slug from categories order by sort_order, name").fetch_all(&state.db).await?;
         // the ai also sees what the uploader claims, so it can spot a "hat mod" that steals passwords
-        let claim = crate::ai::Claim { name: &name, description: &description };
+        let claim = crate::ai::Claim { name: &name, description: &description, existing_tags: &existing_tags, categories: &categories };
         match crate::ai::ask(&state.http, &state.config, &report, Some(&claim)).await {
             Ok(v) => {
                 score = report.final_score(v.score);
                 ai_used = true;
+                verdict = Some(v);
             }
             Err(err) => tracing::warn!(error = %err, "ai check failed during an upload, using the basic scan"),
         }
@@ -840,6 +898,24 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
     } else {
         crate::routes::admin::version_from_file(&checked.name).unwrap_or_else(|| "unversioned".into())
     };
+    // the ai fills in what the uploader left out: a category, and tags when they added none
+    let insights = verdict.as_ref().and_then(|v| v.insights.clone());
+    let mut category_by_ai: Option<String> = None;
+    let category_id = match (category_id, insights.as_ref().and_then(|i| i.category.as_deref())) {
+        (Some(id), _) => Some(id),
+        (None, Some(slug)) => {
+            let found: Option<(Uuid, String)> = sqlx::query_as("select id, name from categories where slug = $1").bind(slug).fetch_optional(&state.db).await?;
+            found.map(|(id, cat_name)| {
+                category_by_ai = Some(cat_name);
+                id
+            })
+        }
+        (None, None) => None,
+    };
+    let tags_by_ai = user_tags.is_empty() && insights.as_ref().is_some_and(|i| !i.tags.is_empty());
+    let tags = if user_tags.is_empty() { insights.as_ref().map(|i| i.tags.clone()).unwrap_or_default() } else { user_tags };
+    let ai_insights = upload_insights(&report, score, verdict.as_ref(), tags_by_ai, category_by_ai.is_some());
+
     let mod_id = crate::routes::admin::insert_draft(&state.db, &name, &display_author, source_url, None).await?;
     let info = json!({
         "file_name": checked.name,
@@ -871,7 +947,8 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
             "update mods set summary = $1, description = $2, category_id = $3, status = 'published', published_at = now(),
                 source = 'community', uploader = $4, redistribution = 'allowed',
                 redistribution_note = 'the uploader confirmed that they made this mod or have permission to share it.',
-                import_info = $5, code_fingerprint = $7, unique_status = 'unique', uploader_poster = $8, thumbnail_key = $9
+                import_info = $5, code_fingerprint = $7, unique_status = 'unique', uploader_poster = $8, thumbnail_key = $9,
+                ai_insights = $10
              where id = $6 returning slug",
         )
         .bind(first_sentence(&description))
@@ -883,8 +960,13 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
         .bind(&fingerprint)
         .bind(poster_id)
         .bind(&thumbnail_key)
+        .bind(&ai_insights)
         .fetch_one(&state.db)
         .await?;
+        if !tags.is_empty() {
+            let mut conn = state.db.acquire().await?;
+            crate::routes::admin::set_tags(&mut conn, mod_id, &tags).await?;
+        }
         sqlx::query(
             "insert into releases (id, mod_id, version, released_on, download_kind, file_key, file_name, file_size, file_sha256, file_type)
              values ($1, $2, $3, current_date, 'hosted', $4, $5, $6, $7, $8)",
@@ -920,6 +1002,12 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
                     "ok": true,
                     "slug": slug,
                     "reward": { "earned": earned, "reason": reason, "uploads": uploads, "threshold": crate::routes::rewards::THRESHOLD },
+                    "ai": {
+                        "overview": ai_insights["overview"],
+                        "tags": if tags_by_ai { json!(tags) } else { json!([]) },
+                        "category": category_by_ai,
+                        "risk_score": score,
+                    },
                 })),
             ))
         }
@@ -935,7 +1023,15 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
 }
 #[cfg(test)]
 mod tests {
-    use super::image_key_type;
+    use super::{image_key_type, parse_tags};
+
+    #[test]
+    fn tags_are_cleaned_and_limited() {
+        assert_eq!(parse_tags(" Hats, cosmetics ,hats,, Fun!  Stuff ").unwrap(), vec!["hats", "cosmetics", "fun stuff"]);
+        assert!(parse_tags("").unwrap().is_empty());
+        assert!(parse_tags("a").is_err());
+        assert!(parse_tags("one, two, three, four, five, six").is_err());
+    }
 
     #[test]
     fn only_branch_image_keys_are_served() {

@@ -500,7 +500,7 @@ fn slug_taken(err: &sqlx::Error) -> bool {
     matches!(err, sqlx::Error::Database(db) if db.is_unique_violation())
 }
 
-async fn set_tags(conn: &mut PgConnection, mod_id: Uuid, tags: &[String]) -> Result<(), sqlx::Error> {
+pub(crate) async fn set_tags(conn: &mut PgConnection, mod_id: Uuid, tags: &[String]) -> Result<(), sqlx::Error> {
     sqlx::query("delete from mod_tags where mod_id = $1").bind(mod_id).execute(&mut *conn).await?;
     for tag in tags {
         let slug = slugify(tag);
