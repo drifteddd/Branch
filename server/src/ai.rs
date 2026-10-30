@@ -43,6 +43,12 @@ HOW TO REASON:
 - Strong signs on their own: process injection APIs, system-wide keyboard hooks, Discord webhook URLs in a game mod, browser/Discord token paths, miner settings, executables or scripts inside the zip, Defender exclusions.
 - If a description is provided and the code clearly does something very different and harmful, treat that as a red flag. A harmless mismatch (e.g. the description is vague) is not.
 - If code evidence is missing (code.dotnet_dlls is 0 and there are few calls) or names are obfuscated, your confidence is lower. Do not invent findings. Only cite evidence that appears in the JSON.
+- Not being a Gorilla Tag mod is NOT a malware sign. If the file looks like an ordinary library or framework (for example a Microsoft, Unity or open-source library), say so in "what_it_does" and keep the score low. Never list "no mod markers" or "deprecated framework" as a reason.
+- Large libraries and frameworks normally use Reflection.Emit, dynamic code generation, embedded base64 resources, system event handlers, file access and HTTP. Treat runtime code loading as suspicious ONLY when it is combined with downloading or decoding a payload and running it, or with other malware signs.
+
+CALIBRATION (follow strictly):
+- If there is no evidence of stealing data, sending data out to webhooks/bots/unknown servers, downloading-and-running files, process injection, keylogging or screen capture, persistence, Defender tampering, crypto mining, or executables/scripts packed in the zip, the score MUST be 25 or lower, no matter how many "unusual" capabilities there are.
+- Use 41 or higher only when you can name at least one concrete malware behavior from the evidence.
 
 SCORE (0-100), about malware only:
 - 0-15: no malware signs; normal mod behavior

@@ -476,7 +476,7 @@ pub async fn create_request(State(state): State<AppState>, visitor: Visitor, Jso
 
 const AI_CALLS_KEY: &str = "__ai_calls__";
 /// bump when the model or prompt changes, so old cached answers aren't shown
-const CACHE_VERSION: &str = "v2";
+const CACHE_VERSION: &str = "v3";
 
 async fn usage_today(state: &AppState, visitor: &str) -> Result<i32, sqlx::Error> {
     let used: Option<i32> = sqlx::query_scalar("select count from ai_usage where visitor = $1 and day = current_date")
@@ -573,7 +573,7 @@ pub async fn check_mod(State(state): State<AppState>, visitor: Visitor, mut mult
             let value = match ai {
                 Some(v) => {
                     // the model has the final say, but it can't wave away strong warning signs completely
-                    let score = v.score.max((report.heuristic_score as f32 * 0.6).round() as u8);
+                    let score = report.final_score(v.score);
                     json!({
                         "score": score,
                         "confidence": v.confidence,
@@ -748,7 +748,7 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
         let claim = crate::ai::Claim { name: &name, description: &description };
         match crate::ai::ask(&state.http, &state.config, &report, Some(&claim)).await {
             Ok(v) => {
-                score = v.score.max((report.heuristic_score as f32 * 0.6).round() as u8);
+                score = report.final_score(v.score);
                 ai_used = true;
             }
             Err(err) => tracing::warn!(error = %err, "ai check failed during an upload, using the basic scan"),

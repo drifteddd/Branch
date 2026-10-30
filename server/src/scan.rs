@@ -150,6 +150,24 @@ fn capability_weight(code: &CodeSummary) -> u32 {
         .sum()
 }
 
+impl ScanReport {
+    /// true when the scanner found at least one concrete malware sign (a strong text signal
+    /// like a webhook or browser login path, or a dangerous capability like injection).
+    /// without one, the ai isn't allowed to call a file more than "a few odd things".
+    pub fn has_strong_signals(&self) -> bool {
+        self.indicators.iter().any(|i| i.weight >= 20) || self.code.capabilities.iter().any(|c| c.level == "dangerous")
+    }
+
+    /// combines the ai's score with the scanner's evidence
+    pub fn final_score(&self, ai_score: u8) -> u8 {
+        // the ai can't wave away strong warning signs completely...
+        let floor = (self.heuristic_score as f32 * 0.6).round() as u8;
+        let score = ai_score.max(floor);
+        // ...and can't call a file suspicious without at least one concrete sign
+        if self.has_strong_signals() { score } else { score.min(40) }
+    }
+}
+
 #[derive(Serialize, Clone, Debug)]
 pub struct ZipEntry {
     pub name: String,
@@ -486,6 +504,18 @@ mod tests {
         assert_eq!(report.entry_count, 2);
         assert!(report.indicators.iter().any(|i| i.category == "mining"));
         assert!(report.indicators.iter().any(|i| i.evidence.iter().any(|e| e.contains("install.bat"))));
+    }
+
+    #[test]
+    fn the_ai_needs_real_evidence_for_a_high_score() {
+        let clean = scan("library.dll", &fake_dll("HarmonyLib\0UnityEngine\0System.Reflection.Emit")).unwrap();
+        assert!(!clean.has_strong_signals());
+        assert_eq!(clean.final_score(90), 40, "no concrete sign means at most 'a few odd things'");
+        assert_eq!(clean.final_score(10), 10);
+        let stealer = scan("x.dll", &fake_dll("https://discord.com/api/webhooks/1/x\0\\Local Storage\\leveldb")).unwrap();
+        assert!(stealer.has_strong_signals());
+        assert_eq!(stealer.final_score(90), 90);
+        assert!(stealer.final_score(0) >= 30, "strong signs can't be waved away");
     }
 
     #[test]
