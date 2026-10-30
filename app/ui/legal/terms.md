@@ -1,6 +1,6 @@
 # Terms of Use
 
-**Version 5** · Effective October 30, 2026
+**Version 6** · Effective October 30, 2026
 
 These Terms of Use (the "**Terms**") form a binding agreement between you and Drifted (the "**Operator**," "**we**," "**us**"), the operator of the Branch application, its server and related services (together, "**Branch**" or the "**Service**"). By selecting "Agree and continue," or by accessing or using the Service, you confirm that you have read, understood and agree to be bound by these Terms and by the Privacy Notice, which is incorporated by reference. If you do not agree, you must not access or use the Service.
 
@@ -44,59 +44,74 @@ These Terms of Use (the "**Terms**") form a binding agreement between you and Dr
 
 5.2 **Public content.** Posts, replies and chat messages ("**Forum Content**") are publicly visible to all users of the Service, together with your display name and a short identifier. Do not post personal information about yourself or others, including real names, addresses, contact details, passwords or account credentials.
 
-5.3 **Conduct.** In addition to Section 6, you must not post Forum Content that is spam, advertising, harassment, threats, hate speech, sexual content, content that endangers minors, links to malware or phishing sites, or instructions intended to harm other users' devices or accounts. You must not use display names that impersonate the Operator, Branch staff or any other person.
+5.3 **Conduct.** In addition to Section 7, you must not post Forum Content that is spam, advertising, harassment, threats, hate speech, sexual content, content that endangers minors, links to malware or phishing sites, or instructions intended to harm other users' devices or accounts. You must not use display names that impersonate the Operator, Branch staff or any other person.
 
 5.4 **License and moderation.** Chat messages are deleted automatically after thirty (30) days. You retain ownership of your Forum Content and grant the Operator a worldwide, non-exclusive, royalty-free license to host, store, display, reproduce and distribute it for the purpose of operating the Service. The Operator may review, remove, lock or pin any Forum Content, and may restrict or block any user or connection from posting, at any time and for any reason, without notice. The Operator does not endorse, and is not responsible for, Forum Content posted by users.
-## 6. Prohibited Conduct
+## 6. Rewards Program
+
+6.1 **Nature of the program.** The Operator may, at its sole discretion, offer a promotional rewards program (the "**Rewards Program**") under which eligible users may receive Roblox Robux ("**Rewards**") for uploading unique Mods. The Rewards Program is a limited-time promotional offer. It is not employment, a contract for services, a lottery, a contest or a sweepstakes, and participation creates no entitlement to any Reward until that Reward has actually been delivered.
+
+6.2 **Eligibility and application.** To apply, you must have uploaded at least ten (10) unique Mods that remain published, provide your Roblox username and a link to a Roblox game pass, clothing item or other catalog item that you own (the "**Payout Item**"), and accept these Terms. Users under the age of majority must have the permission of a parent or legal guardian. Applications are reviewed by automated systems, including artificial intelligence, and by the Operator. The Operator may accept or reject any application for any reason or no reason.
+
+6.3 **Earning.** After acceptance, each new unique Mod you upload may credit ten (10) Robux to your Rewards balance, subject to a maximum of fifty (50) Robux per calendar day (UTC) and five hundred (500) Robux in total per person. Uploads made before acceptance do not earn Rewards. Whether a Mod is unique, and whether an upload qualifies, is determined by the Operator, assisted by automated checks, and is final.
+
+6.4 **Delivery.** Rewards are delivered, at the Operator's discretion and on the Operator's schedule, by the Operator purchasing your Payout Item. Amounts are approximate: Roblox fees, pricing and availability may affect the amount you receive. Rewards have no cash value, are not transferable and cannot be exchanged for money.
+
+6.5 **Voiding and removal.** The Operator may void any Reward, withhold delivery, or remove you from the Rewards Program at any time if it believes, in its sole discretion, that an upload is copied, stolen, misleading, harmful, low-effort filler or otherwise violates these Terms, that you have used multiple identities, automation or other means to manipulate the program, or for any other reason.
+
+6.6 **Changes and termination.** The Operator may change, suspend or end the Rewards Program, including its amounts, limits and eligibility rules, at any time and without notice or liability. The program may be resumed at the Operator's discretion.
+
+6.7 **Your responsibilities.** You are solely responsible for complying with the Roblox Terms of Use and any other rules that apply to you or to your Payout Item, and for any taxes that may apply. Branch and the Rewards Program are not affiliated with, sponsored by or endorsed by Roblox Corporation. To the fullest extent permitted by law, the Operator is not liable for any action Roblox takes regarding your account or items.
+## 7. Prohibited Conduct
 
 You agree that you will not: (a) upload or distribute malicious code of any kind; (b) upload content that you do not have the right to distribute, or that infringes the rights of others; (c) upload content that is unlawful, defamatory, obscene, hateful, harassing or that exploits minors; (d) impersonate any person or misrepresent your affiliation with any person; (e) submit false or misleading reports, requests or descriptions; (f) attempt to probe, scan, disrupt, overload or gain unauthorized access to the Service or its infrastructure; (g) circumvent rate limits, usage limits or security measures; (h) scrape or harvest data from the Service by automated means; or (i) use the Service in violation of any applicable law.
 
-## 7. The Mod Checker
+## 8. The Mod Checker
 
-7.1 The Mod Checker provides an automated estimate generated by software and a third-party artificial-intelligence model. Results may be incorrect. A low score does not mean that a file is safe, and a high score does not mean that a file is malicious. The Mod Checker does not evaluate whether a Mod complies with any game's rules.
+8.1 The Mod Checker provides an automated estimate generated by software and a third-party artificial-intelligence model. Results may be incorrect. A low score does not mean that a file is safe, and a high score does not mean that a file is malicious. The Mod Checker does not evaluate whether a Mod complies with any game's rules.
 
-7.2 You must only submit files that you are entitled to share. By using the Mod Checker, you authorize the processing described in the Privacy Notice, including transmission of information extracted from the file to the Operator's artificial-intelligence provider.
+8.2 You must only submit files that you are entitled to share. By using the Mod Checker, you authorize the processing described in the Privacy Notice, including transmission of information extracted from the file to the Operator's artificial-intelligence provider.
 
-7.3 You must not rely on the Mod Checker as your sole means of protection.
+8.3 You must not rely on the Mod Checker as your sole means of protection.
 
-## 8. Intellectual Property and Copyright Complaints
+## 9. Intellectual Property and Copyright Complaints
 
-8.1 The Branch software source code is licensed under the MIT License. That license applies only to Branch itself and grants no rights in any Mod, User Submission or Gorilla Tag material.
+9.1 The Branch software source code is licensed under the MIT License. That license applies only to Branch itself and grants no rights in any Mod, User Submission or Gorilla Tag material.
 
-8.2 The Operator respects the intellectual property rights of others and responds to notices of alleged infringement that comply with applicable law. The procedure for submitting a notice and counter-notice is described in the Copyright and Takedown Policy. The Operator may, in appropriate circumstances and at its discretion, restrict or block the ability of users who repeatedly infringe the rights of others to upload content.
+9.2 The Operator respects the intellectual property rights of others and responds to notices of alleged infringement that comply with applicable law. The procedure for submitting a notice and counter-notice is described in the Copyright and Takedown Policy. The Operator may, in appropriate circumstances and at its discretion, restrict or block the ability of users who repeatedly infringe the rights of others to upload content.
 
-## 9. Disclaimer of Warranties
+## 10. Disclaimer of Warranties
 
 TO THE FULLEST EXTENT PERMITTED BY APPLICABLE LAW, THE SERVICE, ALL MODS, USER SUBMISSIONS, MOD CHECKER RESULTS AND ALL OTHER CONTENT ARE PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY OR SECURITY. THE OPERATOR DOES NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE OR FREE OF HARMFUL COMPONENTS.
 
-## 10. Limitation of Liability
+## 11. Limitation of Liability
 
 TO THE FULLEST EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL THE OPERATOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF DATA, PROFITS, GOODWILL, GAME ACCOUNTS, VIRTUAL ITEMS OR DEVICES, ARISING OUT OF OR RELATING TO THE SERVICE, ANY MOD, ANY USER SUBMISSION, ANY MOD CHECKER RESULT OR ANY THIRD-PARTY WEBSITE, WHETHER BASED IN CONTRACT, TORT (INCLUDING NEGLIGENCE), STRICT LIABILITY OR ANY OTHER THEORY, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. BECAUSE THE SERVICE IS PROVIDED FREE OF CHARGE, THE OPERATOR'S TOTAL AGGREGATE LIABILITY FOR ALL CLAIMS SHALL NOT EXCEED ZERO U.S. DOLLARS (US $0.00) OR, WHERE SUCH A LIMITATION IS NOT PERMITTED, THE MINIMUM AMOUNT PERMITTED BY APPLICABLE LAW.
 
-## 11. Indemnification
+## 12. Indemnification
 
 To the fullest extent permitted by applicable law, you agree to defend, indemnify and hold harmless the Operator from and against any claims, liabilities, damages, losses, costs and expenses, including reasonable legal fees, arising out of or relating to: (a) your use of the Service or any Mod; (b) your User Submissions; (c) your violation of these Terms; or (d) your violation of any law or the rights of any third party.
 
-## 12. Termination
+## 13. Termination
 
-You may stop using the Service at any time by uninstalling the application. The Operator may suspend or terminate your access to the Service, and remove your User Submissions and Forum Content, at any time and for any reason. Sections 3, 4.3, 5.4, 8 through 11 and 13 survive any termination.
+You may stop using the Service at any time by uninstalling the application. The Operator may suspend or terminate your access to the Service, and remove your User Submissions and Forum Content, at any time and for any reason. Sections 3, 4.3, 5.4, 6.7, 9 through 12 and 14 survive any termination.
 
-## 13. General
+## 14. General
 
-13.1 **Severability.** If any provision of these Terms is held invalid or unenforceable, that provision shall be enforced to the maximum extent permissible and the remaining provisions shall remain in full force and effect.
+14.1 **Severability.** If any provision of these Terms is held invalid or unenforceable, that provision shall be enforced to the maximum extent permissible and the remaining provisions shall remain in full force and effect.
 
-13.2 **Entire agreement.** These Terms, together with the Privacy Notice and the Copyright and Takedown Policy, constitute the entire agreement between you and the Operator regarding the Service.
+14.2 **Entire agreement.** These Terms, together with the Privacy Notice and the Copyright and Takedown Policy, constitute the entire agreement between you and the Operator regarding the Service.
 
-13.3 **No waiver.** The Operator's failure to enforce any right or provision of these Terms shall not constitute a waiver of that right or provision.
+14.3 **No waiver.** The Operator's failure to enforce any right or provision of these Terms shall not constitute a waiver of that right or provision.
 
-13.4 **Assignment.** You may not assign or transfer these Terms. The Operator may assign these Terms without restriction.
+14.4 **Assignment.** You may not assign or transfer these Terms. The Operator may assign these Terms without restriction.
 
-13.5 **Statutory rights.** Nothing in these Terms limits any rights you may have under applicable law that cannot be waived or limited by contract.
+14.5 **Statutory rights.** Nothing in these Terms limits any rights you may have under applicable law that cannot be waived or limited by contract.
 
-## 14. Changes to These Terms
+## 15. Changes to These Terms
 
 The Operator may revise these Terms from time to time. Material changes will be presented in the application, and you will be required to accept the revised Terms before continuing to use the Service. Continued use of the Service after accepting revised Terms constitutes acceptance of those Terms.
 
-## 15. Contact
+## 16. Contact
 
 Questions about these Terms may be sent to **drifted1000@outlook.com**.

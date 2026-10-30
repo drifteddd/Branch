@@ -104,6 +104,7 @@ for (const m of mods) for (const t of m.tags) tags.set(t, { id: randomUUID(), sl
 const reports = [];
 const requests = [];
 const forum = { posters: new Map(), threads: [], reports: [], chat: [] };
+const rewards = { enabled: true, members: new Map(), nextEvent: 1 };
 const checkUsage = new Map();
 const CHECK_LIMIT = 20;
 const audit = [];
@@ -358,6 +359,28 @@ async function adminApi(req, res, path, url) {
     return send(res, 200, { ok: true });
   }
   if (parts[0] === "audit") return send(res, 200, { items: audit.slice(0, 300) });
+  if (parts[0] === "rewards") {
+    const all = [...rewards.members.values()];
+    const totals = (m) => {
+      const sum = (f) => m.events.filter(f).reduce((s, e) => s + e.amount, 0);
+      return { earned: sum((e) => e.status !== "void"), owed: sum((e) => e.status === "owed"), paid: sum((e) => e.status === "paid"), today: sum((e) => e.status !== "void") };
+    };
+    if (!parts[1]) {
+      const members = all.map((m) => ({ id: m.id, poster_name: forum.posters.get(m.key)?.name || "?", roblox_username: m.roblox_username, payout_item_url: m.payout_item_url, status: m.status, ai_review: m.ai_review, admin_note: "", applied_at: m.applied_at, decided_at: m.decided_at, uploads: mods.filter((x) => x.community && x.uploader_key === m.key).length, ...totals(m) }));
+      const events = all.flatMap((m) => m.events.map((e) => ({ ...e, member_id: m.id, roblox_username: m.roblox_username })));
+      return send(res, 200, { enabled: rewards.enabled, members, events });
+    }
+    const body = await json(req);
+    if (parts[1] === "settings") { rewards.enabled = body.enabled; return send(res, 200, { ok: true }); }
+    const member = all.find((m) => m.id === parts[2]);
+    if (parts[1] === "members" && member) {
+      if (parts[3] === "paid") { const owed = totals(member).owed; member.events.forEach((e) => { if (e.status === "owed") e.status = "paid"; }); return send(res, 200, { ok: true, paid: owed }); }
+      member.status = body.status;
+      member.decided_at = new Date().toISOString();
+      return send(res, 200, { ok: true });
+    }
+    return send(res, 200, { ok: true });
+  }
   if (parts[0] === "chat" && parts[1]) {
     const body = await json(req);
     const m = forum.chat.find((x) => x.id === Number(parts[1]));
@@ -485,6 +508,32 @@ async function publicApi(req, res, path, url) {
     reports.unshift({ id: randomUUID(), mod_id: m.id, mod_slug: m.slug, mod_name: m.name, reason: body.reason, details: body.details || "", contact: body.contact || "", status: "open", admin_note: "", created_at: new Date().toISOString(), resolved_at: null, resolved_by: null });
     return send(res, 201, { ok: true });
   }
+  // ---- demo rewards ----
+  if (path.startsWith("/api/rewards/")) {
+    const body = await json(req);
+    const uploads = mods.filter((x) => x.community && x.uploader_key === body.key).length;
+    const member = rewards.members.get(body.key);
+    if (path === "/api/rewards/apply") {
+      const errors = {};
+      if (!/^[A-Za-z0-9_]{3,20}$/.test(body.roblox_username || "")) errors.roblox_username = "enter your exact roblox username (3 to 20 letters, numbers or _)";
+      if (!/^https:\/\/(www\.)?roblox\.com\/(game-pass|catalog|bundles)\//i.test(body.payout_item_url || "")) errors.payout_item_url = "paste the link to one of your roblox gamepasses or clothing items";
+      if (!body.confirm) errors.confirm = "you have to agree to the rewards program rules";
+      if (Object.keys(errors).length) return fail(res, 422, Object.values(errors)[0], errors);
+      if (uploads < 10) return fail(res, 403, `upload ${10 - uploads} more unique mods before applying.`);
+      rewards.members.set(body.key, { id: randomUUID(), key: body.key, roblox_username: body.roblox_username, payout_item_url: body.payout_item_url, status: "pending", applied_at: new Date().toISOString(), decided_at: null, events: [], ai_review: { approve: true, summary: "demo: the uploads look like distinct mods.", reasons: [], flagged: [], by: "ai" } });
+      return send(res, 201, { status: "pending", summary: null, reasons: [] });
+    }
+    const sum = (f) => (member?.events || []).filter(f).reduce((s, e) => s + e.amount, 0);
+    return send(res, 200, {
+      enabled: rewards.enabled,
+      uploads,
+      threshold: 10,
+      limits: { per_mod: 10, daily: 50, total: 500 },
+      member: member
+        ? { status: member.status, roblox_username: member.roblox_username, payout_item_url: member.payout_item_url, applied_at: member.applied_at, decided_at: member.decided_at, review: null, earned: sum((e) => e.status !== "void"), owed: sum((e) => e.status === "owed"), paid: sum((e) => e.status === "paid"), today: sum((e) => e.status !== "void"), events: member.events }
+        : null,
+    });
+  }
   // ---- demo chat ----
   if (path === "/api/chat") {
     if (req.method === "POST") {
@@ -572,8 +621,11 @@ async function publicApi(req, res, path, url) {
     if (!file) errors.file = "attach your mod file (.dll or .zip)";
     else if (!["MZ", "PK"].includes(file.data.subarray(0, 2).toString("latin1"))) errors.file = "this .dll doesn't look like a real windows dll";
     if (Object.keys(errors).length) return fail(res, 422, Object.values(errors)[0], errors);
-    if (mods.filter((m) => m.community).length >= 10) return fail(res, 429, "you can upload up to 10 mods a day. try again tomorrow.");
-    const m = { id: randomUUID(), status: "draft", featured: false, releases: [], screenshots: [], thumbnail_url: null, downloads: 0, created_at: new Date().toISOString(), published_at: new Date().toISOString(), open_reports: 0, community: true };
+    if (mods.filter((m) => m.community).length >= 40) return fail(res, 429, "you can upload up to 10 mods a day. try again tomorrow.");
+    const sha = createHash("sha256").update(file.data).digest("hex");
+    const copy = mods.find((x) => x.releases.some((r) => r.file?.sha256 === sha));
+    if (copy) return fail(res, 422, `this exact file is already on Branch as "${copy.name}". only new, unique mods can be uploaded.`, { file: `this exact file is already on Branch as "${copy.name}". only new, unique mods can be uploaded.` });
+    const m = { id: randomUUID(), status: "draft", featured: false, releases: [], screenshots: [], thumbnail_url: null, downloads: 0, created_at: new Date().toISOString(), published_at: new Date().toISOString(), open_reports: 0, community: true, uploader_key: fields.key || null };
     const author = fields.anonymous === "true" ? "Anonymous" : (fields.author || "").trim() || "Anonymous";
     modPayloadToMod(m, { name, slug: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${mods.length}`, author_name: author, description, summary: description.split(". ")[0].slice(0, 200), redistribution: "allowed" });
     m.status = "published";
@@ -581,7 +633,18 @@ async function publicApi(req, res, path, url) {
     m.releases.push(refreshRelease({ id: randomUUID(), version: fields.version || "unversioned", released_on: new Date().toISOString().slice(0, 10), changelog: "", game_version: "", kind: "hosted", external_url: null, file: { name: file.name, size: file.data.length, sha256: createHash("sha256").update(file.data).digest("hex"), type: "dll" }, disabled: false, disabled_reason: "", created_at: new Date().toISOString() }));
     files.set(m.releases[0].id, file.data);
     mods.unshift(m);
-    return send(res, 201, { ok: true, slug: m.slug });
+    // demo rewards: members earn 10 per upload, up to 50 a day and 500 total
+    let earned = 0;
+    const member = rewards.members.get(m.uploader_key);
+    if (member && member.status === "accepted" && rewards.enabled) {
+      const total = member.events.filter((e) => e.status !== "void").reduce((s, e) => s + e.amount, 0);
+      if (total < 500 && member.events.length < 5) {
+        earned = 10;
+        member.events.unshift({ id: rewards.nextEvent++, mod_id: m.id, mod_name: m.name, amount: 10, status: "owed", created_at: new Date().toISOString(), paid_at: null });
+      }
+    }
+    const uploads = mods.filter((x) => x.community && x.uploader_key && x.uploader_key === m.uploader_key).length;
+    return send(res, 201, { ok: true, slug: m.slug, reward: { earned, reason: earned ? "earned" : "not in the rewards program", uploads, threshold: 10 } });
   }
   if (path === "/api/requests" && req.method === "POST") {
     const body = await json(req);

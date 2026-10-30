@@ -259,6 +259,7 @@ const NAV = [
   ["reports", "Reports"],
   ["requests", "Requests"],
   ["forum", "Forum"],
+  ["rewards", "Rewards"],
   ["categories", "Categories & tags"],
   ["activity", "Activity"],
   ["account", "Account"],
@@ -280,7 +281,7 @@ async function start() {
 
 function shell(active, content) {
   const nav = NAV.map(([key, text]) =>
-    h("a", { href: `#/${key}`, "aria-current": active === key ? "page" : null }, text, key === "reports" && overview?.open_reports ? h("span", { class: "count", "aria-label": `${overview.open_reports} open` }, String(overview.open_reports)) : key === "requests" && overview?.open_requests ? h("span", { class: "count", "aria-label": `${overview.open_requests} open` }, String(overview.open_requests)) : key === "forum" && overview?.open_forum_reports ? h("span", { class: "count", "aria-label": `${overview.open_forum_reports} reported` }, String(overview.open_forum_reports)) : null),
+    h("a", { href: `#/${key}`, "aria-current": active === key ? "page" : null }, text, key === "reports" && overview?.open_reports ? h("span", { class: "count", "aria-label": `${overview.open_reports} open` }, String(overview.open_reports)) : key === "requests" && overview?.open_requests ? h("span", { class: "count", "aria-label": `${overview.open_requests} open` }, String(overview.open_requests)) : key === "forum" && overview?.open_forum_reports ? h("span", { class: "count", "aria-label": `${overview.open_forum_reports} reported` }, String(overview.open_forum_reports)) : key === "rewards" && overview?.pending_rewards ? h("span", { class: "count", "aria-label": `${overview.pending_rewards} waiting` }, String(overview.pending_rewards)) : null),
   );
   app.replaceChildren(
     h(
@@ -312,6 +313,7 @@ async function route() {
     else if (section === "requests") await renderRequests();
     else if (section === "import") await renderImport();
     else if (section === "forum") await renderForum();
+    else if (section === "rewards") await renderRewardsAdmin();
     else if (section === "categories") await renderCategories();
     else if (section === "activity") await renderActivity();
     else if (section === "account") renderAccount();
@@ -1341,5 +1343,120 @@ async function renderForum() {
     posts.length
       ? h("div", { class: "table-wrap" }, h("table", { class: "table" }, h("thead", null, h("tr", null, ["Type", "Post", "By", "When", ""].map((t) => h("th", { scope: "col" }, t)))), h("tbody", null, rows)))
       : h("div", { class: "card" }, h("p", { class: "muted" }, "no posts yet.")),
+  ]);
+}
+// ---------- rewards program ----------
+
+async function renderRewardsAdmin() {
+  const { enabled, members, events } = await api("/api/admin/rewards");
+  const reload = async () => { await refreshOverview(); renderRewardsAdmin(); };
+  const pending = members.filter((m) => m.status === "pending");
+  const accepted = members.filter((m) => m.status === "accepted");
+  const others = members.filter((m) => m.status === "rejected" || m.status === "removed");
+  const itemLink = (m) => h("a", { href: m.payout_item_url, target: "_blank", rel: "noopener noreferrer" }, "payout item ↗");
+  const decide = async (m, status, label) => {
+    await api(`/api/admin/rewards/members/${m.id}`, { method: "POST", body: { status } });
+    toast(`${m.roblox_username} ${label}`);
+    reload();
+  };
+
+  const toggle = h("input", { type: "checkbox", id: "rewards-enabled", checked: enabled });
+  toggle.addEventListener("change", async () => {
+    if (!toggle.checked && !(await confirmDialog("Turn off the rewards program?", "people can't apply or earn while it's off. what members are already owed stays listed here.", "Turn off", true))) {
+      toggle.checked = true;
+      return;
+    }
+    await api("/api/admin/rewards/settings", { method: "POST", body: { enabled: toggle.checked } });
+    toast(toggle.checked ? "Rewards program is on" : "Rewards program is off");
+    reload();
+  });
+
+  const applicationCards = pending.map((m) => {
+    const review = m.ai_review || {};
+    return h(
+      "article",
+      { class: "card report" },
+      h("div", { class: "report-head" }, h("h2", null, m.roblox_username), h("span", { class: "pill open" }, "waiting for you"), h("span", { class: "muted small" }, `applied ${fmtTime(m.applied_at)}`)),
+      h("p", { class: "small" }, `community name ${m.poster_name} · ${m.uploads} unique uploads · `, itemLink(m)),
+      h(
+        "div",
+        { class: "notice-box" },
+        h("strong", null, review.by === "ai" ? (review.approve ? "AI review: looks fine. " : "AI review: concerns. ") : "AI review unavailable. "),
+        review.summary || "",
+        review.reasons?.length ? h("ul", { class: "reasons-list" }, review.reasons.map((r) => h("li", null, r))) : null,
+        review.flagged?.length ? h("p", { class: "small" }, `flagged uploads: ${review.flagged.length}`) : null,
+      ),
+      h(
+        "div",
+        { class: "report-actions" },
+        h("button", { class: "btn btn-primary", type: "button", onclick: () => decide(m, "accepted", "accepted") }, "Accept into rewards"),
+        h("button", { class: "btn btn-danger", type: "button", onclick: () => decide(m, "rejected", "rejected") }, "Reject"),
+        h("a", { class: "btn btn-quiet", href: "#/mods", onclick: () => { modsFilter.source = "community"; } }, "See community uploads"),
+      ),
+    );
+  });
+
+  const memberRows = accepted.map((m) =>
+    h(
+      "tr",
+      null,
+      h("td", null, h("strong", null, m.roblox_username), h("div", { class: "muted small" }, m.poster_name)),
+      h("td", null, itemLink(m)),
+      h("td", null, `${m.earned} / 500 R$`),
+      h("td", null, `${m.today} / 50`),
+      h("td", null, m.owed ? h("span", { class: "pill draft" }, `${m.owed} R$ owed`) : h("span", { class: "muted" }, "0")),
+      h("td", { class: "muted small" }, `${m.paid} R$`),
+      h(
+        "td",
+        { class: "row-actions" },
+        m.owed
+          ? h("button", { class: "btn btn-primary", type: "button", onclick: async () => {
+              if (!(await confirmDialog(`Mark ${m.owed} R$ as paid?`, `do this after you've bought ${m.roblox_username}'s item for ${m.owed} R$ (plus roblox's fee if you want them to receive the full amount).`, "Mark as paid", false))) return;
+              await api(`/api/admin/rewards/members/${m.id}/paid`, { method: "POST", body: {} });
+              toast(`${m.owed} R$ marked as paid`);
+              reload();
+            } }, "Mark paid")
+          : null,
+        h("button", { class: "btn btn-quiet btn-danger", type: "button", onclick: async () => { if (await confirmDialog(`Remove ${m.roblox_username} from rewards?`, "they won't earn anything new. what they're owed stays listed.", "Remove")) decide(m, "removed", "removed"); } }, "Remove"),
+      ),
+    ),
+  );
+
+  const eventRows = events.map((e) =>
+    h(
+      "tr",
+      null,
+      h("td", { class: "muted small" }, fmtTime(e.created_at)),
+      h("td", null, h("strong", null, e.roblox_username)),
+      h("td", null, e.mod_id ? h("a", { href: `#/mods/${e.mod_id}` }, e.mod_name) : `${e.mod_name} (removed)`),
+      h("td", null, `+${e.amount} R$`),
+      h("td", null, h("span", { class: `pill ${e.status === "paid" ? "resolved" : e.status === "void" ? "dismissed" : "draft"}` }, e.status)),
+      h(
+        "td",
+        { class: "row-actions" },
+        e.status === "void"
+          ? h("button", { class: "btn btn-quiet", type: "button", onclick: async () => { await api(`/api/admin/rewards/events/${e.id}`, { method: "POST", body: { status: "owed" } }); reload(); } }, "Restore")
+          : e.status === "owed"
+            ? h("button", { class: "btn btn-quiet btn-danger", type: "button", onclick: async () => { await api(`/api/admin/rewards/events/${e.id}`, { method: "POST", body: { status: "void" } }); toast("Reward voided"); reload(); } }, "Void")
+            : null,
+      ),
+    ),
+  );
+
+  const totalOwed = accepted.reduce((sum, m) => sum + Number(m.owed), 0);
+  shell("rewards", [
+    h("div", { class: "page-head" }, h("h1", null, "Rewards program"), h("label", { class: "switch", for: "rewards-enabled" }, toggle, h("span", null, enabled ? "On" : "Off"))),
+    h("p", { class: "muted" }, `10 R$ per unique upload after acceptance, 50 R$ a day, 500 R$ total. ${totalOwed} R$ is waiting to be paid across ${accepted.length} member${accepted.length === 1 ? "" : "s"}.`),
+    h("h2", { class: "import-heading" }, `Applications (${pending.length})`),
+    h("div", { class: "stack" }, applicationCards.length ? applicationCards : h("div", { class: "card" }, h("p", { class: "muted" }, "no applications waiting."))),
+    h("h2", { class: "import-heading" }, `Members (${accepted.length})`),
+    accepted.length
+      ? h("div", { class: "table-wrap" }, h("table", { class: "table" }, h("thead", null, h("tr", null, ["Roblox user", "Item", "Earned", "Today", "Owed", "Paid", ""].map((t) => h("th", { scope: "col" }, t)))), h("tbody", null, memberRows)))
+      : h("div", { class: "card" }, h("p", { class: "muted" }, "nobody has been accepted yet.")),
+    h("h2", { class: "import-heading" }, "Every reward"),
+    events.length
+      ? h("div", { class: "table-wrap" }, h("table", { class: "table" }, h("thead", null, h("tr", null, ["When", "Who", "Mod", "Amount", "Status", ""].map((t) => h("th", { scope: "col" }, t)))), h("tbody", null, eventRows)))
+      : h("div", { class: "card" }, h("p", { class: "muted" }, "no rewards earned yet.")),
+    others.length ? h("p", { class: "muted small" }, `${others.length} rejected or removed application(s) aren't shown.`) : null,
   ]);
 }

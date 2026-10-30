@@ -242,6 +242,100 @@ pub async fn ask(http: &reqwest::Client, config: &Config, report: &ScanReport, c
     parse_reply(content).ok_or_else(|| "the ai's answer wasn't in the expected format".to_string())
 }
 
+// ---------- duplicate checks and rewards reviews ----------
+
+const DUPLICATE_PROMPT: &str = r#"You check uploads to Branch, a Gorilla Tag mod library. Decide whether a NEW upload is the same mod as one already listed (a re-upload, a copy, a renamed or slightly edited version), or a genuinely different mod.
+
+You get the new mod's name, description and code fingerprint (its own class and method names), and a few existing mods that look similar, each with how much of their code names overlap with the new one (0.0 to 1.0) and a sample of the shared names.
+
+Rules:
+- Same mod: most of the distinctive class/method names match (overlap above about 0.6), or the purpose and code names are essentially identical even if the name, author or description changed. A newer version of a mod that is already listed also counts as the same mod.
+- Different mod: a different purpose, even if both use common frameworks (BepInEx, Harmony, Utilla, UnityEngine) or share a few generic names (Plugin, Menu, Toggle, Settings).
+- Matching names alone (e.g. two different mods both called "Fly") are not enough. Judge the code overlap and descriptions.
+- If unsure, say not a duplicate with low confidence.
+
+Respond with one JSON object only:
+{"duplicate": true | false, "duplicate_of_id": "<id of the matching existing mod or null>", "confidence": "low" | "medium" | "high", "reason": "<one short plain sentence>"}"#;
+
+const REWARDS_PROMPT: &str = r#"You review applications to Branch's rewards program. Branch is a Gorilla Tag mod library; people who upload genuine, unique mods can earn small Roblox rewards. Before an application reaches the human admin, you check the applicant's uploads.
+
+You get a list of every mod the applicant uploaded: name, description, file size, how many distinctive code names it has ("fingerprint_size"), the highest code overlap with any OTHER mod on Branch ("max_overlap_with_others", 0.0-1.0) and which mod that was, and the highest overlap with the applicant's OWN other uploads ("max_overlap_with_own").
+
+Approve when the uploads look like genuine, distinct mods. Do NOT approve when:
+- several uploads are copies of each other (own overlap above about 0.6) or copies of other people's mods (overlap with others above about 0.6),
+- uploads look like junk or filler to reach the count: tiny files with almost no code (fingerprint_size near 0), meaningless or repeated names, copy-pasted or nonsense descriptions,
+- descriptions are clearly misleading compared with the rest of the evidence.
+One weak, borderline item is not a reason to reject if the rest is clearly fine; mention it instead.
+
+Respond with one JSON object only:
+{"approve": true | false, "summary": "<one or two plain sentences for the admin>", "reasons": ["<up to 5 short reasons>"], "flagged_mod_ids": ["<ids of problem uploads>"]}"#;
+
+/// sends a system prompt and a json payload, and returns the model's json reply
+async fn ask_json(http: &reqwest::Client, config: &Config, system: &str, payload: &Value, max_tokens: u32) -> Result<Value, String> {
+    let key = config.ai_api_key.as_deref().ok_or("the ai key isn't set")?;
+    let user = truncate_json(payload.to_string(), 15_000);
+    let mut body = json!({
+        "model": config.ai_model,
+        "messages": [ { "role": "system", "content": system }, { "role": "user", "content": user } ],
+        "temperature": 0.1,
+        "max_tokens": max_tokens,
+        "stream": false,
+        "response_format": { "type": "json_object" },
+    });
+    let (mut status, mut value) = call(http, config, key, &body).await?;
+    if status == reqwest::StatusCode::BAD_REQUEST {
+        if let Some(map) = body.as_object_mut() {
+            map.remove("response_format");
+        }
+        (status, value) = call(http, config, key, &body).await?;
+    }
+    if !status.is_success() {
+        let message = value.pointer("/message").or_else(|| value.pointer("/error/message")).and_then(|v| v.as_str()).unwrap_or("unknown error");
+        return Err(format!("the ai answered {status}: {message}"));
+    }
+    let content = value.pointer("/choices/0/message/content").and_then(|v| v.as_str()).ok_or("the ai sent an empty answer")?;
+    let start = content.find('{').ok_or("no json in the answer")?;
+    let end = content.rfind('}').ok_or("no json in the answer")?;
+    serde_json::from_str(&content[start..=end]).map_err(|_| "the ai's answer wasn't valid json".to_string())
+}
+
+pub struct DuplicateVerdict {
+    pub duplicate: bool,
+    pub duplicate_of: Option<String>,
+    pub confident: bool,
+    pub reason: String,
+}
+
+pub async fn ask_duplicate(http: &reqwest::Client, config: &Config, payload: &Value) -> Result<DuplicateVerdict, String> {
+    let v = ask_json(http, config, DUPLICATE_PROMPT, payload, 200).await?;
+    Ok(DuplicateVerdict {
+        duplicate: v.get("duplicate").and_then(|d| d.as_bool()).unwrap_or(false),
+        duplicate_of: v.get("duplicate_of_id").and_then(|d| d.as_str()).map(str::to_owned),
+        confident: v.get("confidence").and_then(|c| c.as_str()).map(|c| c != "low").unwrap_or(false),
+        reason: clean(v.get("reason").and_then(|r| r.as_str()).unwrap_or(""), 240),
+    })
+}
+
+pub struct RewardsReview {
+    pub approve: bool,
+    pub summary: String,
+    pub reasons: Vec<String>,
+    pub flagged: Vec<String>,
+}
+
+pub async fn ask_rewards_review(http: &reqwest::Client, config: &Config, payload: &Value) -> Result<RewardsReview, String> {
+    let v = ask_json(http, config, REWARDS_PROMPT, payload, 500).await?;
+    let list = |key: &str, max: usize| -> Vec<String> {
+        v.get(key).and_then(|l| l.as_array()).map(|l| l.iter().filter_map(|x| x.as_str()).take(max).map(|x| clean(x, 220)).collect()).unwrap_or_default()
+    };
+    Ok(RewardsReview {
+        approve: v.get("approve").and_then(|a| a.as_bool()).unwrap_or(false),
+        summary: clean(v.get("summary").and_then(|s| s.as_str()).unwrap_or(""), 400),
+        reasons: list("reasons", 5),
+        flagged: list("flagged_mod_ids", 60),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

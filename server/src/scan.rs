@@ -150,7 +150,44 @@ fn capability_weight(code: &CodeSummary) -> u32 {
         .sum()
 }
 
+// names nearly every mod has, so they say nothing about whether two mods are the same
+const COMMON_NAMES: &[&str] = &[
+    "awake", "start", "update", "fixedupdate", "lateupdate", "onenable", "ondisable", "ondestroy", "ongui", "plugin", "main", "invoke", "dispose",
+    "tostring", "equals", "gethashcode", "finalize", "initialize", "init", "load", "unload", "prefix", "postfix", "patch", "patches", "instance",
+    "config", "settings", "utils", "helpers", "constants", "pluginfo", "myplugininfo", "resources",
+];
+
+/// how much two fingerprints overlap, from 0 (nothing shared) to 1 (identical)
+pub fn similarity(a: &[String], b: &[String]) -> f32 {
+    if a.is_empty() || b.is_empty() {
+        return 0.0;
+    }
+    let set: std::collections::HashSet<&String> = a.iter().collect();
+    let shared = b.iter().filter(|x| set.contains(x)).count();
+    let union = a.len() + b.len() - shared;
+    if union == 0 { 0.0 } else { shared as f32 / union as f32 }
+}
+
 impl ScanReport {
+    /// the mod's own class and method names, used to spot re-uploads of the same mod
+    /// even when the file was renamed or rebuilt
+    pub fn fingerprint(&self) -> Vec<String> {
+        let mut set = BTreeSet::new();
+        for t in &self.code.defined_types {
+            let short = t.rsplit('.').next().unwrap_or(t).to_lowercase();
+            if short.len() >= 3 && !COMMON_NAMES.contains(&short.as_str()) {
+                set.insert(format!("t:{short}"));
+            }
+        }
+        for m in &self.code.defined_methods {
+            let lower = m.to_lowercase();
+            if lower.len() >= 4 && !COMMON_NAMES.contains(&lower.as_str()) {
+                set.insert(format!("m:{lower}"));
+            }
+        }
+        set.into_iter().take(400).collect()
+    }
+
     /// true when the scanner found at least one concrete malware sign (a strong text signal
     /// like a webhook or browser login path, or a dangerous capability like injection).
     /// without one, the ai isn't allowed to call a file more than "a few odd things".

@@ -600,6 +600,75 @@ await test("admin bulk-imports mods into a private drafts list", async () => {
   await waitFor(`document.querySelector(".notice-box")?.textContent.includes("imported from")`, "import note in editor");
 });
 
+await test("rewards: reach 10 unique uploads, apply, get accepted, earn and get paid", async () => {
+  await go(`${BASE}/#/rewards`);
+  await waitFor(`document.querySelector(".rw-hero h1")?.textContent.includes("Earn Robux")`, "rewards page");
+  assert(await evaluate(`document.querySelector(".rw-pill").textContent.includes("Limited-time offer")`), "limited-time label missing");
+  await waitFor(`document.querySelector(".rw-big")`, "progress");
+  await sleep(1200);
+  await screenshot("rewards-progress");
+  // upload until this person has 10 unique mods (each file is different)
+  await evaluate(`(async () => {
+    const key = localStorage.getItem("branch.forumKey");
+    for (let i = 0; i < 12; i++) {
+      const me = await fetch("/api/rewards/me", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key }) }).then(r => r.json());
+      if (me.uploads >= 10) break;
+      const form = new FormData();
+      form.append("name", "Reward Test Mod " + i);
+      form.append("description", "a unique demo mod made only for the rewards test number " + i);
+      form.append("confirm", "true");
+      form.append("key", key);
+      form.append("file", new Blob(["MZ unique reward test " + i + " " + Math.random()]), "reward" + i + ".dll");
+      await fetch("/api/submissions", { method: "POST", body: form });
+    }
+  })()`);
+  // open another page first: going to the same address again wouldn't reload anything
+  await go(`${BASE}/#/browse`);
+  await go(`${BASE}/#/rewards`);
+  await waitFor(`document.querySelector(".rw-big span")?.textContent === "10" && document.querySelector("#rw-username")`, "apply form after 10 uploads");
+  await evaluate(type("#rw-username", "x"));
+  await evaluate(type("#rw-item", "https://evil.example/item"));
+  await evaluate(click(".rw-apply button[type=submit]"));
+  await waitFor(`!document.querySelector('[data-error="roblox_username"]').hidden && !document.querySelector('[data-error="payout_item_url"]').hidden && !document.querySelector('[data-error="confirm"]').hidden`, "validation errors");
+  await evaluate(type("#rw-username", "Cool_Climber"));
+  await evaluate(type("#rw-item", "https://www.roblox.com/game-pass/123456/Support"));
+  await evaluate(click("#rw-confirm"));
+  await screenshot("rewards-apply");
+  await evaluate(click(".rw-apply button[type=submit]"));
+  await waitFor(`document.querySelector(".rw-status.pending h2")?.textContent.includes("being reviewed")`, "pending review");
+
+  await go(`${BASE}/admin#/rewards`);
+  await waitFor(`document.querySelector(".report h2")?.textContent === "Cool_Climber"`, "application in admin");
+  await screenshot("admin-rewards-application");
+  await evaluate(clickText(".report-actions button", "Accept into rewards"));
+  await waitFor(`document.querySelector("tbody")?.textContent.includes("Cool_Climber")`, "member listed");
+
+  const modFile = join(profile, "BrandNewHat.dll");
+  writeFileSync(modFile, Buffer.from("MZ brand new reward hat " + Date.now()));
+  await go(`${BASE}/#/upload`);
+  await waitFor(`document.querySelector("#up-name")`, "upload form");
+  await setFile("#up-file", modFile);
+  await evaluate(type("#up-name", "Brand New Hat"));
+  await evaluate(type("#up-description", "a brand new hat mod uploaded after joining the rewards program."));
+  await evaluate(click("#up-confirm"));
+  await evaluate(click(".form-card button[type=submit]"));
+  await waitFor(`document.querySelector(".reward-note.earned")?.textContent.includes("+10 R$")`, "+10 R$ after upload", 8000);
+
+  await go(`${BASE}/#/rewards`);
+  await waitFor(`document.querySelector(".rw-member h2")?.textContent.includes("Cool_Climber")`, "member dashboard");
+  assert(await evaluate(`document.querySelector(".rw-events").textContent.includes("Brand New Hat")`), "reward not listed");
+  await sleep(1300);
+  await screenshot("rewards-dashboard");
+
+  await go(`${BASE}/admin#/rewards`);
+  await waitFor(`document.querySelector("tbody")?.textContent.includes("10 R$ owed")`, "owed in admin");
+  await screenshot("admin-rewards");
+  await evaluate(clickText(".row-actions button", "Mark paid"));
+  await waitFor(`document.querySelector("dialog[open]")`, "confirm");
+  await evaluate(clickText("dialog[open] button", "Mark as paid"));
+  await waitFor(`!document.querySelector("tbody")?.textContent.includes("R$ owed")`, "paid");
+});
+
 await test("admin sees and resolves the report", async () => {
   await go(`${BASE}/admin#/reports`);
   await waitFor(`document.querySelector('.report')`, "report card");

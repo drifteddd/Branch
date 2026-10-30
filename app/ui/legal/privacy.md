@@ -1,6 +1,6 @@
 # Privacy Notice
 
-**Version 5** · Effective October 30, 2026
+**Version 6** · Effective October 30, 2026
 
 This Privacy Notice explains how Drifted (the "**Operator**," "**we**," "**us**") collects, uses, stores and shares information in connection with the Branch application and its related services (the "**Service**"). Contact: **drifted1000@outlook.com**.
 
@@ -41,15 +41,18 @@ When you submit a file to the Mod Checker or upload a Mod:
 ## 5. Community Forum and Chat
 
 The Community Forum does not use accounts. When you first open it, the application generates a random secret key, which is stored only on your device. Our server stores a one-way hash of that key (never the key itself), a randomly generated display name that you may change, the Hashed Identifier of the connection that created it, and whether posting has been restricted. Your posts, replies, chat messages, display name and a short identifier derived from the hashed key are public. Chat messages are deleted automatically after thirty (30) days. Other Forum Content is retained until it is removed by the Operator; removed posts are replaced with a placeholder. Reports about Forum Content are visible only to the Operator and are deleted one hundred eighty (180) days after they are closed. Deleting the key from your device (for example, by uninstalling the application) does not delete posts you have already made; contact us to request removal.
-## 6. Reports and Mod Requests
+## 6. Rewards Program
+
+If you apply for the Rewards Program, we store your Roblox username, the link to your Payout Item, the application date, the result of the automated review of your uploads, the Operator's decision, and a record of each Reward credited, paid or voided, linked to your Community Forum identity. To check that uploads are unique, we store a fingerprint of each uploaded Mod's code (the names of its classes and methods) and compare new uploads against it; information about your uploads may be sent to SiliconFlow for this review. Rewards information is visible only to the Operator and is used to run the program and deliver Rewards. It is retained while the program is running and for up to one (1) year afterwards for record keeping, after which it is deleted. You may ask us to delete it sooner, which ends your participation.
+## 7. Reports and Mod Requests
 
 If you submit a report or a mod request, we store the related Mod, the reason or details you provide, your contact information if you choose to provide it, the Hashed Identifier and the time of submission. This information is visible only to the Operator and is deleted one hundred eighty (180) days after the report or request is closed.
 
-## 7. Third-Party Service Providers
+## 8. Third-Party Service Providers
 
-We rely on the following providers to operate the Service: **Railway** (server hosting and database storage), **SiliconFlow** (artificial-intelligence analysis for the Mod Checker and upload safety checks; information extracted from submitted files, and for uploads the Mod name and description, may be sent to SiliconFlow) and **GitHub** (when you choose to view a Mod's source code, the application retrieves it directly from GitHub). Each provider processes information under its own terms and policies and may keep its own logs. We do not sell personal information or share it for advertising purposes.
+We rely on the following providers to operate the Service: **Railway** (server hosting and database storage), **Roblox** (where Rewards are delivered by purchasing your Payout Item), **SiliconFlow** (artificial-intelligence analysis for the Mod Checker and upload safety checks; information extracted from submitted files, and for uploads the Mod name and description, may be sent to SiliconFlow) and **GitHub** (when you choose to view a Mod's source code, the application retrieves it directly from GitHub). Each provider processes information under its own terms and policies and may keep its own logs. We do not sell personal information or share it for advertising purposes.
 
-## 8. Data Retention Summary
+## 9. Data Retention Summary
 
 | Information | Retention |
 | --- | --- |
@@ -62,26 +65,26 @@ We rely on the following providers to operate the Service: **Railway** (server h
 | Community Forum posts and display name | until removed |
 | Community Forum reports | 180 days after closure |
 
-## 9. Children
+## 10. Children
 
 The Service is intended for users aged thirteen (13) and older. We do not knowingly collect personal information from children under 13. Users under 13 must not provide contact information. If you believe a child has provided personal information to us, contact us and we will delete it.
 
-## 10. Your Rights and Choices
+## 11. Your Rights and Choices
 
 Depending on where you live, you may have rights to access, correct or delete personal information we hold about you, or to object to or restrict its processing. Because the Service does not use accounts, please identify the relevant report, request or upload (for example, by Mod name and approximate date) when you contact us so that we can locate it. You may contact us at **drifted1000@outlook.com** to exercise these rights.
 
-## 11. Security
+## 12. Security
 
 We use reasonable technical measures to protect information, including encrypted connections, hashed identifiers and restricted administrative access. No method of transmission or storage is completely secure, and we cannot guarantee absolute security.
 
-## 12. International Processing
+## 13. International Processing
 
 The Operator and its service providers may process information in countries other than your own, which may have different data-protection laws. By using the Service, you acknowledge this processing.
 
-## 13. Changes to This Notice
+## 14. Changes to This Notice
 
 We may update this Privacy Notice from time to time. Material changes will be presented in the application before they take effect for you.
 
-## 14. Contact
+## 15. Contact
 
 Questions or requests regarding this Privacy Notice may be sent to **drifted1000@outlook.com**.

@@ -214,3 +214,6 @@ dialog.preview { width: min(980px, calc(100vw - 32px)); }
 .row-actions { white-space: nowrap; text-align: right; }
 
 .forum-excerpt { max-width: 420px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.reasons-list { margin: 6px 0 0; padding-left: 18px; }
+.page-head .switch span { font-weight: 600; }

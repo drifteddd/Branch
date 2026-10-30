@@ -3,6 +3,7 @@
 import { h, clear, formatBytes } from "../dom.js";
 import { icon } from "../icons.js";
 import { uploadForm } from "../platform.js";
+import { forumKey } from "../forum-identity.js";
 import { stateBlock } from "../ui.js";
 
 const MIN_DESCRIPTION = 30;
@@ -154,13 +155,24 @@ export function createUploadView(ctx) {
       data.append("source_url", sourceUrl.value.trim());
       data.append("confirm", "true");
       data.append("website", trap.value);
+      // your community identity, so this upload counts toward rewards
+      data.append("key", forumKey());
       data.append("file", chosen, chosen.name);
 
       submit.disabled = true;
       submit.textContent = "Uploading and checking…";
       try {
         const result = await uploadForm("/api/submissions", data);
+        const reward = result.reward;
+        const rewardNote = !reward
+          ? null
+          : reward.earned > 0
+            ? h("a", { class: "reward-note earned", href: "#/rewards" }, h("span", { class: "robux-mark" }, "R$"), `+${reward.earned} R$ added to your rewards`)
+            : reward.uploads < reward.threshold
+              ? h("a", { class: "reward-note", href: "#/rewards" }, icon("gift"), `${reward.uploads} / ${reward.threshold} unique mods toward Rewards`)
+              : null;
         clear(el).append(
+          ...[
           stateBlock({
             iconName: "check",
             title: "Your mod is live",
@@ -170,6 +182,8 @@ export function createUploadView(ctx) {
               result.slug ? h("a", { class: "btn btn-primary", href: `#/mod/${encodeURIComponent(result.slug)}` }, "View your mod") : null,
             ],
           }),
+          rewardNote ? h("div", { class: "reward-note-wrap" }, rewardNote) : null,
+          ].filter(Boolean),
         );
         ctx.refreshLists?.();
       } catch (err) {

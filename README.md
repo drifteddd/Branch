@@ -22,6 +22,7 @@ open it, search or scroll, click a mod, press download. made a mod? upload it in
 - **check a mod for viruses** with the free AI mod checker (20 checks a day). it reads what the mod's code actually does, explains it in plain words, and looks for stealers, RATs and other malware, not cheats
 - **talk in the community**: a forum for help, showcases and ideas, plus one big live chat for everyone. no account: you get a random name you can change in settings
 - **upload your own mod**: all you need is the file, a name and a description. you can stay anonymous. up to 10 uploads a day, and every upload goes through an automatic safety check
+- **earn robux (limited time)**: after 10 unique uploads you can apply for the rewards program and earn 10 R$ for each new unique mod, up to 500 R$. copies of mods already on Branch don't count. the program can end at any time
 - **save favorites** and see what you looked at recently. this stays on your computer
 - **report** a broken, outdated, misleading or harmful mod, or a copyright problem
 - **light or dark mode**, keyboard shortcuts (ctrl+f to search, alt+left to go back) and reduced motion

@@ -207,9 +207,11 @@ async fn overview(State(state): State<AppState>, Admin(_): Admin) -> ApiResult<J
     let open_reports: i64 = sqlx::query_scalar("select count(*) from reports where status = 'open'").fetch_one(&state.db).await?;
     let open_requests: i64 = sqlx::query_scalar("select count(*) from mod_requests where status = 'open'").fetch_one(&state.db).await?;
     let open_forum_reports: i64 = sqlx::query_scalar("select count(*) from forum_reports where status = 'open'").fetch_one(&state.db).await?;
+    let pending_rewards: i64 = sqlx::query_scalar("select count(*) from reward_members where status = 'pending'").fetch_one(&state.db).await?;
     Ok(Json(json!({
         "open_requests": open_requests,
         "open_forum_reports": open_forum_reports,
+        "pending_rewards": pending_rewards,
         "published": published,
         "drafts": drafts,
         "hidden": hidden,
@@ -1530,7 +1532,12 @@ async fn import_one(state: &AppState, admin: &AdminUser, file_name: String, data
     storage::put(state.store.as_ref(), &key, data).await.map_err(|_| "couldn't store the file".to_string())?;
 
     let db_result: Result<(), sqlx::Error> = async {
-        sqlx::query("update mods set imported_at = now(), import_info = $1 where id = $2").bind(&info).bind(mod_id).execute(&state.db).await?;
+        sqlx::query("update mods set imported_at = now(), import_info = $1, code_fingerprint = $3 where id = $2")
+            .bind(&info)
+            .bind(mod_id)
+            .bind(report.fingerprint())
+            .execute(&state.db)
+            .await?;
         sqlx::query(
             "insert into releases (id, mod_id, version, released_on, download_kind, file_key, file_name, file_size, file_sha256, file_type)
              values ($1, $2, $3, current_date, 'hosted', $4, $5, $6, $7, $8)",

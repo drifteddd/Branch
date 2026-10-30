@@ -497,6 +497,16 @@ async fn bump_usage(state: &AppState, visitor: &str) -> Result<i32, sqlx::Error>
     .await
 }
 
+/// true if an ai call is allowed right now. counts it against the shared daily cap,
+/// which covers every ai use (checker, uploads, duplicate checks, rewards reviews).
+pub(crate) async fn take_ai_budget(state: &AppState) -> ApiResult<bool> {
+    if state.config.ai_api_key.is_none() || usage_today(state, AI_CALLS_KEY).await? >= state.config.ai_daily_global {
+        return Ok(false);
+    }
+    bump_usage(state, AI_CALLS_KEY).await?;
+    Ok(true)
+}
+
 pub async fn check_usage(State(state): State<AppState>, visitor: Visitor) -> ApiResult<Json<Value>> {
     let used = usage_today(&state, &visitor.id).await?;
     let limit = state.config.ai_daily_per_visitor;
@@ -762,6 +772,20 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
         ));
     }
 
+    // only new mods: the exact same file, or a copy of a listed mod, is turned away
+    let fingerprint = report.fingerprint();
+    let uniqueness = crate::routes::rewards::check_upload_unique(&state, &checked.sha256, &name, &description, &fingerprint).await?;
+    if !uniqueness.unique {
+        return Err(AppError::field("file", &uniqueness.message));
+    }
+    // the uploader's community identity, so uploads count toward rewards
+    let community_key = get("key");
+    let poster_id = if community_key.is_empty() {
+        None
+    } else {
+        crate::routes::forum::poster_for(&state, &community_key, &visitor, true).await.ok().map(|p| p.id)
+    };
+
     let display_author = if author.is_empty() { "Anonymous".to_string() } else { author };
     let version = if !version.is_empty() {
         version
@@ -787,7 +811,7 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
             "update mods set summary = $1, description = $2, category_id = $3, status = 'published', published_at = now(),
                 source = 'community', uploader = $4, redistribution = 'allowed',
                 redistribution_note = 'the uploader confirmed that they made this mod or have permission to share it.',
-                import_info = $5
+                import_info = $5, code_fingerprint = $7, unique_status = 'unique', uploader_poster = $8
              where id = $6 returning slug",
         )
         .bind(first_sentence(&description))
@@ -796,6 +820,8 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
         .bind(&visitor.id)
         .bind(&info)
         .bind(mod_id)
+        .bind(&fingerprint)
+        .bind(poster_id)
         .fetch_one(&state.db)
         .await?;
         sqlx::query(
@@ -819,7 +845,22 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
     match saved {
         Ok(slug) => {
             tracing::info!("new community upload");
-            Ok((StatusCode::CREATED, Json(json!({ "ok": true, "slug": slug }))))
+            let (earned, reason, uploads) = match poster_id {
+                Some(pid) => {
+                    let (earned, reason) = crate::routes::rewards::award_for_upload(&state, pid, mod_id, &name).await.unwrap_or((0, "couldn't add the reward"));
+                    let uploads = crate::routes::rewards::unique_upload_count(&state, pid).await.unwrap_or(0);
+                    (earned, reason, uploads)
+                }
+                None => (0, "no community identity", 0),
+            };
+            Ok((
+                StatusCode::CREATED,
+                Json(json!({
+                    "ok": true,
+                    "slug": slug,
+                    "reward": { "earned": earned, "reason": reason, "uploads": uploads, "threshold": crate::routes::rewards::THRESHOLD },
+                })),
+            ))
         }
         Err(err) => {
             crate::storage::delete_quietly(state.store.as_ref(), &key).await;

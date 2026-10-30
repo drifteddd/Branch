@@ -419,7 +419,9 @@ async fn full_flow() {
     let r = c.form("/api/submissions", &[("name", "Free Robux"), ("description", description), ("confirm", "true")], Some(("x.dll", &b"MZ https://discord.com/api/webhooks/1/x \\Local Storage\\leveldb CreateRemoteThread"[..]))).await;
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "harmful files are refused: {}", r.json);
     assert!(r.json["fields"]["file"].as_str().unwrap().contains("safety check"));
-    let r = c.form("/api/submissions", &[("name", "Tiny Hats"), ("description", description), ("anonymous", "true"), ("author", "should be hidden"), ("confirm", "true")], Some(("TinyHats_v2.1.dll", &b"MZ BepInEx hats"[..]))).await;
+    // uploads from the app carry the person's community key, so they count toward rewards
+    let member_key = "f00d".repeat(16);
+    let r = c.form("/api/submissions", &[("name", "Tiny Hats"), ("description", description), ("anonymous", "true"), ("author", "should be hidden"), ("confirm", "true"), ("key", member_key.as_str())], Some(("TinyHats_v2.1.dll", &b"MZ BepInEx hats"[..]))).await;
     assert_eq!(r.status, StatusCode::CREATED, "{}", r.json);
     let slug = r.json["slug"].as_str().unwrap().to_string();
     let r = c.get(&format!("/api/mods/{slug}")).await;
@@ -430,13 +432,65 @@ async fn full_flow() {
     let release_id = r.json["releases"][0]["id"].as_str().unwrap().to_string();
     assert_eq!(c.get(&format!("/api/releases/{release_id}/download")).await.bytes, b"MZ BepInEx hats");
     assert_eq!(c.get("/api/admin/mods?source=community").await.json["items"].as_array().unwrap().len(), 1);
+    let r = c.form("/api/submissions", &[("name", "Tiny Hats Again"), ("description", description), ("confirm", "true")], Some(("copy.dll", &b"MZ BepInEx hats"[..]))).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "the exact same file can't be uploaded twice");
+    assert!(r.json["fields"]["file"].as_str().unwrap().contains("already on Branch"), "{}", r.json);
     for n in 2..=10 {
         let name = format!("Hat Pack {n}");
-        let r = c.form("/api/submissions", &[("name", name.as_str()), ("description", description), ("confirm", "true")], Some(("pack.dll", &b"MZ BepInEx"[..]))).await;
+        let bytes = format!("MZ BepInEx pack number {n}");
+        let r = c.form("/api/submissions", &[("name", name.as_str()), ("description", description), ("confirm", "true"), ("key", member_key.as_str())], Some(("pack.dll", bytes.as_bytes()))).await;
         assert_eq!(r.status, StatusCode::CREATED, "upload {n}: {}", r.json);
+        assert_eq!(r.json["reward"]["uploads"], n, "uploads are counted toward rewards");
+        assert_eq!(r.json["reward"]["earned"], 0, "nothing is earned before joining");
     }
-    let r = c.form("/api/submissions", &[("name", "One Too Many"), ("description", description), ("confirm", "true")], Some(("pack.dll", &b"MZ BepInEx"[..]))).await;
+    let r = c.form("/api/submissions", &[("name", "One Too Many"), ("description", description), ("confirm", "true")], Some(("pack.dll", &b"MZ BepInEx one too many"[..]))).await;
     assert_eq!(r.status, StatusCode::TOO_MANY_REQUESTS, "10 uploads a day");
+
+    // ---- rewards program ----
+    let r = c.json("POST", "/api/rewards/me", json!({ "key": member_key })).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    assert_eq!(r.json["uploads"], 10);
+    assert_eq!(r.json["enabled"], true);
+    assert!(r.json["member"].is_null());
+    let r = c.json("POST", "/api/rewards/apply", json!({ "key": member_key, "roblox_username": "x", "payout_item_url": "https://evil.example/item", "confirm": true })).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(r.json["fields"]["roblox_username"].is_string() && r.json["fields"]["payout_item_url"].is_string(), "{}", r.json);
+    let r = c.json("POST", "/api/rewards/apply", json!({ "key": member_key, "roblox_username": "Cool_Climber", "payout_item_url": "https://www.roblox.com/game-pass/123456/Support", "confirm": true })).await;
+    assert_eq!(r.status, StatusCode::CREATED, "{}", r.json);
+    assert_eq!(r.json["status"], "pending", "without the ai, applications go straight to the admin");
+    let r = c.json("POST", "/api/rewards/apply", json!({ "key": member_key, "roblox_username": "Cool_Climber", "payout_item_url": "https://www.roblox.com/game-pass/123456/Support", "confirm": true })).await;
+    assert_eq!(r.status, StatusCode::FORBIDDEN, "can't apply twice");
+    let r = c.get("/api/admin/rewards").await;
+    let member_id = r.json["members"][0]["id"].as_str().unwrap().to_string();
+    assert_eq!(r.json["members"][0]["status"], "pending");
+    assert_eq!(r.json["members"][0]["uploads"], 10);
+    let r = c.json("POST", &format!("/api/admin/rewards/members/{member_id}"), json!({ "status": "accepted" })).await;
+    assert_eq!(r.status, StatusCode::OK);
+
+    // the next day: the daily upload limit has reset
+    let pool = sqlx::PgPool::connect(&std::env::var("TEST_DATABASE_URL").unwrap()).await.unwrap();
+    sqlx::query("update mods set created_at = created_at - interval '1 day'").execute(&pool).await.unwrap();
+    let r = c.form("/api/submissions", &[("name", "Brand New Mod"), ("description", description), ("confirm", "true"), ("key", member_key.as_str())], Some(("new.dll", &b"MZ BepInEx brand new"[..]))).await;
+    assert_eq!(r.status, StatusCode::CREATED, "{}", r.json);
+    assert_eq!(r.json["reward"]["earned"], 10, "members earn 10 R$ per unique upload: {}", r.json);
+    let r = c.json("POST", "/api/rewards/me", json!({ "key": member_key })).await;
+    assert_eq!(r.json["member"]["status"], "accepted");
+    assert_eq!(r.json["member"]["earned"], 10);
+    assert_eq!(r.json["member"]["owed"], 10);
+    assert_eq!(r.json["member"]["today"], 10);
+    assert_eq!(r.json["member"]["events"][0]["mod_name"], "Brand New Mod");
+    let r = c.get("/api/admin/rewards").await;
+    assert_eq!(r.json["events"][0]["roblox_username"], "Cool_Climber", "the admin sees exactly who earned it");
+    let r = c.json("POST", &format!("/api/admin/rewards/members/{member_id}/paid"), json!({})).await;
+    assert_eq!(r.json["paid"], 10);
+    let r = c.json("POST", "/api/rewards/me", json!({ "key": member_key })).await;
+    assert_eq!(r.json["member"]["paid"], 10);
+    assert_eq!(r.json["member"]["owed"], 0);
+
+    // the program can be switched off
+    c.json("POST", "/api/admin/rewards/settings", json!({ "enabled": false })).await;
+    assert_eq!(c.json("POST", "/api/rewards/me", json!({ "key": member_key })).await.json["enabled"], false);
+    c.json("POST", "/api/admin/rewards/settings", json!({ "enabled": true })).await;
 
     // ---- community forum ----
     let key = "ab12".repeat(16);

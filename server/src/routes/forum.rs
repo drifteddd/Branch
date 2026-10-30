@@ -86,16 +86,16 @@ pub fn router() -> Router<AppState> {
 }
 
 #[derive(FromRow)]
-struct Poster {
-    id: Uuid,
-    key_hash: String,
-    name: String,
-    banned: bool,
+pub(crate) struct Poster {
+    pub(crate) id: Uuid,
+    pub(crate) key_hash: String,
+    pub(crate) name: String,
+    pub(crate) banned: bool,
 }
 
 /// finds (or creates) the poster for a key. banned posters, and anyone on a banned
 /// person's connection, can still read but not post.
-async fn poster_for(state: &AppState, key: &str, visitor: &Visitor, create: bool) -> ApiResult<Poster> {
+pub(crate) async fn poster_for(state: &AppState, key: &str, visitor: &Visitor, create: bool) -> ApiResult<Poster> {
     if !valid_key(key) {
         return Err(AppError::bad_request("the community key on this computer is broken. clear it in settings and try again."));
     }

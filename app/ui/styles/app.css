@@ -677,3 +677,116 @@
 .chat-form { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
 .chat-input { flex: 1; }
 .chat-note { margin-top: 10px; }
+/* ---------- rewards ---------- */
+
+.rewards { display: grid; gap: 16px; max-width: 880px; }
+.rw-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  padding: 30px 32px;
+  border-radius: 24px;
+  overflow: hidden;
+  color: #fff;
+  background: linear-gradient(135deg, #121212 0%, #1f1f22 55%, #2a2518 100%);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.18);
+}
+.rw-hero-skeleton { height: 170px; }
+.rw-hero-glow { position: absolute; right: -80px; top: -90px; width: 340px; height: 340px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 196, 64, 0.35), rgba(255, 196, 64, 0) 70%); pointer-events: none; }
+.rw-hero-text { position: relative; display: grid; gap: 10px; justify-items: start; }
+.rw-hero h1 { font-family: var(--font-display); font-size: 30px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
+.rw-hero p { color: rgba(255, 255, 255, 0.78); font-size: 15px; max-width: 460px; }
+.rw-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 11px; border-radius: 999px; background: rgba(255, 204, 92, 0.16); color: #ffd56b; font-size: 12px; font-weight: 600; letter-spacing: 0.01em; }
+.rw-pill svg { width: 14px; height: 14px; }
+.rw-pill.dark { background: var(--ok-soft); color: var(--ok); }
+.rw-coin {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffe9a3 0%, #ffc53d 45%, #d99100 100%);
+  box-shadow: inset 0 -6px 0 rgba(0, 0, 0, 0.15), inset 0 4px 0 rgba(255, 255, 255, 0.45), 0 14px 30px rgba(255, 176, 32, 0.35);
+  animation: coin-float 3.2s ease-in-out infinite;
+}
+.rw-coin::after { content: ""; position: absolute; inset: 10px; border-radius: 50%; border: 2px solid rgba(140, 86, 0, 0.35); }
+.rw-coin span { font-family: var(--font-display); font-size: 34px; font-weight: 800; color: #6b4300; letter-spacing: -0.03em; }
+@keyframes coin-float { 50% { transform: translateY(-6px) rotate(-4deg); } }
+
+.rw-card { display: grid; gap: 12px; padding: 22px 24px; border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--shadow-1); }
+.rw-card h2 { font-size: 18px; font-weight: 650; }
+.rw-label { font-size: 12px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; }
+.rw-big { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; }
+.rw-big span { font-size: 40px; }
+.rw-big small { font-size: 16px; font-weight: 500; color: var(--text-3); }
+.rw-progress-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.rw-note { color: var(--text-2); }
+
+.rw-bar { height: 12px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+.rw-bar-fill { height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #ffcc4d, #f5a300); transition: width 1100ms cubic-bezier(0.22, 1, 0.36, 1); }
+.rw-bar.teal .rw-bar-fill { background: linear-gradient(90deg, #5ad1b3, #1fa889); }
+.rw-dots { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; }
+.rw-dots span { height: 6px; border-radius: 999px; background: var(--surface-2); transition: background var(--med) var(--ease); }
+.rw-dots span.on { background: #f5b301; }
+
+.rw-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.rw-steps li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 14px; border-radius: var(--r-l); background: var(--surface); box-shadow: var(--shadow-1); opacity: 0.7; }
+.rw-steps li.current, .rw-steps li.done { opacity: 1; }
+.rw-steps li.current { box-shadow: 0 0 0 2px #f5b301, var(--shadow-1); }
+.rw-steps strong { display: block; font-size: 13.5px; }
+.rw-steps p { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.rw-step-dot { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--surface-2); font-size: 12px; font-weight: 700; color: var(--text-2); }
+.rw-step-dot svg { width: 14px; height: 14px; }
+.rw-steps li.done .rw-step-dot { background: var(--ok); color: #fff; }
+.rw-steps li.current .rw-step-dot { background: #f5b301; color: #3d2800; }
+
+.rw-apply .inline-check { margin-top: 0; }
+.small-spinner { width: 14px; height: 14px; border-width: 2px; display: inline-block; vertical-align: -2px; margin-right: 6px; border-color: rgba(255, 255, 255, 0.35); border-top-color: currentColor; }
+
+.rw-status { grid-template-columns: auto 1fr; align-items: start; }
+.rw-status-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; background: var(--surface-2); color: var(--text-2); }
+.rw-status-icon svg { width: 22px; height: 22px; }
+.rw-status.pending .rw-status-icon { background: rgba(245, 179, 1, 0.16); color: #b07d00; }
+.rw-status.rejected .rw-status-icon { background: var(--danger-soft); color: var(--danger); }
+.rw-status p { color: var(--text-2); margin-top: 4px; }
+.rw-reasons { margin: 8px 0 0; padding-left: 18px; color: var(--text-2); display: grid; gap: 4px; }
+
+.rw-member-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.rw-member-head h2 { font-size: 22px; margin-top: 6px; }
+.rw-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.rw-tile { display: grid; gap: 8px; align-content: start; padding: 16px; border-radius: var(--r-l); background: var(--surface-2); }
+.rw-tile-value { font-family: var(--font-display); font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+.rw-tile-value small { font-size: 14px; color: var(--text-3); font-weight: 500; }
+.robux { display: inline-flex; align-items: baseline; gap: 4px; }
+.robux-mark { font-size: 0.55em; font-weight: 800; padding: 1px 5px; border-radius: 6px; background: #f5b301; color: #3d2800; transform: translateY(-0.35em); }
+.rw-events { list-style: none; margin: 0; padding: 0; display: grid; }
+.rw-events li { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; padding: 10px 4px; }
+.rw-events li + li { border-top: 1px solid var(--line); }
+.rw-event-plus { min-width: 48px; text-align: center; padding: 4px 8px; border-radius: 999px; background: rgba(245, 179, 1, 0.16); color: #9a6b00; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rw-events li.void .rw-event-plus { background: var(--neutral-soft); color: var(--text-3); text-decoration: line-through; }
+.rw-event-status { font-size: 12px; font-weight: 600; color: var(--text-3); }
+.rw-event-status.paid { color: var(--ok); }
+.rw-event-status.owed { color: #b07d00; }
+.rw-empty { padding: 6px 0; }
+.rw-rules { padding: 14px 18px; border-radius: var(--r-l); background: var(--surface); box-shadow: var(--shadow-1); }
+.rw-rules summary { cursor: pointer; font-weight: 600; }
+.rw-rules ul { margin: 10px 0 8px; padding-left: 18px; display: grid; gap: 6px; color: var(--text-2); }
+
+.reward-note-wrap { display: flex; justify-content: center; margin-top: -24px; }
+.reward-note { display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px; background: var(--surface-2); color: var(--text); text-decoration: none; font-weight: 600; }
+.reward-note svg { width: 16px; height: 16px; }
+.reward-note.earned { background: rgba(245, 179, 1, 0.18); color: #7a5400; }
+.reward-note .robux-mark { transform: none; font-size: 11px; }
+
+:root[data-theme="dark"] .rw-event-plus, :root[data-theme="dark"] .reward-note.earned { color: #ffd56b; }
+@media (prefers-color-scheme: dark) { :root[data-theme="system"] .rw-event-plus, :root[data-theme="system"] .reward-note.earned { color: #ffd56b; } }
+
+@media (max-width: 760px) {
+  .rw-hero { grid-template-columns: 1fr; }
+  .rw-coin { display: none; }
+  .rw-steps { grid-template-columns: 1fr 1fr; }
+  .rw-tiles { grid-template-columns: 1fr; }
+}

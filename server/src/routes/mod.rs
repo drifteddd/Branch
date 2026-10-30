@@ -1,6 +1,7 @@
 pub mod admin;
 pub mod forum;
 pub mod public;
+pub mod rewards;
 
 use std::time::Duration;
 
@@ -38,6 +39,7 @@ pub fn router(state: AppState) -> Router {
         .merge(public)
         .merge(admin::router())
         .merge(forum::router())
+        .merge(rewards::router())
         .merge(admin_ui::router())
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit))
         // small json bodies everywhere. the upload routes raise this for themselves.
