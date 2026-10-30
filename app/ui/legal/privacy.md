@@ -1,6 +1,6 @@
 # Privacy Notice
 
-**Version 4** · Effective October 30, 2026
+**Version 5** · Effective October 30, 2026
 
 This Privacy Notice explains how Drifted (the "**Operator**," "**we**," "**us**") collects, uses, stores and shares information in connection with the Branch application and its related services (the "**Service**"). Contact: **drifted1000@outlook.com**.
 
@@ -38,9 +38,9 @@ When you submit a file to the Mod Checker or upload a Mod:
 
 (d) to enforce daily limits, we keep a usage count per Hashed Identifier, which is deleted after seven (7) days.
 
-## 5. Community Forum
+## 5. Community Forum and Chat
 
-The Community Forum does not use accounts. When you first open it, the application generates a random secret key, which is stored only on your device. Our server stores a one-way hash of that key (never the key itself), a randomly generated display name that you may change, the Hashed Identifier of the connection that created it, and whether posting has been restricted. Your posts, replies, display name and a short identifier derived from the hashed key are public. Forum Content is retained until it is removed by the Operator; removed posts are replaced with a placeholder. Reports about Forum Content are visible only to the Operator and are deleted one hundred eighty (180) days after they are closed. Deleting the key from your device (for example, by uninstalling the application) does not delete posts you have already made; contact us to request removal.
+The Community Forum does not use accounts. When you first open it, the application generates a random secret key, which is stored only on your device. Our server stores a one-way hash of that key (never the key itself), a randomly generated display name that you may change, the Hashed Identifier of the connection that created it, and whether posting has been restricted. Your posts, replies, chat messages, display name and a short identifier derived from the hashed key are public. Chat messages are deleted automatically after thirty (30) days. Other Forum Content is retained until it is removed by the Operator; removed posts are replaced with a placeholder. Reports about Forum Content are visible only to the Operator and are deleted one hundred eighty (180) days after they are closed. Deleting the key from your device (for example, by uninstalling the application) does not delete posts you have already made; contact us to request removal.
 ## 6. Reports and Mod Requests
 
 If you submit a report or a mod request, we store the related Mod, the reason or details you provide, your contact information if you choose to provide it, the Hashed Identifier and the time of submission. This information is visible only to the Operator and is deleted one hundred eighty (180) days after the report or request is closed.

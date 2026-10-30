@@ -89,6 +89,7 @@ fn spawn_cleanup(state: AppState) {
                 "delete from ai_usage where day < current_date - 7",
                 "delete from ai_results where created_at < now() - interval '30 days'",
                 "delete from forum_reports where status = 'closed' and closed_at < now() - interval '180 days'",
+                "delete from chat_messages where created_at < now() - interval '30 days'",
             ];
             for sql in jobs {
                 if let Err(err) = sqlx::query(sql).execute(&state.db).await {

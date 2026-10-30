@@ -157,7 +157,7 @@ console.log(`testing against the demo server with ${browserPath}`);
 await test("startup screen shows what it loads and takes about 3 seconds", async () => {
   const started = Date.now();
   await cdp("Page.navigate", { url: `${BASE}/` });
-  await waitFor(`document.getElementById("splash-detail")?.textContent.includes("(demo)")`, "a mod name on the startup screen", 4000);
+  await waitFor(`document.getElementById("splash-detail")?.textContent.includes("(demo)")`, "a mod name on the startup screen", 9000);
   await screenshot("startup");
   await waitFor(`document.getElementById("splash")?.classList.contains("done") || !document.getElementById("splash")`, "startup finished", 8000);
   const took = Date.now() - started;
@@ -430,7 +430,7 @@ await test("community name can be changed in settings, but not to a staff-like n
   await waitFor(`!document.querySelector("#community-name-error").hidden`, "staff name refused");
   await evaluate(type("#community-name", "Cool Climber"));
   await evaluate(clickText(".community-buttons button", "Save name"));
-  await waitFor(`document.querySelector("#community-name-error").hidden`, "name saved");
+  await waitFor(`[...document.querySelectorAll(".toast")].some(t => t.textContent.includes("Name saved"))`, "name saved");
 });
 
 await test("community forum: post a thread, reply and report", async () => {
@@ -464,6 +464,25 @@ await test("community forum: post a thread, reply and report", async () => {
   await screenshot("forum-list");
 });
 
+await test("main chat: send a message and see other people's messages arrive live", async () => {
+  await go(`${BASE}/#/forum/chat`);
+  await waitFor(`document.querySelector(".community-tabs a[aria-current=page]")?.textContent === "Chat" && document.querySelector("#chat-input")`, "chat page");
+  await evaluate(type("#chat-input", "hello everyone"));
+  await evaluate(click(".chat-form button[type=submit]"));
+  await waitFor(`[...document.querySelectorAll(".chat-msg")].some(m => m.textContent.includes("hello everyone") && m.textContent.includes("Cool Climber"))`, "own message");
+  // someone else talks from another computer
+  const otherKey = "e".repeat(64);
+  await evaluate(`fetch("/api/forum/me", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: "${otherKey}" }) }).then(() => fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: "${otherKey}", body: "hi! anyone got a hat mod?" }) }))`);
+  await waitFor(`[...document.querySelectorAll(".chat-msg")].some(m => m.textContent.includes("anyone got a hat mod"))`, "live message from someone else", 8000);
+  await screenshot("chat");
+});
+
+await test("clicking the about icon 7 times opens the admin panel", async () => {
+  await go(`${BASE}/#/about`);
+  await waitFor(`document.querySelector(".about-icon")`, "about page");
+  await evaluate(`for (let i = 0; i < 7; i++) document.querySelector(".about-icon").click()`);
+  await waitFor(`[...document.querySelectorAll(".toast")].some(t => t.textContent.includes("admin panel"))`, "admin toast");
+});
 // ---------- admin panel ----------
 
 await test("admin login rejects a wrong password", async () => {

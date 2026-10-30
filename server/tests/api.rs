@@ -481,6 +481,30 @@ async fn full_flow() {
     assert_eq!(r.json["replies"][0]["body"], "[removed by a moderator]");
     assert_eq!(c.get("/api/admin/forum").await.json["reports"].as_array().unwrap().len(), 0, "removing closes the report");
 
+    // ---- main chat ----
+    let r = c.json("POST", "/api/chat", json!({ "key": key, "body": "   " })).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
+    let r = c.json("POST", "/api/chat", json!({ "key": key, "body": "hello everyone" })).await;
+    assert_eq!(r.status, StatusCode::CREATED, "{}", r.json);
+    let first_id = r.json["id"].as_i64().unwrap();
+    let r = c.json("POST", "/api/chat", json!({ "key": key, "body": "hello everyone" })).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "repeats are blocked");
+    c.json("POST", "/api/chat", json!({ "key": key, "body": "anyone have a good fly mod?" })).await;
+    let r = c.get("/api/chat").await;
+    assert_eq!(r.json["messages"].as_array().unwrap().len(), 2);
+    assert_eq!(r.json["messages"][0]["author"]["name"], "Cool Climber");
+    let r = c.get(&format!("/api/chat?after={first_id}")).await;
+    assert_eq!(r.json["messages"].as_array().unwrap().len(), 1, "only newer messages come back");
+    let r = c.json("POST", "/api/forum/report", json!({ "chat_id": first_id, "reason": "rude" })).await;
+    assert_eq!(r.status, StatusCode::CREATED);
+    let r = c.get("/api/admin/forum").await;
+    assert_eq!(r.json["chat"][0]["open_reports"], 1, "reported messages come first: {}", r.json["chat"]);
+    let r = c.json("POST", &format!("/api/admin/chat/{first_id}"), json!({ "removed": true })).await;
+    assert_eq!(r.status, StatusCode::OK);
+    let r = c.get("/api/chat").await;
+    assert_eq!(r.json["messages"][0]["body"], "[removed by a moderator]");
+    assert!(r.json["removed"].as_array().unwrap().iter().any(|id| id.as_i64() == Some(first_id)));
+
     let r = c.json("POST", &format!("/api/admin/forum/posters/{poster_id}"), json!({ "banned": true })).await;
     assert_eq!(r.status, StatusCode::OK);
     let r = c.json("POST", &format!("/api/forum/threads/{thread_id}/replies"), json!({ "key": key, "body": "am i banned?" })).await;

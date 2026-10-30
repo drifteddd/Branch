@@ -103,7 +103,7 @@ for (const m of mods) for (const t of m.tags) tags.set(t, { id: randomUUID(), sl
 
 const reports = [];
 const requests = [];
-const forum = { posters: new Map(), threads: [], reports: [] };
+const forum = { posters: new Map(), threads: [], reports: [], chat: [] };
 const checkUsage = new Map();
 const CHECK_LIMIT = 20;
 const audit = [];
@@ -358,6 +358,13 @@ async function adminApi(req, res, path, url) {
     return send(res, 200, { ok: true });
   }
   if (parts[0] === "audit") return send(res, 200, { items: audit.slice(0, 300) });
+  if (parts[0] === "chat" && parts[1]) {
+    const body = await json(req);
+    const m = forum.chat.find((x) => x.id === Number(parts[1]));
+    if (!m) return fail(res, 404, "that message doesn't exist");
+    m.removed = body.removed;
+    return send(res, 200, { ok: true });
+  }
   if (parts[0] === "forum") {
     if (!parts[1]) {
       const reports = forum.reports.map((r) => {
@@ -370,7 +377,8 @@ async function adminApi(req, res, path, url) {
         { kind: "thread", id: t.id, thread_id: t.id, thread_title: t.title, body: t.body, removed: t.removed, pinned: t.pinned, locked: t.locked, created_at: t.created_at, poster_id: t.poster.id, poster_name: t.poster.name, poster_banned: t.poster.banned },
         ...t.replies.map((r) => ({ kind: "reply", id: r.id, thread_id: t.id, thread_title: t.title, body: r.body, removed: r.removed, pinned: false, locked: false, created_at: r.created_at, poster_id: r.poster.id, poster_name: r.poster.name, poster_banned: r.poster.banned })),
       ]);
-      return send(res, 200, { reports, posts });
+      const chat = forum.chat.map((m) => ({ id: m.id, body: m.body, removed: m.removed, created_at: m.created_at, poster_id: m.poster.id, poster_name: m.poster.name, poster_banned: m.poster.banned, open_reports: 0, report_reasons: null })).reverse();
+      return send(res, 200, { reports, posts, chat });
     }
     const body = await json(req);
     if (parts[1] === "replies") {
@@ -476,6 +484,22 @@ async function publicApi(req, res, path, url) {
     if (!m) return fail(res, 404, "that mod isn't listed anymore");
     reports.unshift({ id: randomUUID(), mod_id: m.id, mod_slug: m.slug, mod_name: m.name, reason: body.reason, details: body.details || "", contact: body.contact || "", status: "open", admin_note: "", created_at: new Date().toISOString(), resolved_at: null, resolved_by: null });
     return send(res, 201, { ok: true });
+  }
+  // ---- demo chat ----
+  if (path === "/api/chat") {
+    if (req.method === "POST") {
+      const body = await json(req);
+      const p = forum.posters.get(body.key);
+      if (!p) return fail(res, 400, "open the community page first");
+      const text = (body.body || "").trim();
+      if (!text) return fail(res, 422, "type a message first", { body: "type a message first" });
+      const m = { id: forum.chat.length + 1, body: text, removed: false, poster: p, created_at: new Date().toISOString() };
+      forum.chat.push(m);
+      return send(res, 201, { ok: true, id: m.id });
+    }
+    const after = Number(url.searchParams.get("after") || 0);
+    const list = (after ? forum.chat.filter((m) => m.id > after) : forum.chat.slice(-80)).map((m) => ({ id: m.id, body: m.removed ? "[removed by a moderator]" : m.body, removed: m.removed, author: { name: m.poster.name, tag: m.poster.tag }, created_at: m.created_at }));
+    return send(res, 200, { messages: list, latest_id: list.length ? list[list.length - 1].id : after, removed: forum.chat.filter((m) => m.removed).map((m) => m.id) });
   }
   // ---- demo community forum ----
   if (path.startsWith("/api/forum/")) {

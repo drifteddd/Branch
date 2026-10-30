@@ -2,7 +2,26 @@
 import { h, clear } from "../dom.js";
 import { icon } from "../icons.js";
 import { renderMarkdown } from "../../shared/markdown.js";
-import { appVersion, isDesktop } from "../platform.js";
+import { appVersion, assetUrl, isDesktop, openExternal } from "../platform.js";
+
+// clicking the icon on the about page 7 times in a row opens the admin panel in the browser.
+// it's a login page, so finding it doesn't give anyone access.
+function adminDoor() {
+  const img = h("img", { src: "shared/branch-mark.svg", alt: "", width: "88", height: "88", class: "about-icon" });
+  let clicks = 0;
+  let timer;
+  img.addEventListener("click", () => {
+    clicks += 1;
+    clearTimeout(timer);
+    timer = setTimeout(() => { clicks = 0; }, 1500);
+    if (clicks >= 7) {
+      clicks = 0;
+      toast("Opening the admin panel in your browser");
+      openExternal(new URL(assetUrl("/admin"), location.href).href).catch(() => toast("couldn't open your browser", { tone: "error" }));
+    }
+  });
+  return img;
+}
 import { settings, favorites, recent } from "../store.js";
 import { myIdentity, rename as renameIdentity, randomName as randomIdentityName } from "../forum-identity.js";
 import { confirmDialog, toast, stateBlock } from "../ui.js";
@@ -112,7 +131,7 @@ export function createAboutView(ctx) {
     h(
       "div",
       { class: "about-hero" },
-      h("img", { src: "shared/branch-mark.svg", alt: "", width: "88", height: "88" }),
+      adminDoor(),
       h("h1", { class: "view-title", id: "about-title" }, "Branch"),
       h("p", { class: "muted" }, "Version ", version),
       h("p", { class: "made-by" }, "made by Drifted"),

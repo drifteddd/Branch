@@ -5,7 +5,7 @@ import { renderMarkdown } from "../shared/markdown.js";
 import { appWindow, isDesktop } from "./platform.js";
 
 // bump this whenever terms.md or privacy.md change in an important way
-export const TERMS_VERSION = 4;
+export const TERMS_VERSION = 5;
 const KEY = "branch.termsAccepted";
 
 export function termsAccepted() {
@@ -66,7 +66,7 @@ export async function requireTerms() {
           h("li", null, "Mods are created by third parties, including other users. You download and use them ", h("strong", null, "entirely at your own risk"), ", including the risk of device damage and game account penalties."),
           h("li", null, "If you upload a Mod, you confirm that you have the right to distribute it, that it contains no malicious code, and you grant the Operator a license to host and distribute it."),
           h("li", null, "The Service is provided ", h("strong", null, "\"as is\" without warranties"), ", and the Operator's liability is limited to the fullest extent permitted by law."),
-          h("li", null, "Community Forum posts and your display name are public. Do not share personal information. The Operator may remove content and restrict posting."),
+          h("li", null, "Community Forum posts, chat messages and your display name are public. Do not share personal information. The Operator may remove content and restrict posting."),
           h("li", null, "Mod Checker results are automated estimates and may be inaccurate."),
           h("li", null, "Branch is not affiliated with or endorsed by Another Axiom Inc. or Gorilla Tag."),
         ),

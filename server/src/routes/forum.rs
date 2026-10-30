@@ -81,6 +81,8 @@ pub fn router() -> Router<AppState> {
         .route("/api/admin/forum/replies/{id}", post(admin_reply))
         .route("/api/admin/forum/posters/{id}", post(admin_poster))
         .route("/api/admin/forum/reports/{id}", post(admin_close_report))
+        .route("/api/chat", get(chat_messages).post(send_chat))
+        .route("/api/admin/chat/{id}", post(admin_chat))
 }
 
 #[derive(FromRow)]
@@ -402,6 +404,7 @@ async fn create_reply(State(state): State<AppState>, visitor: Visitor, Path(id):
 struct ReportInput {
     thread_id: Option<Uuid>,
     reply_id: Option<Uuid>,
+    chat_id: Option<i64>,
     reason: String,
 }
 
@@ -413,13 +416,15 @@ async fn report(State(state): State<AppState>, visitor: Visitor, Json(input): Js
     if reason.is_empty() || too_long(reason, 500) {
         return Err(AppError::field("reason", "say briefly what's wrong (up to 500 characters)"));
     }
-    if input.thread_id.is_none() == input.reply_id.is_none() {
+    let targets = [input.thread_id.is_some(), input.reply_id.is_some(), input.chat_id.is_some()].iter().filter(|t| **t).count();
+    if targets != 1 {
         return Err(AppError::bad_request("report one post at a time"));
     }
-    sqlx::query("insert into forum_reports (id, thread_id, reply_id, reason, visitor) values ($1, $2, $3, $4, $5)")
+    sqlx::query("insert into forum_reports (id, thread_id, reply_id, chat_id, reason, visitor) values ($1, $2, $3, $4, $5, $6)")
         .bind(Uuid::new_v4())
         .bind(input.thread_id)
         .bind(input.reply_id)
+        .bind(input.chat_id)
         .bind(reason)
         .bind(&visitor.id)
         .execute(&state.db)
@@ -475,8 +480,18 @@ async fn admin_overview(State(state): State<AppState>, Admin(_): Admin) -> ApiRe
          left join forum_replies r on r.id = fr.reply_id
          join forum_threads t on t.id = coalesce(r.thread_id, fr.thread_id)
          join forum_posters p on p.id = coalesce(r.poster_id, t.poster_id)
-         where fr.status = 'open'
+         where fr.status = 'open' and fr.chat_id is null
          order by fr.created_at desc limit 200",
+    )
+    .fetch_all(&state.db)
+    .await?;
+    let chat: Vec<AdminChat> = sqlx::query_as(
+        "select m.id, m.body, m.removed, m.created_at, p.id as poster_id, p.name as poster_name, p.banned as poster_banned,
+                (select count(*) from forum_reports fr where fr.chat_id = m.id and fr.status = 'open') as open_reports,
+                (select string_agg(fr.reason, ' | ') from forum_reports fr where fr.chat_id = m.id and fr.status = 'open') as report_reasons
+         from chat_messages m join forum_posters p on p.id = m.poster_id
+         order by (select count(*) from forum_reports fr where fr.chat_id = m.id and fr.status = 'open') > 0 desc, m.created_at desc
+         limit 200",
     )
     .fetch_all(&state.db)
     .await?;
@@ -493,7 +508,127 @@ async fn admin_overview(State(state): State<AppState>, Admin(_): Admin) -> ApiRe
     )
     .fetch_all(&state.db)
     .await?;
-    Ok(Json(json!({ "reports": reports, "posts": posts })))
+    Ok(Json(json!({ "reports": reports, "posts": posts, "chat": chat })))
+}
+
+#[derive(FromRow, Serialize)]
+struct AdminChat {
+    id: i64,
+    body: String,
+    removed: bool,
+    created_at: DateTime<Utc>,
+    poster_id: Uuid,
+    poster_name: String,
+    poster_banned: bool,
+    open_reports: i64,
+    report_reasons: Option<String>,
+}
+
+async fn admin_chat(State(state): State<AppState>, Admin(admin): Admin, Path(id): Path<i64>, Json(input): Json<RemovedInput>) -> ApiResult<Json<Value>> {
+    let done = sqlx::query("update chat_messages set removed = $1, removed_at = case when $1 then now() else null end where id = $2")
+        .bind(input.removed)
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+    if done.rows_affected() == 0 {
+        return Err(AppError::not_found("that message doesn't exist"));
+    }
+    sqlx::query("update forum_reports set status = 'closed', closed_at = now() where chat_id = $1 and status = 'open'").bind(id).execute(&state.db).await?;
+    audit(&state.db, &admin, "chat_message", &id.to_string(), if input.removed { "removed" } else { "restored" }).await;
+    Ok(Json(json!({ "ok": true })))
+}
+
+// ---------- the main chat room ----------
+
+#[derive(FromRow)]
+struct ChatRow {
+    id: i64,
+    body: String,
+    removed: bool,
+    created_at: DateTime<Utc>,
+    poster_name: String,
+    poster_key_hash: String,
+}
+
+const CHAT_SELECT: &str = "select m.id, m.body, m.removed, m.created_at, p.name as poster_name, p.key_hash as poster_key_hash
+    from chat_messages m join forum_posters p on p.id = m.poster_id";
+
+fn chat_json(m: &ChatRow) -> Value {
+    json!({
+        "id": m.id,
+        "body": if m.removed { REMOVED.to_string() } else { m.body.clone() },
+        "removed": m.removed,
+        "author": Author { name: m.poster_name.clone(), tag: tag_for(&m.poster_key_hash) },
+        "created_at": m.created_at,
+    })
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct ChatQuery {
+    after: Option<i64>,
+}
+
+/// the app asks every few seconds for anything newer than the last message it has
+async fn chat_messages(State(state): State<AppState>, Query(query): Query<ChatQuery>) -> ApiResult<Json<Value>> {
+    let rows: Vec<ChatRow> = match query.after {
+        Some(after) => {
+            sqlx::query_as(&format!("{CHAT_SELECT} where m.id > $1 order by m.id limit 200")).bind(after).fetch_all(&state.db).await?
+        }
+        None => {
+            let mut latest: Vec<ChatRow> = sqlx::query_as(&format!("{CHAT_SELECT} order by m.id desc limit 80")).fetch_all(&state.db).await?;
+            latest.reverse();
+            latest
+        }
+    };
+    // messages a moderator removed recently, so open chats can hide them too
+    let removed: Vec<i64> = sqlx::query_scalar("select id from chat_messages where removed and removed_at > now() - interval '15 minutes'")
+        .fetch_all(&state.db)
+        .await?;
+    let latest_id = rows.last().map(|m| m.id).or(query.after).unwrap_or(0);
+    Ok(Json(json!({ "messages": rows.iter().map(chat_json).collect::<Vec<_>>(), "latest_id": latest_id, "removed": removed })))
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct ChatInput {
+    key: String,
+    body: String,
+    website: String,
+}
+
+async fn send_chat(State(state): State<AppState>, visitor: Visitor, Json(input): Json<ChatInput>) -> ApiResult<(StatusCode, Json<Value>)> {
+    if !input.website.trim().is_empty() {
+        return Ok((StatusCode::CREATED, Json(json!({ "ok": true }))));
+    }
+    let poster = poster_for(&state, &input.key, &visitor, true).await?;
+    ensure_can_post(&state, &poster, &visitor).await?;
+    let body = input.body.trim().to_string();
+    if body.is_empty() {
+        return Err(AppError::field("body", "type a message first"));
+    }
+    if too_long(&body, 500) {
+        return Err(AppError::field("body", "keep chat messages under 500 characters"));
+    }
+    if !state.limiter.check(&format!("chat-burst:{}", visitor.id), 6, Duration::from_secs(15))
+        || !state.limiter.check(&format!("chat-minute:{}", visitor.id), 40, Duration::from_secs(600))
+    {
+        return Err(AppError::too_many("slow down a little."));
+    }
+    let repeat: bool = sqlx::query_scalar("select exists(select 1 from chat_messages where poster_id = $1 and body = $2 and created_at > now() - interval '1 minute')")
+        .bind(poster.id)
+        .bind(&body)
+        .fetch_one(&state.db)
+        .await?;
+    if repeat {
+        return Err(AppError::field("body", "you just said that."));
+    }
+    let id: i64 = sqlx::query_scalar("insert into chat_messages (poster_id, body) values ($1, $2) returning id")
+        .bind(poster.id)
+        .bind(&body)
+        .fetch_one(&state.db)
+        .await?;
+    Ok((StatusCode::CREATED, Json(json!({ "ok": true, "id": id }))))
 }
 
 #[derive(Deserialize, Default)]

@@ -1,6 +1,6 @@
 # Terms of Use
 
-**Version 4** · Effective October 30, 2026
+**Version 5** · Effective October 30, 2026
 
 These Terms of Use (the "**Terms**") form a binding agreement between you and Drifted (the "**Operator**," "**we**," "**us**"), the operator of the Branch application, its server and related services (together, "**Branch**" or the "**Service**"). By selecting "Agree and continue," or by accessing or using the Service, you confirm that you have read, understood and agree to be bound by these Terms and by the Privacy Notice, which is incorporated by reference. If you do not agree, you must not access or use the Service.
 
@@ -12,7 +12,7 @@ These Terms of Use (the "**Terms**") form a binding agreement between you and Dr
 
 ## 2. Description of the Service
 
-2.1 Branch is a free directory and distribution platform for user-generated modifications ("**Mods**") for the video game Gorilla Tag. The Service also provides an automated malware-analysis tool (the "**Mod Checker**"), the ability for users to upload Mods ("**User Submissions**"), and a public discussion forum (the "**Community Forum**").
+2.1 Branch is a free directory and distribution platform for user-generated modifications ("**Mods**") for the video game Gorilla Tag. The Service also provides an automated malware-analysis tool (the "**Mod Checker**"), the ability for users to upload Mods ("**User Submissions**"), and a public discussion forum with a shared live chat room (together, the "**Community Forum**").
 
 2.2 Branch is an independent project. It is not affiliated with, endorsed by, sponsored by or otherwise connected to Another Axiom Inc. or the developers of Gorilla Tag. All trademarks, names and logos are the property of their respective owners and are used solely for identification.
 
@@ -38,15 +38,15 @@ These Terms of Use (the "**Terms**") form a binding agreement between you and Dr
 
 4.5 **Limits.** The Operator may limit the number, size or type of User Submissions, including a limit of ten (10) uploads per user per day.
 
-## 5. Community Forum
+## 5. Community Forum and Chat
 
 5.1 **Identity.** The Community Forum does not use accounts. The application generates a random secret key that is stored on your device and assigns you a randomly generated display name, which you may change in Settings. You are responsible for content posted using the key stored on your device. If the key is deleted, you will receive a new display name and cannot recover the previous one.
 
-5.2 **Public content.** Posts and replies ("**Forum Content**") are publicly visible to all users of the Service, together with your display name and a short identifier. Do not post personal information about yourself or others, including real names, addresses, contact details, passwords or account credentials.
+5.2 **Public content.** Posts, replies and chat messages ("**Forum Content**") are publicly visible to all users of the Service, together with your display name and a short identifier. Do not post personal information about yourself or others, including real names, addresses, contact details, passwords or account credentials.
 
 5.3 **Conduct.** In addition to Section 6, you must not post Forum Content that is spam, advertising, harassment, threats, hate speech, sexual content, content that endangers minors, links to malware or phishing sites, or instructions intended to harm other users' devices or accounts. You must not use display names that impersonate the Operator, Branch staff or any other person.
 
-5.4 **License and moderation.** You retain ownership of your Forum Content and grant the Operator a worldwide, non-exclusive, royalty-free license to host, store, display, reproduce and distribute it for the purpose of operating the Service. The Operator may review, remove, lock or pin any Forum Content, and may restrict or block any user or connection from posting, at any time and for any reason, without notice. The Operator does not endorse, and is not responsible for, Forum Content posted by users.
+5.4 **License and moderation.** Chat messages are deleted automatically after thirty (30) days. You retain ownership of your Forum Content and grant the Operator a worldwide, non-exclusive, royalty-free license to host, store, display, reproduce and distribute it for the purpose of operating the Service. The Operator may review, remove, lock or pin any Forum Content, and may restrict or block any user or connection from posting, at any time and for any reason, without notice. The Operator does not endorse, and is not responsible for, Forum Content posted by users.
 ## 6. Prohibited Conduct
 
 You agree that you will not: (a) upload or distribute malicious code of any kind; (b) upload content that you do not have the right to distribute, or that infringes the rights of others; (c) upload content that is unlawful, defamatory, obscene, hateful, harassing or that exploits minors; (d) impersonate any person or misrepresent your affiliation with any person; (e) submit false or misleading reports, requests or descriptions; (f) attempt to probe, scan, disrupt, overload or gain unauthorized access to the Service or its infrastructure; (g) circumvent rate limits, usage limits or security measures; (h) scrape or harvest data from the Service by automated means; or (i) use the Service in violation of any applicable law.

@@ -177,6 +177,7 @@ export function createForumView(ctx) {
 
     clear(el).append(
       h("header", { class: "view-head forum-head" }, h("h1", { class: "view-title", id: "forum-title" }, "Community"), await identityBadge(), h("span", { class: "grow" }), newPost),
+      communityTabs("forum"),
       h("p", { class: "muted forum-intro" }, "talk about mods, ask for help, show off what you made. no account needed."),
       tabs,
       composeArea,
@@ -265,17 +266,126 @@ export function createForumView(ctx) {
     );
   }
 
+  // ---------- the main chat ----------
+
+  let chatTimer = null;
+
+  function stopChat() {
+    clearInterval(chatTimer);
+    chatTimer = null;
+  }
+
+  async function renderChat() {
+    stopChat();
+    ctx.setTitle("Chat");
+    let lastId = 0;
+    let first = true;
+    const shown = new Map();
+    const log = h("div", { class: "chat-log", role: "log", "aria-live": "polite", "aria-label": "Chat messages", tabindex: "0" });
+    const empty = h("p", { class: "muted chat-empty" }, "no messages yet. say hi!");
+    log.append(empty);
+    const input = h("input", { class: "input chat-input", id: "chat-input", maxlength: "500", autocomplete: "off", placeholder: "say something…", "aria-label": "Chat message" });
+    const trap = h("input", { type: "text", name: "website", tabindex: "-1", autocomplete: "off", "aria-hidden": "true", class: "trap" });
+    const send = h("button", { class: "btn btn-primary", type: "submit" }, "Send");
+    const error = h("p", { class: "error chat-error", role: "alert", hidden: true });
+    const form = h("form", { class: "chat-form", novalidate: true }, input, trap, send);
+
+    const addMessage = (m) => {
+      if (shown.has(m.id)) return;
+      empty.remove();
+      const text = h("p", { class: "chat-text" }, m.body);
+      const report = m.removed ? null : h("button", { class: "chat-report", type: "button", title: "Report this message", "aria-label": `Report message from ${m.author.name}`, onclick: () => reportPost({ chat_id: m.id }) }, icon("flag"));
+      const row = h(
+        "div",
+        { class: `chat-msg${m.removed ? " removed" : ""}`, dataset: { id: String(m.id) } },
+        h("div", { class: "chat-meta" }, h("strong", null, m.author.name), h("span", { class: "post-tag" }, `#${m.author.tag}`), h("span", { class: "muted" }, timeAgo(m.created_at)), report),
+        text,
+      );
+      shown.set(m.id, { row, text });
+      log.append(row);
+    };
+
+    const markRemoved = (id) => {
+      const item = shown.get(id);
+      if (!item || item.row.classList.contains("removed")) return;
+      item.row.classList.add("removed");
+      item.text.textContent = "[removed by a moderator]";
+      item.row.querySelector(".chat-report")?.remove();
+    };
+
+    const poll = async () => {
+      if (document.hidden && !first) return; // don't keep asking while the app is minimized
+      try {
+        const data = await api(`/api/chat${lastId ? `?after=${lastId}` : ""}`);
+        const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+        data.messages.forEach(addMessage);
+        (data.removed || []).forEach(markRemoved);
+        lastId = Math.max(lastId, data.latest_id || 0);
+        if (first || (nearBottom && data.messages.length)) log.scrollTop = log.scrollHeight;
+        first = false;
+        error.hidden = true;
+      } catch (err) {
+        error.textContent = err.kind === "network" ? "lost connection to the chat. retrying…" : err.message;
+        error.hidden = false;
+      }
+    };
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const body = input.value.trim();
+      if (!body) return;
+      send.disabled = true;
+      try {
+        await api("/api/chat", { method: "POST", body: { key: forumKey(), body, website: trap.value } });
+        input.value = "";
+        await poll();
+        log.scrollTop = log.scrollHeight;
+        error.hidden = true;
+      } catch (err) {
+        error.textContent = err.fields?.body || err.message;
+        error.hidden = false;
+      } finally {
+        send.disabled = false;
+        input.focus();
+      }
+    });
+
+    clear(el).append(
+      h("header", { class: "view-head forum-head" }, h("h1", { class: "view-title", id: "forum-title" }, "Community"), await identityBadge()),
+      communityTabs("chat"),
+      h("div", { class: "chat-panel" }, log, error, form),
+      h("p", { class: "muted small chat-note" }, "one big chat for everyone. be nice, and don't share personal info. messages are public and deleted after 30 days."),
+    );
+    await poll();
+    chatTimer = setInterval(poll, 3000);
+    input.focus();
+  }
+
   return {
     el,
     title: () => "Community",
     show(params) {
-      if (params.thread) renderThread(params.thread);
+      stopChat();
+      if (params.thread === "chat") renderChat();
+      else if (params.thread) renderThread(params.thread);
       else {
         board = params.board || board;
         renderList();
       }
       return 0;
     },
-    hide() {},
+    hide() {
+      stopChat();
+    },
   };
+}
+
+// switches between the forum and the main chat
+function communityTabs(active) {
+  return h(
+    "nav",
+    { class: "community-tabs", "aria-label": "Community" },
+    h("a", { href: "#/forum", "aria-current": active === "forum" ? "page" : null }, icon("inbox"), "Forum"),
+    h("a", { href: "#/forum/chat", "aria-current": active === "chat" ? "page" : null }, icon("chat"), "Chat"),
+  );
 }

@@ -1244,7 +1244,7 @@ async function renderImport() {
 // ---------- community forum moderation ----------
 
 async function renderForum() {
-  const { reports, posts } = await api("/api/admin/forum");
+  const { reports, posts, chat = [] } = await api("/api/admin/forum");
   const reload = async () => { await refreshOverview(); renderForum(); };
   const removeLabel = (p) => (p.removed ? "Restore" : "Remove");
   const removePost = async (kind, id, removed) => {
@@ -1307,7 +1307,37 @@ async function renderForum() {
     h("p", { class: "muted" }, "removed posts show as \"[removed by a moderator]\". banning someone also blocks new names from the same connection."),
     h("h2", { class: "import-heading" }, `Reported posts (${reports.length})`),
     h("div", { class: "stack" }, reportCards.length ? reportCards : h("div", { class: "card" }, h("p", { class: "muted" }, "nothing reported."))),
-    h("h2", { class: "import-heading" }, "Recent posts"),
+    h("h2", { class: "import-heading" }, `Chat (${chat.filter((m) => m.open_reports > 0).length} reported)`),
+    chat.length
+      ? h(
+          "div",
+          { class: "table-wrap" },
+          h(
+            "table",
+            { class: "table" },
+            h("thead", null, h("tr", null, ["Message", "By", "When", ""].map((t) => h("th", { scope: "col" }, t)))),
+            h(
+              "tbody",
+              null,
+              chat.map((m) =>
+                h(
+                  "tr",
+                  null,
+                  h("td", null, m.open_reports ? h("span", { class: "pill open" }, `reported: ${m.report_reasons || ""}`) : null, m.removed ? h("span", { class: "pill dismissed" }, "removed") : null, h("div", { class: "forum-excerpt" }, m.body)),
+                  h("td", null, m.poster_name, m.poster_banned ? h("span", { class: "pill open" }, "banned") : null),
+                  h("td", { class: "muted small" }, fmtTime(m.created_at)),
+                  h(
+                    "td",
+                    { class: "row-actions" },
+                    h("button", { class: "btn btn-quiet btn-danger", type: "button", onclick: async () => { await api(`/api/admin/chat/${m.id}`, { method: "POST", body: { removed: !m.removed } }); toast(m.removed ? "Message restored" : "Message removed"); reload(); } }, m.removed ? "Restore" : "Remove"),
+                    h("button", { class: "btn btn-quiet", type: "button", onclick: () => ban(m.poster_id, m.poster_name, !m.poster_banned) }, m.poster_banned ? "Unban" : "Ban"),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        )
+      : h("div", { class: "card" }, h("p", { class: "muted" }, "no chat messages yet.")),    h("h2", { class: "import-heading" }, "Recent posts"),
     posts.length
       ? h("div", { class: "table-wrap" }, h("table", { class: "table" }, h("thead", null, h("tr", null, ["Type", "Post", "By", "When", ""].map((t) => h("th", { scope: "col" }, t)))), h("tbody", null, rows)))
       : h("div", { class: "card" }, h("p", { class: "muted" }, "no posts yet.")),
