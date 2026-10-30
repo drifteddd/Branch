@@ -1,5 +1,3 @@
-// admin passwords, sessions and the extractors that guard every admin route.
-
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use argon2::Argon2;
 use axum::extract::FromRequestParts;
@@ -18,8 +16,6 @@ use crate::util::sha256_hex;
 pub const SESSION_COOKIE: &str = "branch_session";
 pub const SESSION_HOURS: i64 = 12;
 pub const IDLE_MINUTES: i32 = 120;
-/// every admin request must send this header. browsers won't add custom headers
-/// to cross-site requests (and the server never allows cors), so this blocks csrf.
 pub const ADMIN_HEADER: &str = "x-branch-admin";
 
 pub fn hash_password(password: &str) -> anyhow::Result<String> {
@@ -37,7 +33,6 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
     }
 }
 
-// argon2 is slow on purpose, so it runs off the async threads
 pub async fn hash_password_async(password: String) -> ApiResult<String> {
     tokio::task::spawn_blocking(move || hash_password(&password))
         .await
@@ -63,7 +58,6 @@ pub fn password_problem(password: &str, username: &str) -> Option<&'static str> 
     None
 }
 
-/// returns (token for the cookie, hash for the database)
 pub fn new_session_token() -> (String, String) {
     let mut bytes = [0u8; 32];
     rand::rngs::OsRng.fill_bytes(&mut bytes);
@@ -111,10 +105,8 @@ pub struct AdminUser {
     pub token_hash: String,
 }
 
-/// any logged-in admin, even one who still has to change the starting password
 pub struct AnyAdmin(pub AdminUser);
 
-/// a logged-in admin who has finished setup. almost every admin route uses this.
 pub struct Admin(pub AdminUser);
 
 async fn load_admin(parts: &Parts, state: &AppState) -> ApiResult<AdminUser> {
@@ -138,7 +130,6 @@ async fn load_admin(parts: &Parts, state: &AppState) -> ApiResult<AdminUser> {
         return Err(AppError::unauthorized());
     };
 
-    // only touch the row every few minutes instead of on every click
     if Utc::now() - last_seen > chrono::Duration::minutes(5) {
         sqlx::query("update admin_sessions set last_seen_at = now() where token_hash = $1")
             .bind(&token_hash)
@@ -169,8 +160,6 @@ impl FromRequestParts<AppState> for Admin {
     }
 }
 
-/// writes one line to the admin activity history. a failure here is logged but
-/// doesn't undo the action itself.
 pub async fn audit(db: &PgPool, admin: &AdminUser, action: &str, target: &str, details: impl Into<String>) {
     let details: String = details.into();
     let result = sqlx::query("insert into audit_log (admin_id, admin_username, action, target, details) values ($1, $2, $3, $4, $5)")
@@ -186,7 +175,6 @@ pub async fn audit(db: &PgPool, admin: &AdminUser, action: &str, target: &str, d
     }
 }
 
-/// creates the first account when none exist yet. it has to pick a new password on first login.
 pub async fn bootstrap_admin(db: &PgPool, config: &Config) -> anyhow::Result<()> {
     let count: i64 = sqlx::query_scalar("select count(*) from admins").fetch_one(db).await?;
 

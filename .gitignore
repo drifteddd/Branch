@@ -1,21 +1,15 @@
-# rust build output
 target/
 
-# tauri generates these while building
 app/src-tauri/gen/
 
-# real settings and secrets
 PRIVATE-NOTES.md
 .env
 .env.*
 
-# local upload folder used in development
 server/data/
 
-# test output
 dev/.screens/
 
-# editors and os junk
 node_modules/
 .vscode/
 .idea/

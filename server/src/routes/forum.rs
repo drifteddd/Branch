@@ -1,7 +1,3 @@
-// the community forum: boards, threads and replies, without accounts.
-// a poster is identified by a random secret key that lives on their computer.
-// the server only ever sees and stores a hash of it.
-
 use std::time::Duration;
 
 use axum::extract::{Path, Query, State};
@@ -32,7 +28,6 @@ const NOUNS: &[&str] = &[
     "Gorilla", "Monkey", "Branch", "Canopy", "Vine", "Climber", "Lemur", "Tagger", "Banana", "Treetop", "Ape", "Jungle", "Leaf", "Glider", "Bark", "Acorn",
 ];
 
-/// "MossyGorilla482"
 pub fn random_name() -> String {
     let mut rng = rand::thread_rng();
     format!(
@@ -43,7 +38,6 @@ pub fn random_name() -> String {
     )
 }
 
-/// the short tag shown after a name, so two people with the same name can be told apart
 fn tag_for(key_hash: &str) -> String {
     key_hash.chars().take(4).collect()
 }
@@ -52,7 +46,6 @@ fn valid_key(key: &str) -> bool {
     key.len() == 64 && key.chars().all(|c| c.is_ascii_hexdigit())
 }
 
-/// names people can't use, so nobody can pretend to be staff
 fn name_problem(name: &str) -> Option<&'static str> {
     let len = name.chars().count();
     if !(3..=24).contains(&len) {
@@ -93,8 +86,6 @@ pub(crate) struct Poster {
     pub(crate) banned: bool,
 }
 
-/// finds (or creates) the poster for a key. banned posters, and anyone on a banned
-/// person's connection, can still read but not post.
 pub(crate) async fn poster_for(state: &AppState, key: &str, visitor: &Visitor, create: bool) -> ApiResult<Poster> {
     if !valid_key(key) {
         return Err(AppError::bad_request("the community key on this computer is broken. clear it in settings and try again."));
@@ -377,7 +368,6 @@ async fn create_reply(State(state): State<AppState>, visitor: Visitor, Path(id):
     if !state.limiter.check(&format!("forum-reply:{}", visitor.id), 20, Duration::from_secs(600)) {
         return Err(AppError::too_many("you're replying fast. wait a few minutes."));
     }
-    // the same message twice in a row is almost always a double click or spam
     let repeat: bool = sqlx::query_scalar("select exists(select 1 from forum_replies where poster_id = $1 and body = $2 and created_at > now() - interval '10 minutes')")
         .bind(poster.id)
         .bind(&body)
@@ -432,8 +422,6 @@ async fn report(State(state): State<AppState>, visitor: Visitor, Json(input): Js
         .map_err(|_| AppError::not_found("that post isn't there anymore"))?;
     Ok((StatusCode::CREATED, Json(json!({ "ok": true }))))
 }
-
-// ---------- moderation (admin only) ----------
 
 #[derive(FromRow, Serialize)]
 struct AdminPost {
@@ -538,8 +526,6 @@ async fn admin_chat(State(state): State<AppState>, Admin(admin): Admin, Path(id)
     Ok(Json(json!({ "ok": true })))
 }
 
-// ---------- the main chat room ----------
-
 #[derive(FromRow)]
 struct ChatRow {
     id: i64,
@@ -569,7 +555,6 @@ struct ChatQuery {
     after: Option<i64>,
 }
 
-/// the app asks every few seconds for anything newer than the last message it has
 async fn chat_messages(State(state): State<AppState>, Query(query): Query<ChatQuery>) -> ApiResult<Json<Value>> {
     let rows: Vec<ChatRow> = match query.after {
         Some(after) => {
@@ -581,7 +566,6 @@ async fn chat_messages(State(state): State<AppState>, Query(query): Query<ChatQu
             latest
         }
     };
-    // messages a moderator removed recently, so open chats can hide them too
     let removed: Vec<i64> = sqlx::query_scalar("select id from chat_messages where removed and removed_at > now() - interval '15 minutes'")
         .fetch_all(&state.db)
         .await?;

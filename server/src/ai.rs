@@ -1,8 +1,3 @@
-// asks a model on siliconflow to judge what branch's scanner found in a mod.
-// the file itself is never sent, only the evidence the scanner pulled out of it:
-// the methods the code really calls, the windows functions it imports, the classes
-// and methods it defines, links, and suspicious text.
-
 use std::time::Duration;
 
 use serde::Serialize;
@@ -67,8 +62,6 @@ Respond with ONE JSON object and nothing else:
 }
 Give at most 6 capabilities, most important first. Write summary, reasons and details in plain, calm, simple English (mostly lowercase), like explaining to a teenager. If nothing looks wrong, say what you checked and that nothing stood out."#;
 
-/// added to the prompt for community uploads only. the same single call also writes
-/// the listing details, so an upload never costs more than one ai request.
 pub const UPLOAD_EXTRA_PROMPT: &str = r#"
 
 THIS FILE IS BEING UPLOADED TO BRANCH'S PUBLIC MOD LIST. Besides the safety fields above, also fill in these fields to help players, using the same evidence plus "claimed_name" and "claimed_description":
@@ -82,7 +75,6 @@ THIS FILE IS BEING UPLOADED TO BRANCH'S PUBLIC MOD LIST. Besides the safety fiel
   "description_match": "matches" | "partly" | "mismatch"
 "description_match" says whether the uploader's description fits what the code does: "matches" if it fits, "partly" if it's vague or only covers part of it, "mismatch" if it describes something clearly different. Add all of these keys to the same JSON object."#;
 
-/// the listing details the ai writes for an upload
 #[derive(Serialize, Clone, Debug, Default)]
 pub struct UploadInsights {
     pub overview: String,
@@ -114,8 +106,6 @@ pub struct AiVerdict {
     pub insights: Option<UploadInsights>,
 }
 
-/// what the uploader says the mod is, for community uploads, plus the tags and
-/// categories Branch already has so the ai can pick from them
 pub struct Claim<'a> {
     pub name: &'a str,
     pub description: &'a str,
@@ -134,7 +124,6 @@ fn truncate_json(text: String, max: usize) -> String {
     text[..end].to_string()
 }
 
-/// the facts the model sees. kept to roughly 4,000 tokens so each check stays cheap.
 fn user_message(report: &ScanReport, claim: Option<&Claim>) -> String {
     let text_signals: Vec<Value> = report
         .indicators
@@ -186,7 +175,6 @@ fn clean(s: &str, max: usize) -> String {
     s.chars().filter(|c| !c.is_control()).take(max).collect::<String>().trim().to_string()
 }
 
-/// pulls the json object out of the reply, even if the model wrapped it in ``` fences
 pub fn parse_reply(content: &str) -> Option<AiVerdict> {
     let start = content.find('{')?;
     let end = content.rfind('}')?;
@@ -234,7 +222,6 @@ pub fn parse_reply(content: &str) -> Option<AiVerdict> {
     })
 }
 
-/// the upload-only fields. missing when the reply was for the mod checker.
 fn parse_insights(value: &Value) -> Option<UploadInsights> {
     let overview = clean(value.get("overview")?.as_str()?, 900);
     let list = |key: &str, max: usize, len: usize| -> Vec<String> {
@@ -285,7 +272,6 @@ async fn call(http: &reqwest::Client, config: &Config, key: &str, body: &Value) 
 
 pub async fn ask(http: &reqwest::Client, config: &Config, report: &ScanReport, claim: Option<&Claim<'_>>) -> Result<AiVerdict, String> {
     let key = config.ai_api_key.as_deref().ok_or("the ai key isn't set")?;
-    // uploads also get an overview, tags and the rest, so they need a longer answer
     let (system, max_tokens) = if claim.is_some() { (format!("{SYSTEM_PROMPT}{UPLOAD_EXTRA_PROMPT}"), 1200) } else { (SYSTEM_PROMPT.to_string(), 700) };
     let mut body = json!({
         "model": config.ai_model,
@@ -296,7 +282,6 @@ pub async fn ask(http: &reqwest::Client, config: &Config, report: &ScanReport, c
         "temperature": 0.1,
         "max_tokens": max_tokens,
         "stream": false,
-        // asks for strict json. if a model doesn't support it, we retry without it below.
         "response_format": { "type": "json_object" },
     });
     let (mut status, mut value) = call(http, config, key, &body).await?;
@@ -307,15 +292,12 @@ pub async fn ask(http: &reqwest::Client, config: &Config, report: &ScanReport, c
         (status, value) = call(http, config, key, &body).await?;
     }
     if !status.is_success() {
-        // the provider's message, never our key
         let message = value.pointer("/message").or_else(|| value.pointer("/error/message")).and_then(|v| v.as_str()).unwrap_or("unknown error");
         return Err(format!("the ai answered {status}: {message}"));
     }
     let content = value.pointer("/choices/0/message/content").and_then(|v| v.as_str()).ok_or("the ai sent an empty answer")?;
     parse_reply(content).ok_or_else(|| "the ai's answer wasn't in the expected format".to_string())
 }
-
-// ---------- duplicate checks and rewards reviews ----------
 
 const DUPLICATE_PROMPT: &str = r#"You check uploads to Branch, a Gorilla Tag mod library. Decide whether a NEW upload is the same mod as one already listed (a re-upload, a copy, a renamed or slightly edited version), or a genuinely different mod.
 
@@ -343,7 +325,6 @@ One weak, borderline item is not a reason to reject if the rest is clearly fine;
 Respond with one JSON object only:
 {"approve": true | false, "summary": "<one or two plain sentences for the admin>", "reasons": ["<up to 5 short reasons>"], "flagged_mod_ids": ["<ids of problem uploads>"]}"#;
 
-/// sends a system prompt and a json payload, and returns the model's json reply
 async fn ask_json(http: &reqwest::Client, config: &Config, system: &str, payload: &Value, max_tokens: u32) -> Result<Value, String> {
     let key = config.ai_api_key.as_deref().ok_or("the ai key isn't set")?;
     let user = truncate_json(payload.to_string(), 15_000);
@@ -370,6 +351,30 @@ async fn ask_json(http: &reqwest::Client, config: &Config, system: &str, payload
     let start = content.find('{').ok_or("no json in the answer")?;
     let end = content.rfind('}').ok_or("no json in the answer")?;
     serde_json::from_str(&content[start..=end]).map_err(|_| "the ai's answer wasn't valid json".to_string())
+}
+
+pub async fn chat(http: &reqwest::Client, config: &Config, system: &str, messages: &[Value], max_tokens: u32) -> Result<String, String> {
+    let key = config.ai_api_key.as_deref().ok_or("the ai key isn't set")?;
+    let mut all = vec![json!({ "role": "system", "content": system })];
+    all.extend(messages.iter().cloned());
+    let body = json!({
+        "model": config.ai_model,
+        "messages": all,
+        "temperature": 0.4,
+        "top_p": 0.9,
+        "max_tokens": max_tokens,
+        "stream": false,
+    });
+    let (status, value) = call(http, config, key, &body).await?;
+    if !status.is_success() {
+        let message = value.pointer("/message").or_else(|| value.pointer("/error/message")).and_then(|v| v.as_str()).unwrap_or("unknown error");
+        return Err(format!("the ai answered {status}: {message}"));
+    }
+    let content = value.pointer("/choices/0/message/content").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
+    if content.is_empty() {
+        return Err("the ai sent an empty answer".into());
+    }
+    Ok(content)
 }
 
 pub struct DuplicateVerdict {

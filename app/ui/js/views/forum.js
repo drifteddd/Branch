@@ -1,5 +1,3 @@
-// the community forum: a list of threads by board, and a page for each thread.
-// no accounts. posts show your random (changeable) name and a short tag.
 import { h, clear, formatDate } from "../dom.js";
 import { icon } from "../icons.js";
 import { renderMarkdown } from "../../shared/markdown.js";
@@ -40,7 +38,6 @@ function fieldError(form, fields) {
   }
 }
 
-// a small report sheet for posts
 function reportPost(target) {
   const reason = h("textarea", { class: "textarea", rows: "3", maxlength: "500", id: "forum-report-reason" });
   const error = h("p", { class: "error", hidden: true });
@@ -266,8 +263,6 @@ export function createForumView(ctx) {
     );
   }
 
-  // ---------- the main chat ----------
-
   let chatTimer = null;
 
   function stopChat() {
@@ -314,7 +309,7 @@ export function createForumView(ctx) {
     };
 
     const poll = async () => {
-      if (document.hidden && !first) return; // don't keep asking while the app is minimized
+      if (document.hidden && !first) return;
       try {
         const data = await api(`/api/chat${lastId ? `?after=${lastId}` : ""}`);
         const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
@@ -380,7 +375,6 @@ export function createForumView(ctx) {
   };
 }
 
-// switches between the forum and the main chat
 function communityTabs(active) {
   return h(
     "nav",

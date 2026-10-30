@@ -1,5 +1,3 @@
-// checks and cleans uploaded files before anything gets stored.
-
 use std::io::Cursor;
 
 use image::codecs::jpeg::JpegEncoder;
@@ -23,8 +21,6 @@ pub struct ProcessedImage {
     pub ext: &'static str,
 }
 
-/// decodes the image, shrinks it and re-encodes it. re-encoding strips hidden
-/// metadata (like gps info) and means we never serve the raw uploaded bytes.
 pub fn process_image(data: &[u8], kind: ImageKind) -> Result<ProcessedImage, String> {
     if data.len() > MAX_IMAGE_BYTES {
         return Err("images can be up to 8 MB".into());
@@ -36,7 +32,6 @@ pub fn process_image(data: &[u8], kind: ImageKind) -> Result<ProcessedImage, Str
         Some(ImageFormat::Png | ImageFormat::Jpeg | ImageFormat::WebP | ImageFormat::Gif) => {}
         _ => return Err("only png, jpg, webp and gif images are allowed".into()),
     }
-    // stops "image bombs" that are tiny files but huge when decoded
     let mut limits = Limits::default();
     limits.max_image_width = Some(10_000);
     limits.max_image_height = Some(10_000);
@@ -75,8 +70,6 @@ pub struct CheckedFile {
     pub kind: &'static str,
 }
 
-/// mod files can only be .dll or .zip, and the first bytes have to match the type,
-/// so a renamed .exe or script can't slip through as a "dll".
 pub fn check_mod_file(original_name: &str, data: &[u8]) -> Result<CheckedFile, String> {
     if data.is_empty() {
         return Err("the file is empty".into());

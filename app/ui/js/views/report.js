@@ -1,4 +1,3 @@
-// the "report this mod" sheet. no account needed. reports go privately to the admin.
 import { h, clear } from "../dom.js";
 import { icon } from "../icons.js";
 import { api } from "../platform.js";
@@ -29,7 +28,6 @@ export function openReportDialog(ctx, mod) {
   const details = h("textarea", { class: "textarea", id: "report-details", maxlength: "2000", rows: "4", "aria-describedby": "report-details-hint report-details-error" });
   const detailsError = h("p", { class: "error", id: "report-details-error", hidden: true });
   const contact = h("input", { class: "input", id: "report-contact", maxlength: "200", autocomplete: "off", "aria-describedby": "report-contact-hint" });
-  // a hidden field real people never fill in. bots usually do.
   const trap = h("input", { type: "text", name: "website", tabindex: "-1", autocomplete: "off", "aria-hidden": "true" });
 
   const formError = h("div", { class: "banner danger compact", role: "alert", hidden: true });

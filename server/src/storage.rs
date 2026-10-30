@@ -1,6 +1,3 @@
-// where uploaded images and mod files live. in production that's an s3-style
-// bucket (railway buckets, cloudflare r2, etc). in development it's a folder.
-
 use std::sync::Arc;
 
 use object_store::aws::AmazonS3Builder;
@@ -39,8 +36,6 @@ pub async fn put(store: &dyn ObjectStore, key: &str, data: Vec<u8>) -> Result<()
     store.put(&Path::from(key), PutPayload::from(data)).await.map(|_| ())
 }
 
-/// deletes a stored file. a missing file is fine, other problems are only logged,
-/// because the database change already happened and that's what matters.
 pub async fn delete_quietly(store: &dyn ObjectStore, key: &str) {
     match store.delete(&Path::from(key)).await {
         Ok(()) | Err(object_store::Error::NotFound { .. }) => {}

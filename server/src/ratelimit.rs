@@ -1,7 +1,3 @@
-// a simple in-memory rate limiter (fixed windows).
-// it resets when the server restarts, which is fine for one small server.
-// if branch ever runs on more than one instance, this should move to postgres or redis.
-
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -21,7 +17,6 @@ impl RateLimiter {
         Self::default()
     }
 
-    /// counts a hit and says if it's still allowed
     pub fn check(&self, key: &str, limit: u32, per: Duration) -> bool {
         let mut hits = self.hits.lock().unwrap();
         let now = Instant::now();
@@ -34,7 +29,6 @@ impl RateLimiter {
         window.count <= limit
     }
 
-    /// forgets old windows so memory doesn't grow forever
     pub fn prune(&self, older_than: Duration) {
         let now = Instant::now();
         self.hits.lock().unwrap().retain(|_, w| now.duration_since(w.started) < older_than);

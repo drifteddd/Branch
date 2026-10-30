@@ -1,6 +1,3 @@
-// draws the branch icon into the png and ico files tauri needs.
-// no image tools required, just node. run: node scripts/make-icons.mjs
-// the shapes match app/ui/shared/branch-mark.svg.
 import { writeFileSync, mkdirSync } from "node:fs";
 import { deflateSync } from "node:zlib";
 import { dirname, join } from "node:path";
@@ -28,8 +25,6 @@ function inCapsule(x, y, ax, ay, bx, by, radius) {
   return (x - (ax + t * dx)) ** 2 + (y - (ay + t * dy)) ** 2 <= radius * radius;
 }
 
-// the trunk and its limbs: [x1, y1, x2, y2, thickness at the start, thickness at the tip, leaf length, leaf width]
-// each limb gets thinner toward its tip and ends in a pointed leaf.
 const LIMBS = [
   [470, 840, 540, 262, 34, 21, 66, 28],
   [500, 600, 332, 470, 22, 14, 80, 33],
@@ -38,11 +33,9 @@ const LIMBS = [
   [528, 368, 424, 308, 15, 10, 58, 24],
 ];
 
-// a leaf is a pointed lens shape: width w * (1 - s²) along its length
 function leafFor([x1, y1, bx, by, , , length, width]) {
   const len = Math.hypot(bx - x1, by - y1);
   const ux = (bx - x1) / len, uy = (by - y1) / len;
-  // the leaf starts a little inside the limb's tip, so they join smoothly
   return { cx: bx + ux * length * 0.82, cy: by + uy * length * 0.82, ux, uy, length, width };
 }
 const LEAVES = LIMBS.map((limb) => leafFor(limb));
@@ -65,7 +58,6 @@ function inGlyphRaw(x, y) {
   return LIMBS.some((limb) => inTaperedLimb(x, y, limb)) || LEAVES.some((leaf) => inLeaf(x, y, leaf));
 }
 
-// measure the drawing and move it so it sits exactly in the middle of the tile
 const [OFFSET_X, OFFSET_Y] = (() => {
   let minX = 1024, minY = 1024, maxX = 0, maxY = 0;
   for (let y = 0; y < 1024; y += 2) for (let x = 0; x < 1024; x += 2) {
@@ -78,11 +70,9 @@ function inGlyph(x, y) {
   return inGlyphRaw(x - OFFSET_X, y - OFFSET_Y);
 }
 
-// color of one point in the 1024 grid, or null if it's outside the icon
 function sample(x, y) {
   if (!inRoundRect(x, y)) return null;
   if (inGlyph(x, y)) return INK;
-  // a thin grey edge so the white tile still shows up on white backgrounds
   if (!inRoundRectInset(x, y, 12)) return EDGE;
   return PAPER;
 }
@@ -95,7 +85,7 @@ function inRoundRectInset(x, y, inset) {
 }
 
 function render(size) {
-  const ss = 4; // 4x4 samples per pixel for smooth edges
+  const ss = 4;
   const pixels = Buffer.alloc(size * size * 4);
   for (let py = 0; py < size; py++) {
     for (let px = 0; px < size; px++) {
@@ -144,12 +134,11 @@ function png(size) {
   const header = Buffer.alloc(13);
   header.writeUInt32BE(size, 0);
   header.writeUInt32BE(size, 4);
-  header[8] = 8; // bit depth
-  header[9] = 6; // rgba
+  header[8] = 8;
+  header[9] = 6;
   return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", header), chunk("IDAT", deflateSync(raw, { level: 9 })), chunk("IEND", Buffer.alloc(0))]);
 }
 
-// .ico files can hold png images directly, which windows vista and newer understand
 function ico(sizes) {
   const images = sizes.map(png);
   const header = Buffer.alloc(6);
@@ -176,8 +165,7 @@ writeFileSync(join(out, "128x128@2x.png"), png(256));
 writeFileSync(join(out, "icon.png"), png(512));
 writeFileSync(join(out, "icon.ico"), ico([16, 24, 32, 48, 64, 128, 256]));
 
-// the same drawing as an svg, used inside the app and the admin panel
-function svg() {
+function shapesSvg() {
   const f = (n) => Math.round(n * 10) / 10;
   const shapes = [];
   for (const [ax, ay, bx, by, r1, r2] of LIMBS) {
@@ -191,13 +179,17 @@ function svg() {
     const t1 = [cx - ux * length, cy - uy * length], t2 = [cx + ux * length, cy + uy * length];
     shapes.push(`<path d="M${f(t1[0])} ${f(t1[1])}Q${f(cx + nx * 2 * width)} ${f(cy + ny * 2 * width)} ${f(t2[0])} ${f(t2[1])}Q${f(cx - nx * 2 * width)} ${f(cy - ny * 2 * width)} ${f(t1[0])} ${f(t1[1])}Z"/>`);
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Branch">
-  <rect x="68" y="68" width="888" height="888" rx="212" fill="#ffffff" stroke="#d9d9de" stroke-width="8"/>
-  <g fill="#111111" transform="translate(${OFFSET_X} ${OFFSET_Y})">
+  return `<g fill="#111111" transform="translate(${OFFSET_X} ${OFFSET_Y})">
     ${shapes.join("\n    ")}
-  </g>
-</svg>
-`;
+  </g>`;
 }
-writeFileSync(join(root, "app", "ui", "shared", "branch-mark.svg"), svg());
+writeFileSync(join(root, "app", "ui", "shared", "branch-mark.svg"), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Branch">
+  <rect x="68" y="68" width="888" height="888" rx="212" fill="#ffffff" stroke="#d9d9de" stroke-width="8"/>
+  ${shapesSvg()}
+</svg>
+`);
+writeFileSync(join(root, "app", "ui", "shared", "branch-glyph.svg"), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="212 212 600 600">
+  ${shapesSvg()}
+</svg>
+`);
 console.log(`icons written to ${out} (glyph moved by ${OFFSET_X}, ${OFFSET_Y} to center it)`);

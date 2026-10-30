@@ -1,8 +1,3 @@
-// the robux rewards program, and the "is this upload unique?" check it depends on.
-// people upload 10 unique mods, apply with their roblox username and an item to buy,
-// an ai reviews their uploads, and the admin accepts them. after that every unique upload
-// adds 10 robux to what they're owed (50 a day, 500 total). the admin pays by buying the item.
-
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::routing::post;
@@ -42,8 +37,6 @@ pub async fn rewards_enabled(state: &AppState) -> ApiResult<bool> {
     Ok(value.and_then(|v| v.as_bool()).unwrap_or(false))
 }
 
-// ---------- uniqueness ----------
-
 pub struct UniqueCheck {
     pub unique: bool,
     pub message: String,
@@ -57,10 +50,6 @@ struct FingerprintRow {
     code_fingerprint: Vec<String>,
 }
 
-/// is this upload a new mod, or a copy of one that's already on branch?
-/// 1. the exact same file is always a copy. 2. mods with a similar code fingerprint (or the
-/// same name) are candidates. 3. the ai decides about the candidates. without the ai, only
-/// near-identical code counts as a copy.
 pub async fn check_upload_unique(state: &AppState, sha256: &str, name: &str, description: &str, fingerprint: &[String]) -> ApiResult<UniqueCheck> {
     let exact: Option<String> = sqlx::query_scalar(
         "select m.name from releases r join mods m on m.id = r.mod_id where r.file_sha256 = $1 and m.status <> 'archived' limit 1",
@@ -118,10 +107,6 @@ pub async fn check_upload_unique(state: &AppState, sha256: &str, name: &str, des
     Ok(UniqueCheck { unique: true, message: String::new() })
 }
 
-// ---------- earning ----------
-
-/// called after a unique community upload. returns how much was earned (0 if not a
-/// member, the program is off, or a limit was reached) and a short reason.
 pub async fn award_for_upload(state: &AppState, poster_id: Uuid, mod_id: Uuid, mod_name: &str) -> ApiResult<(i32, &'static str)> {
     if !rewards_enabled(state).await? {
         return Ok((0, "the rewards program is paused"));
@@ -133,7 +118,6 @@ pub async fn award_for_upload(state: &AppState, poster_id: Uuid, mod_id: Uuid, m
     let Some(member_id) = member else { return Ok((0, "not in the rewards program")) };
 
     let mut tx = state.db.begin().await?;
-    // lock the member row so two uploads at once can't both slip past the limits
     sqlx::query("select id from reward_members where id = $1 for update").bind(member_id).execute(&mut *tx).await?;
     let (today, total): (i64, i64) = sqlx::query_as(
         "select coalesce(sum(amount) filter (where day = current_date), 0), coalesce(sum(amount), 0)
@@ -166,8 +150,6 @@ pub async fn unique_upload_count(state: &AppState, poster_id: Uuid) -> ApiResult
         .fetch_one(&state.db)
         .await?)
 }
-
-// ---------- the person's own rewards page ----------
 
 #[derive(FromRow)]
 struct MemberRow {
@@ -218,7 +200,6 @@ async fn me(State(state): State<AppState>, visitor: Visitor, Json(input): Json<K
             .await?;
             let sum = |f: &dyn Fn(&EventRow) -> bool| events.iter().filter(|e| f(e)).map(|e| e.amount as i64).sum::<i64>();
             let today = Utc::now().date_naive();
-            // the person only sees the ai's reasons when it turned them down
             let review = m.ai_review.as_ref().filter(|_| m.status == "rejected").map(|r| json!({ "summary": r["summary"], "reasons": r["reasons"] }));
             json!({
                 "status": m.status,
@@ -254,7 +235,6 @@ struct ApplyInput {
     confirm: bool,
 }
 
-/// roblox gamepass, clothing or catalog item pages
 fn valid_payout_url(raw: &str) -> Option<String> {
     let url = crate::util::clean_url(raw).ok().flatten()?;
     let parsed = url::Url::parse(&url).ok()?;
@@ -309,7 +289,6 @@ async fn apply(State(state): State<AppState>, visitor: Visitor, Json(input): Jso
         _ => {}
     }
 
-    // the ai looks over every upload before the admin sees the application
     let mods: Vec<OwnMod> = sqlx::query_as(
         "select m.id, m.name, m.description, m.code_fingerprint,
                 (select r.file_size from releases r where r.mod_id = m.id order by r.created_at desc limit 1) as file_size
@@ -379,8 +358,6 @@ async fn apply(State(state): State<AppState>, visitor: Visitor, Json(input): Jso
     let reasons = if status == "rejected" { review_json["reasons"].clone() } else { json!([]) };
     Ok((StatusCode::CREATED, Json(json!({ "status": status, "summary": if status == "rejected" { review_json["summary"].clone() } else { Value::Null }, "reasons": reasons }))))
 }
-
-// ---------- admin ----------
 
 #[derive(FromRow, Serialize)]
 struct AdminMember {

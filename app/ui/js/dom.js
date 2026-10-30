@@ -1,5 +1,3 @@
-// small helpers for building the interface without a framework.
-
 export function h(tag, props, ...children) {
   const el = document.createElement(tag);
   for (const [key, value] of Object.entries(props || {})) {
@@ -7,7 +5,6 @@ export function h(tag, props, ...children) {
     if (key === "class") el.className = value;
     else if (key === "dataset") Object.assign(el.dataset, value);
     else if (key.startsWith("on") && typeof value === "function") el.addEventListener(key.slice(2).toLowerCase(), value);
-    // only ever used with renderMarkdown() output, which escapes everything
     else if (key === "html") el.innerHTML = value;
     else if (value === true) el.setAttribute(key, "");
     else el.setAttribute(key, String(value));
@@ -31,8 +28,6 @@ export function clear(el) {
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { year: "numeric", month: "short", day: "numeric" });
 
-// dates from the api are either "2026-10-02" or full timestamps.
-// plain dates get parsed as local time so they don't shift a day.
 export function formatDate(value) {
   if (!value) return "";
   const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(value + "T00:00:00") : new Date(value);

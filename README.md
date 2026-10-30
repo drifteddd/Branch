@@ -16,6 +16,7 @@ open it, search or scroll, click a mod, press download. made a mod? upload it in
 
 - **browse and search** mods by name, description, author or tag
 - **explore the tree of life**: every mod on Branch drawn as a node on one big tree. each category is its own limb, and the tree grows new branches as people add mods. zoom in to read names and click any node to open that mod
+- **ask branch**: a free AI assistant that knows every mod on Branch, how the app works and the latest tracked players. 25 free messages every 5 hours, and chats aren't saved
 - **track players (free beta)**: a live stream of players spotted in public rooms, with their name, ID, color, room code and region. search by name, ID or room and filter by region
 - **filter** by category and compatibility, and **sort** by recently updated, newest, name or downloads
 - **read about a mod** before you get it: screenshots, install steps, changelog, requirements, license and the file's checksum

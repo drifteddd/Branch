@@ -1,8 +1,3 @@
-// everything that talks to the outside world goes through here.
-// inside the desktop app, requests go through rust (see src-tauri/src/lib.rs),
-// so the web page never needs network access of its own. in a normal browser
-// (the local preview in dev/), it falls back to fetch().
-
 const tauri = window.__TAURI__;
 export const isDesktop = Boolean(tauri && tauri.core);
 
@@ -30,7 +25,6 @@ function toApiError(err, fallback) {
   return new ApiError(typeof err === "string" ? err : fallback, { kind: "network" });
 }
 
-// images come back as "/files/images/..." so they need the server address in front
 export function assetUrl(path) {
   if (!path) return null;
   if (/^https?:\/\//.test(path) || path.startsWith("data:")) return path;
@@ -68,9 +62,6 @@ export async function api(path, { method = "GET", body } = {}) {
 
 const browserDownloads = new Map();
 
-// downloads a hosted release. in the desktop app rust shows the save dialog,
-// streams the file to disk, checks the sha-256 and reports progress.
-// returns { status: "saved", path } or { status: "cancelled" }
 export async function downloadRelease({ id, releaseId, fileName, sha256 }, onProgress) {
   if (isDesktop) {
     const unlisten = await tauri.event.listen("download-progress", (event) => {
@@ -132,7 +123,6 @@ export async function revealFile(path) {
   if (isDesktop && path) await tauri.core.invoke("reveal_download", { path });
 }
 
-// external pages always open in the person's normal browser
 export async function openExternal(url) {
   if (isDesktop) await tauri.core.invoke("open_external", { url });
   else window.open(url, "_blank", "noopener,noreferrer");
@@ -147,13 +137,12 @@ export async function setNativeTheme(theme) {
   try {
     await tauri.window.getCurrentWindow().setTheme(theme === "system" ? null : theme);
   } catch {
-    // older webview or missing permission. the page itself still themes correctly.
   }
 }
 
 export async function appVersion() {
   if (isDesktop) {
-    try { return await tauri.app.getVersion(); } catch { /* fall through */ }
+    try { return await tauri.app.getVersion(); } catch {}
   }
   return "preview";
 }
@@ -163,13 +152,8 @@ export async function windowMaterial() {
   try { return await tauri.core.invoke("window_material"); } catch { return "none"; }
 }
 
-// ---------- file uploads (mod checker and community uploads) ----------
-
-// sends a form that includes a file the person picked on the page.
-// path is "/api/check" or "/api/submissions".
 export async function uploadForm(path, form) {
   if (isDesktop) {
-    // turn the form into the exact bytes a browser would send, then let rust pass them on
     const packed = new Response(form);
     const contentType = packed.headers.get("content-type");
     const body = new Uint8Array(await packed.arrayBuffer());
@@ -190,11 +174,7 @@ export async function uploadForm(path, form) {
   return data;
 }
 
-// ---------- window (the app draws its own title bar) ----------
-
 export const appWindow = isDesktop ? tauri.window.getCurrentWindow() : null;
-// github's public api, for viewing a mod's source code. returns undefined in the browser
-// preview, where the viewer just uses fetch() directly.
 export const githubFetch = isDesktop
   ? async (path) => {
       try {

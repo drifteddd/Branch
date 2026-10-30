@@ -1,11 +1,8 @@
-// settings, about and the legal pages.
 import { h, clear } from "../dom.js";
 import { icon } from "../icons.js";
 import { renderMarkdown } from "../../shared/markdown.js";
 import { appVersion, assetUrl, isDesktop, openExternal } from "../platform.js";
 
-// clicking the icon on the about page 7 times in a row opens the admin panel in the browser.
-// it's a login page, so finding it doesn't give anyone access.
 function adminDoor() {
   const img = h("img", { src: "shared/branch-mark.svg", alt: "", width: "88", height: "88", class: "about-icon" });
   let clicks = 0;

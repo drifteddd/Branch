@@ -1,6 +1,6 @@
 # Privacy Notice
 
-**Version 7** · Effective October 30, 2026
+**Version 8** · Effective October 30, 2026
 
 This Privacy Notice explains how Drifted (the "**Operator**," "**we**," "**us**") collects, uses, stores and shares information in connection with the Branch application and its related services (the "**Service**"). Contact: **drifted1000@outlook.com**.
 
@@ -38,6 +38,8 @@ When you submit a file to the Mod Checker or upload a Mod:
 
 (d) to enforce daily limits, we keep a usage count per Hashed Identifier, which is deleted after seven (7) days.
 
+**Ask Branch.** When you send a message to Ask Branch, your message and the earlier messages of the same conversation are transmitted, together with information about the app, the listed Mods and the most recent Player Tracker data, to SiliconFlow to generate a reply. Branch does not store the content of your conversations; it is kept only in the app until you close it or start a new chat. To enforce the free-use limit, we record the Hashed Identifier and the time of each message, and delete these records after one (1) day. Do not include personal information in your messages.
+
 ## 5. Community Forum and Chat
 
 The Community Forum does not use accounts. When you first open it, the application generates a random secret key, which is stored only on your device. Our server stores a one-way hash of that key (never the key itself), a randomly generated display name that you may change, the Hashed Identifier of the connection that created it, and whether posting has been restricted. Your posts, replies, chat messages, display name and a short identifier derived from the hashed key are public. Chat messages are deleted automatically after thirty (30) days. Other Forum Content is retained until it is removed by the Operator; removed posts are replaced with a placeholder. Reports about Forum Content are visible only to the Operator and are deleted one hundred eighty (180) days after they are closed. Deleting the key from your device (for example, by uninstalling the application) does not delete posts you have already made; contact us to request removal.
@@ -52,7 +54,7 @@ If you submit a report or a mod request, we store the related Mod, the reason or
 
 ## 8. Third-Party Service Providers
 
-We rely on the following providers to operate the Service: **Railway** (server hosting and database storage), **Roblox** (where Rewards are delivered by purchasing your Payout Item), **Discord** (the Player Tracker reads room reports from a Discord channel), **SiliconFlow** (artificial-intelligence analysis for the Mod Checker and upload safety checks; information extracted from submitted files, and for uploads the Mod name and description, may be sent to SiliconFlow) and **GitHub** (when you choose to view a Mod's source code, the application retrieves it directly from GitHub). Each provider processes information under its own terms and policies and may keep its own logs. We do not sell personal information or share it for advertising purposes.
+We rely on the following providers to operate the Service: **Railway** (server hosting and database storage), **Roblox** (where Rewards are delivered by purchasing your Payout Item), **Discord** (the Player Tracker reads room reports from a Discord channel), **SiliconFlow** (artificial-intelligence analysis for the Mod Checker, upload safety checks and Ask Branch; information extracted from submitted files, and for uploads the Mod name and description, may be sent to SiliconFlow) and **GitHub** (when you choose to view a Mod's source code, the application retrieves it directly from GitHub). Each provider processes information under its own terms and policies and may keep its own logs. We do not sell personal information or share it for advertising purposes.
 
 ## 9. Data Retention Summary
 
@@ -67,6 +69,8 @@ We rely on the following providers to operate the Service: **Railway** (server h
 | Community Forum posts and display name | until removed |
 | Community Forum reports | 180 days after closure |
 | Player Tracker room reports | only the newest 50 are kept |
+| Ask Branch conversations | not stored |
+| Ask Branch usage records | 1 day |
 
 ## 10. Children
 

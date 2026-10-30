@@ -1,7 +1,3 @@
-// reads settings from environment variables and stops early with a clear
-// message if something is missing. this type purposely doesn't derive Debug,
-// so secrets can't end up in a log by accident.
-
 use std::path::PathBuf;
 
 use anyhow::{bail, Context};
@@ -25,21 +21,16 @@ pub enum StorageConfig {
 pub struct Config {
     pub database_url: String,
     pub port: u16,
-    /// used to hash ip addresses for rate limits and download counts
     pub server_secret: String,
     pub cookie_secure: bool,
-    /// only true behind a proxy we trust (railway), so x-forwarded-for can be believed
     pub trust_proxy: bool,
     pub storage: StorageConfig,
     pub bootstrap_username: Option<String>,
     pub bootstrap_password: Option<String>,
-    /// siliconflow key for the mod checker. without it, the checker uses the basic scan only.
     pub ai_api_key: Option<String>,
     pub ai_model: String,
     pub ai_base_url: String,
-    /// checks one visitor gets per day
     pub ai_daily_per_visitor: i32,
-    /// paid ai calls for everyone together per day. a hard ceiling on spending.
     pub ai_daily_global: i32,
 }
 
@@ -98,8 +89,6 @@ impl Config {
             },
             "local" => {
                 let dir = PathBuf::from(optional("LOCAL_STORAGE_DIR").unwrap_or_else(|| "./data".into()));
-                // on railway the normal disk is wiped on every deploy. local storage is only
-                // allowed there when it points into a mounted volume, which does persist.
                 if on_railway() {
                     let volume = optional("RAILWAY_VOLUME_MOUNT_PATH");
                     let inside_volume = volume.as_deref().is_some_and(|v| dir.starts_with(v));

@@ -1,6 +1,3 @@
-// shows a public github repo's files inside branch, read straight from github's api.
-// file contents are only ever put on the page as plain text, so nothing in a repo can run.
-
 function h(tag, props, ...children) {
   const el = document.createElement(tag);
   for (const [key, value] of Object.entries(props || {})) {
@@ -42,11 +39,6 @@ async function browserFetch(path) {
   return res.json();
 }
 
-/**
- * opens the viewer. returns false if the link isn't a github repo.
- * fetchJson(path) loads "https://api.github.com" + path. the desktop app passes its own.
- * openLink(url) opens a link outside (the desktop app uses the normal browser).
- */
 export function openSourceViewer(url, { fetchJson = browserFetch, openLink = null } = {}) {
   const info = parseGithub(url || "");
   if (!info) return false;

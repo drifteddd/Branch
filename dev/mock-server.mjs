@@ -1,10 +1,3 @@
-// a fake branch server for trying the interface on any computer with node.
-// everything here is DEMO DATA. none of these mods are real, none of the
-// downloads are real mods, and the numbers are made up for testing only.
-//
-// run:   node dev/mock-server.mjs
-// app:   http://localhost:5173/
-// admin: http://localhost:5173/admin  (demo login: demo-admin / demo-password-1234)
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
@@ -25,8 +18,6 @@ const COMPATIBILITY = [
 ];
 const PLATFORMS = [{ key: "steam", label: "Steam (PC VR)" }, { key: "oculus_pc", label: "Meta / Oculus PC (PC VR)" }, { key: "quest", label: "Quest standalone" }];
 const REASONS = [["broken_download", "Broken download"], ["outdated", "Outdated or incompatible"], ["misleading", "Misleading information"], ["harmful", "Suspicious or harmful file"], ["copyright", "Copyright or permission issue"], ["other", "Other"]].map(([key, label]) => ({ key, label }));
-
-// ---------- demo data ----------
 
 const categories = [
   ["cosmetics", "Cosmetics"], ["gameplay", "Gameplay"], ["utilities", "Utilities"], ["maps", "Maps"], ["libraries", "Libraries"],
@@ -57,8 +48,9 @@ function demoSvg(n, label) {
 }
 const images = new Map();
 const uploadedImages = new Map();
+const assistantCalls = [];
+const assistantUsage = () => ({ limit: 25, used: assistantCalls.length, remaining: Math.max(0, 25 - assistantCalls.length), window_hours: 5, resets_at: assistantCalls.length ? new Date(assistantCalls[0] + 5 * 3600_000).toISOString() : null });
 
-// demo player tracker: 50 rooms found over the last 50 minutes, newest first
 const trackerCards = (() => {
   const names = ["REM", "FOREST", "LOPE", "PANCAKE", "SUNRISE", "GORILLA", "ECHO", "MANGO", "PIXEL", "NOVA", "BANANA", "SHADOW", "TOAST", "RIVER", "COMET"];
   const regions = ["US", "USW", "EU"];
@@ -85,7 +77,7 @@ function demoFile(seed, size) {
   buf.write("BRANCH DEMO FILE - NOT A REAL MOD - " + seed, 2, "ascii");
   return buf;
 }
-const files = new Map(); // release id -> Buffer
+const files = new Map();
 
 const mods = DEMO_NAMES.map(([title, cat, summary], i) => {
   const id = randomUUID();
@@ -104,7 +96,6 @@ const mods = DEMO_NAMES.map(([title, cat, summary], i) => {
     file: hosted ? { name: `${slug}.dll`, size, sha256: createHash("sha256").update(files.get(releaseId)).digest("hex"), type: "dll" } : null,
     available: true, disabled: false, disabled_reason: "", created_at: day + "T12:00:00Z",
   };
-  // one demo download fails on purpose so the error state can be tested
   if (title === "Practice Timer") release.demo_fail = true;
   if (title === "Old Menu Kit") { release.available = false; release.disabled = true; release.disabled_reason = "demo: this file was reported as broken."; }
   const category = categories.find((c) => c.slug === cat);
@@ -130,8 +121,6 @@ const rewards = { enabled: true, members: new Map(), nextEvent: 1 };
 const checkUsage = new Map();
 const CHECK_LIMIT = 20;
 const audit = [];
-
-// ---------- helpers ----------
 
 function send(res, status, body, headers = {}) {
   const data = typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body);
@@ -159,7 +148,6 @@ function summary(m) {
   return { id: m.id, slug: m.slug, name: m.name, summary: m.summary, author: m.author.name, category: m.category ? { slug: m.category.slug, name: m.category.name } : null, thumbnail_url: m.thumbnail_url, compatibility: m.compatibility.status, featured: m.featured, community: Boolean(m.community), downloads: m.downloads, latest_version: latest?.version || null, last_updated: latest?.released_on || m.updated_at.slice(0, 10) };
 }
 
-// a tiny multipart reader, good enough for the demo admin uploads
 function parseMultipart(req, body) {
   const boundary = /boundary=(.+)$/.exec(req.headers["content-type"] || "")?.[1];
   const result = { fields: {}, file: null, files: {} };
@@ -179,8 +167,6 @@ function parseMultipart(req, body) {
   }
   return result;
 }
-
-// ---------- demo admin state ----------
 
 const admin = { username: "demo-admin", password: "demo-password-1234", must_change_password: true };
 const sessions = new Set();
@@ -251,7 +237,7 @@ async function adminApi(req, res, path, url) {
   }
   if (admin.must_change_password) return send(res, 403, { error: "change the starting password before doing anything else", code: "password_change_required" });
 
-  const parts = path.split("/").slice(3); // after /api/admin
+  const parts = path.split("/").slice(3);
   const find = (id) => mods.find((m) => m.id === id);
   const findRelease = (id) => { for (const m of mods) { const r = m.releases.find((x) => x.id === id); if (r) return [m, r]; } return [null, null]; };
 
@@ -440,7 +426,6 @@ async function adminApi(req, res, path, url) {
     return send(res, 200, { ok: true });
   }
   if (parts[0] === "import" && method === "POST") {
-    // demo only: no zip splitting here, one draft per uploaded file
     const { file } = parseMultipart(req, await readBody(req));
     if (!file || !/\.(dll|zip)$/i.test(file.name)) return send(res, 200, { imported: [], failed: [{ file_name: file?.name || "?", error: "only .dll and .zip files can be hosted" }] });
     const name = file.name.replace(/\.(dll|zip)$/i, "").replace(/[_-]?v?\d+(\.\d+)+/, "").replace(/[_\-.]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").trim() || "Imported mod";
@@ -473,14 +458,26 @@ async function adminApi(req, res, path, url) {
   return fail(res, 404, "not found");
 }
 
-// ---------- public api ----------
-
 async function publicApi(req, res, path, url) {
   if (path === "/api/meta") {
     return send(res, 200, { categories: categories.map((c) => ({ ...c, mod_count: mods.filter((m) => m.status === "published" && m.category?.id === c.id).length })), compatibility: COMPATIBILITY, platforms: PLATFORMS, report_reasons: REASONS });
   }
+  if (path === "/api/assistant/usage") return send(res, 200, { ...assistantUsage(), available: true });
+  if (path === "/api/assistant" && req.method === "POST") {
+    const body = await json(req);
+    const question = body.messages?.at(-1)?.content || "";
+    if (!question.trim()) return fail(res, 400, "type a message first");
+    if (assistantCalls.length >= 25) return fail(res, 429, "you've used all 25 free messages for now. you get another one in 4 h 59 min.");
+    assistantCalls.push(Date.now());
+    await new Promise((r) => setTimeout(r, 600));
+    const picks = mods.filter((m) => m.status === "published").slice(0, 2);
+    const player = trackerCards[0].players[0];
+    const reply = /track|player|room/i.test(question)
+      ? `the newest player the tracker found is **${player.name}** (ID \`${player.id}\`) in room \`${trackerCards[0].room}\` (${trackerCards[0].region}), about a minute ago.`
+      : `here are a couple of mods you might like:\n\n- [${picks[0].name}](mod:${picks[0].slug}): ${picks[0].summary}\n- [${picks[1].name}](mod:${picks[1].slug}): ${picks[1].summary}\n\n| Mod | Category |\n| --- | --- |\n| ${picks[0].name} | ${picks[0].category?.name || "none"} |\n| ${picks[1].name} | ${picks[1].category?.name || "none"} |\n\nthis is the demo server, so these answers are made up.`;
+    return send(res, 200, { reply, usage: assistantUsage() });
+  }
   if (path === "/api/tracker") return send(res, 200, { status: "live", checked_at: new Date().toISOString(), cards: trackerCards.slice(0, 50) });
-  // demo only: pretend the bot just found a room
   if (path === "/api/dev/tracker-card" && req.method === "POST") {
     const body = await json(req);
     trackerCards.unshift({ id: `card-${randomUUID()}`, room: body.room, region: body.region || "US", player_count: body.players.length, players: body.players, seen_at: new Date().toISOString() });
@@ -506,7 +503,7 @@ async function publicApi(req, res, path, url) {
     const per = Math.min(50, Number(p.get("per_page")) || 20);
     const page = Math.max(1, Number(p.get("page")) || 1);
     const items = list.slice((page - 1) * per, page * per).map(summary);
-    await new Promise((r) => setTimeout(r, 250)); // so the loading skeleton is visible
+    await new Promise((r) => setTimeout(r, 250));
     return send(res, 200, { items, page, per_page: per, total: list.length, has_more: page * per < list.length });
   }
   const modMatch = /^\/api\/mods\/([a-z0-9-]+)$/.exec(path);
@@ -527,7 +524,6 @@ async function publicApi(req, res, path, url) {
     if (!data) return fail(res, 404, "this release isn't hosted on Branch");
     m.downloads++;
     res.writeHead(200, { "content-type": "application/octet-stream", "content-length": data.length, "content-disposition": `attachment; filename="${r.file.name}"` });
-    // send it slowly so the progress bar has something to show
     for (let i = 0; i < data.length; i += 32 * 1024) {
       if (res.destroyed) return;
       res.write(data.subarray(i, i + 32 * 1024));
@@ -545,7 +541,6 @@ async function publicApi(req, res, path, url) {
     reports.unshift({ id: randomUUID(), mod_id: m.id, mod_slug: m.slug, mod_name: m.name, reason: body.reason, details: body.details || "", contact: body.contact || "", status: "open", admin_note: "", created_at: new Date().toISOString(), resolved_at: null, resolved_by: null });
     return send(res, 201, { ok: true });
   }
-  // ---- demo rewards ----
   if (path.startsWith("/api/rewards/")) {
     const body = await json(req);
     const uploads = mods.filter((x) => x.community && x.uploader_key === body.key).length;
@@ -571,7 +566,6 @@ async function publicApi(req, res, path, url) {
         : null,
     });
   }
-  // ---- demo chat ----
   if (path === "/api/chat") {
     if (req.method === "POST") {
       const body = await json(req);
@@ -587,9 +581,8 @@ async function publicApi(req, res, path, url) {
     const list = (after ? forum.chat.filter((m) => m.id > after) : forum.chat.slice(-80)).map((m) => ({ id: m.id, body: m.removed ? "[removed by a moderator]" : m.body, removed: m.removed, author: { name: m.poster.name, tag: m.poster.tag }, created_at: m.created_at }));
     return send(res, 200, { messages: list, latest_id: list.length ? list[list.length - 1].id : after, removed: forum.chat.filter((m) => m.removed).map((m) => m.id) });
   }
-  // ---- demo community forum ----
   if (path.startsWith("/api/forum/")) {
-    const parts = path.split("/").slice(3); // after /api/forum
+    const parts = path.split("/").slice(3);
     if (parts[0] === "me") {
       const body = await json(req);
       if (!/^[0-9a-f]{64}$/.test(body.key || "")) return fail(res, 400, "the community key on this computer is broken.");
@@ -668,7 +661,6 @@ async function publicApi(req, res, path, url) {
     const author = fields.anonymous === "true" ? "Anonymous" : (fields.author || "").trim() || "Anonymous";
     modPayloadToMod(m, { name, slug: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${mods.length}`, author_name: author, description, summary: description.split(". ")[0].slice(0, 200), redistribution: "allowed" });
     m.status = "published";
-    // pretend ai: an overview, plus tags and a category when the uploader left them out
     const text = `${name} ${description}`.toLowerCase();
     const userTags = [...new Set((fields.tags || "").split(",").map((t) => t.trim().toLowerCase()).filter(Boolean))].slice(0, 5);
     const guessed = [["hat", "hats"], ["cosmetic", "cosmetics"], ["menu", "menu"], ["fly", "movement"], ["speed", "movement"], ["map", "maps"], ["light", "visuals"], ["sound", "sounds"]].filter(([w]) => text.includes(w)).map(([, t]) => t);
@@ -701,7 +693,6 @@ async function publicApi(req, res, path, url) {
     m.releases.push(refreshRelease({ id: randomUUID(), version: fields.version || "unversioned", released_on: new Date().toISOString().slice(0, 10), changelog: "", game_version: "", kind: "hosted", external_url: null, file: { name: file.name, size: file.data.length, sha256: createHash("sha256").update(file.data).digest("hex"), type: "dll" }, disabled: false, disabled_reason: "", created_at: new Date().toISOString() }));
     files.set(m.releases[0].id, file.data);
     mods.unshift(m);
-    // demo rewards: members earn 10 per upload, up to 50 a day and 500 total
     let earned = 0;
     const member = rewards.members.get(m.uploader_key);
     if (member && member.status === "accepted" && rewards.enabled) {
@@ -732,7 +723,6 @@ async function publicApi(req, res, path, url) {
     if (!file) return fail(res, 400, "no file was attached");
     const head = file.data.subarray(0, 2).toString("latin1");
     if (head !== "MZ" && head !== "PK") return fail(res, 422, "only .dll and .zip files can be checked", { file: "only .dll and .zip files can be checked" });
-    // demo only: a fake verdict based on a few words in the file. the real server runs the full scan and the ai.
     const text = file.data.toString("latin1").toLowerCase();
     const signs = [["discord.com/api/webhooks", "has a discord webhook (often used to send stolen data)"], ["createremotethread", "injects code into other programs"], ["leveldb", "reads browser or discord login storage"]].filter(([n]) => text.includes(n));
     const score = Math.min(100, signs.length * 33 + 4);
@@ -755,8 +745,6 @@ async function publicApi(req, res, path, url) {
   }
   return fail(res, 404, "not found");
 }
-
-// ---------- static files ----------
 
 async function serveStatic(res, base, rel) {
   const target = normalize(join(base, rel));

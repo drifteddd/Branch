@@ -1,7 +1,3 @@
-// end-to-end checks of the real api against a real postgres database.
-// they only run when TEST_DATABASE_URL is set (the github workflow sets it).
-// warning: the test wipes that database, so never point it at real data.
-
 use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
 use axum::Router;
@@ -74,7 +70,6 @@ impl Client {
         self.form_files(path, fields, &files).await
     }
 
-    /// a form with any number of files, each as (field, file name, bytes)
     async fn form_files(&mut self, path: &str, fields: &[(&str, &str)], files: &[(&str, &str, &[u8])]) -> Reply {
         let boundary = "branchformboundary";
         let mut body = Vec::new();
@@ -122,7 +117,6 @@ async fn setup() -> Option<Client> {
         eprintln!("TEST_DATABASE_URL isn't set, skipping api tests");
         return None;
     };
-    // start from an empty database every time
     let pool = sqlx::PgPool::connect(&database_url).await.unwrap();
     sqlx::raw_sql("drop schema public cascade; create schema public;").execute(&pool).await.unwrap();
     pool.close().await;
@@ -137,7 +131,6 @@ async fn setup() -> Option<Client> {
         storage: StorageConfig::Local { dir },
         bootstrap_username: Some(ADMIN.into()),
         bootstrap_password: Some(START_PASSWORD.into()),
-        // no key in tests, so the checker falls back to the basic scan and never spends money
         ai_api_key: None,
         ai_model: "test".into(),
         ai_base_url: "http://127.0.0.1:9".into(),
@@ -149,12 +142,10 @@ async fn setup() -> Option<Client> {
     Some(Client { app: branch_server::routes::router(state), cookie: None, db })
 }
 
-// one long test, because every step builds on the one before it
 #[tokio::test]
 async fn full_flow() {
     let Some(mut c) = setup().await else { return };
 
-    // ---- health and migrations ----
     let r = c.get("/health").await;
     assert_eq!(r.status, StatusCode::OK);
     let r = c.get("/api/meta").await;
@@ -162,7 +153,6 @@ async fn full_flow() {
     assert_eq!(r.json["categories"].as_array().unwrap().len(), 5, "starter categories from the migration");
     let category_id = r.json["categories"][0]["id"].as_str().unwrap().to_string();
 
-    // ---- player tracker: the newest 50 room cards, without cosmetics ----
     let r = c.get("/api/tracker").await;
     assert_eq!(r.status, StatusCode::OK);
     assert_eq!(r.json["cards"].as_array().unwrap().len(), 0);
@@ -185,7 +175,17 @@ async fn full_flow() {
     assert_eq!(shown[0]["room"], "R51", "newest first");
     assert_eq!(shown[0]["players"][0], json!({ "name": "PLAYER51", "id": "ABC51", "color": [142, 255, 0] }));
 
-    // ---- admin routes are locked ----
+    let r = c.get("/api/assistant/usage").await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert_eq!(r.json["limit"], 25);
+    assert_eq!(r.json["remaining"], 25);
+    assert_eq!(r.json["available"], false);
+    let r = c.json("POST", "/api/assistant", json!({ "messages": [{ "role": "user", "content": "what hat mods are there?" }] })).await;
+    assert_eq!(r.status, StatusCode::SERVICE_UNAVAILABLE, "{}", r.json);
+    let r = c.json("POST", "/api/assistant", json!({ "messages": [] })).await;
+    assert_eq!(r.status, StatusCode::BAD_REQUEST);
+    assert_eq!(c.get("/api/assistant/usage").await.json["remaining"], 25, "failed requests don't count");
+
     let r = c.get("/api/admin/mods").await;
     assert_eq!(r.status, StatusCode::UNAUTHORIZED);
     let request = Request::builder().method("POST").uri("/api/admin/login").header(header::CONTENT_TYPE, "application/json")
@@ -198,7 +198,6 @@ async fn full_flow() {
     let r = c.json("POST", "/api/admin/login", json!({ "username": "nobody", "password": "wrong" })).await;
     assert_eq!(r.status, StatusCode::UNAUTHORIZED);
 
-    // ---- first login has to change the password ----
     let r = c.json("POST", "/api/admin/login", json!({ "username": ADMIN, "password": START_PASSWORD })).await;
     assert_eq!(r.status, StatusCode::OK);
     assert_eq!(r.json["must_change_password"], true);
@@ -214,11 +213,9 @@ async fn full_flow() {
     let r = c.get("/api/admin/mods").await;
     assert_eq!(r.status, StatusCode::OK);
 
-    // a stolen cookie without the header still can't do anything
     let request = Request::builder().uri("/api/admin/mods").header(header::COOKIE, c.cookie.clone().unwrap()).body(Body::empty()).unwrap();
     assert_eq!(c.send(request).await.status, StatusCode::FORBIDDEN);
 
-    // ---- drafts ----
     let r = c.json("POST", "/api/admin/mods", json!({ "name": "" })).await;
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
     assert!(r.json["fields"]["name"].is_string());
@@ -237,7 +234,6 @@ async fn full_flow() {
 
     assert_eq!(c.get("/api/mods/test-mod").await.status, StatusCode::NOT_FOUND, "drafts aren't public");
 
-    // ---- publishing needs the important fields and a working release ----
     let r = c.json("POST", &format!("/api/admin/mods/{mod_id}/status"), json!({ "status": "published" })).await;
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
     for field in ["summary", "author_name", "category_id", "license_name", "releases"] {
@@ -253,7 +249,6 @@ async fn full_flow() {
     let r = c.json("PUT", &format!("/api/admin/mods/{mod_id}"), full.clone()).await;
     assert_eq!(r.status, StatusCode::OK, "{}", r.json);
 
-    // hosting needs permission
     let r = c.json("POST", &format!("/api/admin/mods/{mod_id}/releases"), json!({ "version": "1.0.0", "released_on": "2026-10-01", "download_kind": "hosted" })).await;
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
     assert!(r.json["fields"]["download_kind"].is_string());
@@ -265,7 +260,6 @@ async fn full_flow() {
     let r = c.json("POST", &format!("/api/admin/mods/{mod_id}/status"), json!({ "status": "published" })).await;
     assert_eq!(r.status, StatusCode::OK, "{}", r.json);
 
-    // ---- public browsing ----
     let r = c.get("/api/mods").await;
     assert_eq!(r.json["total"], 1);
     assert_eq!(r.json["items"][0]["latest_version"], "1.0.0");
@@ -289,7 +283,6 @@ async fn full_flow() {
     assert!(r.status.is_redirection());
     assert_eq!(c.get("/api/mods/test-mod").await.json["downloads"], 1, "one person counts once a day");
 
-    // ---- hosted files and uploads ----
     let mut allowed = full.clone();
     allowed["redistribution"] = json!("allowed");
     c.json("PUT", &format!("/api/admin/mods/{mod_id}"), allowed).await;
@@ -312,7 +305,6 @@ async fn full_flow() {
     assert_eq!(r.bytes, file_data);
     assert!(r.headers.get(header::CONTENT_DISPOSITION).unwrap().to_str().unwrap().contains("attachment"));
 
-    // images are checked and re-encoded
     let r = c.upload(&format!("/api/admin/mods/{mod_id}/thumbnail"), "thumb.png", b"not really a png").await;
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
     let r = c.upload(&format!("/api/admin/mods/{mod_id}/thumbnail"), "thumb.png", &png_bytes()).await;
@@ -324,7 +316,6 @@ async fn full_flow() {
     assert_eq!(c.get("/files/files/anything.dll").await.status, StatusCode::NOT_FOUND, "only images are served from /files");
     assert_eq!(c.get("/files/images/../files/x.jpg").await.status, StatusCode::NOT_FOUND);
 
-    // ---- turning a download off ----
     let r = c.json("POST", &format!("/api/admin/releases/{hosted_id}/availability"), json!({ "disabled": true })).await;
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "a reason is required");
     let r = c.json("POST", &format!("/api/admin/releases/{hosted_id}/availability"), json!({ "disabled": true, "reason": "reported as harmful" })).await;
@@ -333,7 +324,6 @@ async fn full_flow() {
     assert_eq!(r.status, StatusCode::GONE);
     assert!(r.json["error"].as_str().unwrap().contains("reported as harmful"));
 
-    // ---- reports ----
     let r = c.json("POST", "/api/reports", json!({ "mod_slug": "test-mod", "reason": "nonsense" })).await;
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
     let r = c.json("POST", "/api/reports", json!({ "mod_slug": "test-mod", "reason": "other" })).await;
@@ -352,10 +342,8 @@ async fn full_flow() {
     let r = c.json("PUT", &format!("/api/admin/reports/{report_id}"), json!({ "status": "resolved", "admin_note": "fixed the link" })).await;
     assert_eq!(r.status, StatusCode::OK);
     assert_eq!(c.get("/api/admin/reports?status=open").await.json["items"].as_array().unwrap().len(), 0);
-    // public endpoints never expose reports
     assert!(!String::from_utf8_lossy(&c.get("/api/mods/test-mod").await.bytes).contains("me#1234"));
 
-    // ---- unpublish, archive and delete ----
     let r = c.json("POST", &format!("/api/admin/mods/{mod_id}/status"), json!({ "status": "unpublished" })).await;
     assert_eq!(r.status, StatusCode::OK);
     assert_eq!(c.get("/api/mods").await.json["total"], 0);
@@ -367,7 +355,6 @@ async fn full_flow() {
     assert_eq!(c.get(&thumb).await.status, StatusCode::NOT_FOUND, "stored files are removed too");
     assert_eq!(c.get("/api/admin/reports").await.json["items"][0]["mod_name"], "Test Mod", "reports keep the name");
 
-    // ---- mod requests ----
     let r = c.json("POST", "/api/requests", json!({ "mod_name": "Cool Hat", "url": "not a link" })).await;
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
     assert!(r.json["fields"]["url"].is_string());
@@ -385,7 +372,6 @@ async fn full_flow() {
     assert_eq!(r.json["source_url"], "https://github.com/someone/cool-hat");
     assert_eq!(c.get("/api/admin/requests?status=accepted").await.json["items"].as_array().unwrap().len(), 1);
 
-    // ---- mod checker (no ai key in tests, so it uses the basic scan and spends nothing) ----
     let r = c.get("/api/check/usage").await;
     assert_eq!(r.json["used"], 0);
     assert_eq!(r.json["limit"], 3);
@@ -403,7 +389,6 @@ async fn full_flow() {
     c.upload("/api/check", "hat.dll", clean).await;
     let r = c.upload("/api/check", "hat.dll", clean).await;
     assert_eq!(r.status, StatusCode::TOO_MANY_REQUESTS, "daily limit");
-    // ---- bulk import: a zip full of mods becomes one draft per mod ----
     let mut pack = std::io::Cursor::new(Vec::new());
     {
         use std::io::Write;
@@ -430,7 +415,6 @@ async fn full_flow() {
     assert_eq!(r.json["items"].as_array().unwrap().len(), 2);
     assert_eq!(r.json["items"][0]["status"], "draft");
 
-    // imported drafts can't go public until they're filled in, and a hosted copy needs permission
     let speed_id = speed["mod_id"].as_str().unwrap().to_string();
     let mut filled = full.clone();
     filled["name"] = json!("Speed Readout");
@@ -441,7 +425,6 @@ async fn full_flow() {
     assert!(r.json["fields"]["redistribution"].is_string(), "{}", r.json);
     assert!(r.json["fields"]["releases"].is_string(), "{}", r.json);
 
-    // ---- community uploads ----
     let description = "adds tiny hats to every player. works in private lobbies.";
     let r = c.form("/api/submissions", &[("name", "Tiny Hats"), ("description", "too short")], Some(("TinyHats.dll", &b"MZ BepInEx hats"[..]))).await;
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
@@ -450,10 +433,8 @@ async fn full_flow() {
     let r = c.form("/api/submissions", &[("name", "Free Robux"), ("description", description), ("confirm", "true")], Some(("x.dll", &b"MZ https://discord.com/api/webhooks/1/x \\Local Storage\\leveldb CreateRemoteThread"[..]))).await;
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "harmful files are refused: {}", r.json);
     assert!(r.json["fields"]["file"].as_str().unwrap().contains("safety check"));
-    // uploads from the app carry the person's community key, so they count toward rewards
     let member_key = "f00d".repeat(16);
     let upload_fields = [("name", "Tiny Hats"), ("description", description), ("anonymous", "true"), ("author", "should be hidden"), ("confirm", "true"), ("key", member_key.as_str()), ("tags", "Hats, cosmetics, hats")];
-    // the thumbnail is optional, but a broken one is turned away
     let r = c.form_files("/api/submissions", &upload_fields, &[("file", "TinyHats_v2.1.dll", &b"MZ BepInEx hats"[..]), ("thumbnail", "thumb.png", &b"not really a png"[..])]).await;
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "{}", r.json);
     assert!(r.json["fields"]["thumbnail"].is_string(), "{}", r.json);
@@ -465,7 +446,6 @@ async fn full_flow() {
     assert_eq!(r.status, StatusCode::OK, "community uploads go live right away");
     let thumbnail_url = r.json["thumbnail_url"].as_str().expect("the uploaded thumbnail is on the mod").to_string();
     assert_eq!(c.get(&thumbnail_url).await.status, StatusCode::OK);
-    // the uploader's own tags are used. the automatic check's findings are saved with the mod
     assert_eq!(r.json["tags"], json!(["cosmetics", "hats"]), "{}", r.json);
     assert!(r.json["ai"]["risk"]["score"].is_u64(), "{}", r.json["ai"]);
     assert_eq!(r.json["ai"]["risk"]["source"], "basic", "no ai key in tests, so only the basic scan ran");
@@ -490,7 +470,6 @@ async fn full_flow() {
     let r = c.form("/api/submissions", &[("name", "One Too Many"), ("description", description), ("confirm", "true")], Some(("pack.dll", &b"MZ BepInEx one too many"[..]))).await;
     assert_eq!(r.status, StatusCode::TOO_MANY_REQUESTS, "10 uploads a day");
 
-    // ---- rewards program ----
     let r = c.json("POST", "/api/rewards/me", json!({ "key": member_key })).await;
     assert_eq!(r.status, StatusCode::OK, "{}", r.json);
     assert_eq!(r.json["uploads"], 10);
@@ -511,7 +490,6 @@ async fn full_flow() {
     let r = c.json("POST", &format!("/api/admin/rewards/members/{member_id}"), json!({ "status": "accepted" })).await;
     assert_eq!(r.status, StatusCode::OK);
 
-    // the next day: the daily upload limit has reset
     let pool = sqlx::PgPool::connect(&std::env::var("TEST_DATABASE_URL").unwrap()).await.unwrap();
     sqlx::query("update mods set created_at = created_at - interval '1 day'").execute(&pool).await.unwrap();
     let r = c.form("/api/submissions", &[("name", "Brand New Mod"), ("description", description), ("confirm", "true"), ("key", member_key.as_str())], Some(("new.dll", &b"MZ BepInEx brand new"[..]))).await;
@@ -531,18 +509,15 @@ async fn full_flow() {
     assert_eq!(r.json["member"]["paid"], 10);
     assert_eq!(r.json["member"]["owed"], 0);
 
-    // the tree of life lists every published mod, oldest first
     let r = c.get("/api/tree").await;
     let tree = r.json["mods"].as_array().unwrap();
     assert!(tree.len() >= 11, "{}", r.json);
     assert_eq!(tree.last().unwrap()["name"], "Brand New Mod");
 
-    // the program can be switched off
     c.json("POST", "/api/admin/rewards/settings", json!({ "enabled": false })).await;
     assert_eq!(c.json("POST", "/api/rewards/me", json!({ "key": member_key })).await.json["enabled"], false);
     c.json("POST", "/api/admin/rewards/settings", json!({ "enabled": true })).await;
 
-    // ---- community forum ----
     let key = "ab12".repeat(16);
     let r = c.json("POST", "/api/forum/me", json!({ "key": key })).await;
     assert_eq!(r.status, StatusCode::OK, "{}", r.json);
@@ -585,7 +560,6 @@ async fn full_flow() {
     assert_eq!(r.json["replies"][0]["body"], "[removed by a moderator]");
     assert_eq!(c.get("/api/admin/forum").await.json["reports"].as_array().unwrap().len(), 0, "removing closes the report");
 
-    // ---- main chat ----
     let r = c.json("POST", "/api/chat", json!({ "key": key, "body": "   " })).await;
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
     let r = c.json("POST", "/api/chat", json!({ "key": key, "body": "hello everyone" })).await;
@@ -617,7 +591,6 @@ async fn full_flow() {
     let r = c.json("POST", "/api/forum/threads", json!({ "key": other, "board": "general", "title": "new name, same person", "body": "trying to get around the ban" })).await;
     assert_eq!(r.status, StatusCode::FORBIDDEN, "a new key on the same connection is blocked too");
 
-    // ---- activity log and logout ----
     let actions: Vec<String> = c.get("/api/admin/audit").await.json["items"].as_array().unwrap().iter().map(|a| a["action"].as_str().unwrap().to_string()).collect();
     for action in ["login", "change_password", "create_mod", "set_status", "upload_file", "disable_download", "delete_mod", "accept_request"] {
         assert!(actions.iter().any(|a| a == action), "audit log is missing {action}");
@@ -626,7 +599,6 @@ async fn full_flow() {
     assert_eq!(r.status, StatusCode::OK);
     assert_eq!(c.get("/api/admin/me").await.status, StatusCode::UNAUTHORIZED);
 
-    // the old password stopped working
     let r = c.json("POST", "/api/admin/login", json!({ "username": ADMIN, "password": START_PASSWORD })).await;
     assert_eq!(r.status, StatusCode::UNAUTHORIZED);
 }

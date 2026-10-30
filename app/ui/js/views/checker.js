@@ -1,5 +1,3 @@
-// the free ai mod checker. it looks for signs of viruses, stealers and rats.
-// cheats and game changes don't count as suspicious here, on purpose.
 import { h, clear, formatBytes } from "../dom.js";
 import { icon } from "../icons.js";
 import { api, uploadForm } from "../platform.js";
@@ -27,7 +25,6 @@ export function createCheckerView() {
   }
 
   function renderPicker(message) {
-    // the page's own file picker. nothing happens until a file is actually chosen.
     const input = h("input", { type: "file", accept: ".dll,.zip", class: "visually-hidden", id: "checker-file", tabindex: "-1" });
     const choose = h("button", { class: "btn btn-primary btn-large", type: "button", onclick: () => input.click() }, icon("upload"), "Choose a mod file");
     input.addEventListener("change", () => {
@@ -137,7 +134,6 @@ export function createCheckerView() {
     animateMeter(r.score, fill, marker, number);
   }
 
-  // the bar fills and the number counts up together. instant with reduced motion.
   function animateMeter(score, fill, marker, number) {
     const reduce = settings.get().reduceMotion || matchMedia("(prefers-reduced-motion: reduce)").matches;
     const duration = reduce ? 0 : 1400;
@@ -147,7 +143,6 @@ export function createCheckerView() {
       const t = duration ? Math.min(1, (now - start) / duration) : 1;
       const value = score * ease(t);
       fill.style.width = `${value}%`;
-      // stretch the gradient to the full track width, so 30% always looks yellow-green
       fill.style.backgroundSize = `${value > 0 ? 10000 / value : 100}% 100%`;
       marker.style.left = `${value}%`;
       number.textContent = String(Math.round(value));

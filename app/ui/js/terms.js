@@ -1,11 +1,8 @@
-// the terms screen people have to accept before using branch. it shows right
-// after the startup screen the first time, and again whenever the terms change.
 import { h } from "./dom.js";
 import { renderMarkdown } from "../shared/markdown.js";
 import { appWindow, isDesktop } from "./platform.js";
 
-// bump this whenever terms.md or privacy.md change in an important way
-export const TERMS_VERSION = 8;
+export const TERMS_VERSION = 9;
 const KEY = "branch.termsAccepted";
 
 export function termsAccepted() {
@@ -34,7 +31,7 @@ export async function requireTerms() {
     const docBox = h("div", { class: "terms-doc prose", tabindex: "0", "aria-label": "Document text" });
     const tabs = h("div", { class: "segmented", role: "radiogroup", "aria-label": "Document" });
     const showDoc = (which) => {
-      docBox.innerHTML = which === "terms" ? terms : privacy; // rendered by renderMarkdown, which escapes everything
+      docBox.innerHTML = which === "terms" ? terms : privacy;
       docBox.scrollTop = 0;
     };
     for (const [value, label] of [["terms", "Terms of Use"], ["privacy", "Privacy Notice"]]) {
@@ -68,7 +65,7 @@ export async function requireTerms() {
           h("li", null, "The Service is provided ", h("strong", null, "\"as is\" without warranties"), ", and the Operator's liability is limited to the fullest extent permitted by law."),
           h("li", null, "Community Forum posts, chat messages and your display name are public. Do not share personal information. The Operator may remove content and restrict posting."),
           h("li", null, "The Rewards Program is a discretionary, limited-time promotion that may change or end at any time. Rewards are not guaranteed until delivered."),
-          h("li", null, "Mod Checker results are automated estimates and may be inaccurate."),
+          h("li", null, "Mod Checker results, Ask Branch answers and Player Tracker data are automated, may be inaccurate, and are used at your own risk."),
           h("li", null, "Branch is not affiliated with or endorsed by Another Axiom Inc. or Gorilla Tag."),
         ),
         tabs,
@@ -79,8 +76,6 @@ export async function requireTerms() {
       h("div", { class: "sheet-actions" }, quit, agree),
     );
 
-    // there's no way around this screen. browsers sometimes let escape close a dialog
-    // anyway, so if it closes without agreeing, it just opens again.
     let accepted = false;
     dialog.addEventListener("cancel", (e) => e.preventDefault());
     dialog.addEventListener("close", () => {
@@ -92,7 +87,6 @@ export async function requireTerms() {
       try {
         localStorage.setItem(KEY, JSON.stringify({ version: TERMS_VERSION, acceptedAt: new Date().toISOString() }));
       } catch {
-        // if storage is blocked they'll just be asked again next time
       }
       dialog.close();
       dialog.remove();

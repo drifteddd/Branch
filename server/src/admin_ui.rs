@@ -1,6 +1,3 @@
-// the admin panel is a small web page built into the server binary.
-// it shares the design tokens and markdown renderer with the desktop app.
-
 use axum::http::{header, HeaderName};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;

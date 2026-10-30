@@ -1,12 +1,9 @@
-// database rows and the json shapes the app and admin panel receive.
-
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::Serialize;
 use serde_json::Value;
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
-/// (key, label, what it actually means). shown in the app so a badge is never a guess.
 pub const COMPATIBILITY: &[(&str, &str, &str)] = &[
     ("tested", "Tested", "the Branch admin tried this version on the game version listed and it worked at that time."),
     ("unconfirmed", "Not confirmed", "nobody has checked this version with the current game update yet. it might work, or it might not."),
@@ -233,9 +230,7 @@ pub struct ModDetail {
     pub redistribution_note: String,
     pub downloads: i64,
     pub featured: bool,
-    /// uploaded by someone in the community instead of the Branch admin
     pub community: bool,
-    /// what branch's automatic check wrote about an uploaded mod, if anything
     pub ai: Option<Value>,
     pub status: String,
     pub created_at: DateTime<Utc>,
@@ -249,8 +244,6 @@ pub enum Lookup<'a> {
     PublishedSlug(&'a str),
 }
 
-/// loads everything about one mod. the public api only finds published mods,
-/// the admin panel can load any of them by id.
 pub async fn load_detail(db: &PgPool, lookup: Lookup<'_>) -> Result<Option<ModDetail>, sqlx::Error> {
     let row: Option<ModRow> = match lookup {
         Lookup::Id(id) => {

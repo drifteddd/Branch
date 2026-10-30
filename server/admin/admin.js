@@ -1,6 +1,3 @@
-// branch admin panel. plain javascript, no build step.
-// every request sends the x-branch-admin header and the session cookie.
-// the server checks both on every call, this page is just the interface.
 import { renderMarkdown } from "/shared/markdown.js";
 import { openSourceViewer as openViewer, parseGithub } from "/shared/source-viewer.js";
 
@@ -14,8 +11,6 @@ let meta = { compatibility: [], platforms: [], report_reasons: [] };
 let categories = [];
 let dirty = false;
 
-// ---------- helpers ----------
-
 function h(tag, props, ...children) {
   const el = document.createElement(tag);
   for (const [key, value] of Object.entries(props || {})) {
@@ -23,7 +18,7 @@ function h(tag, props, ...children) {
     if (key === "class") el.className = value;
     else if (key === "dataset") Object.assign(el.dataset, value);
     else if (key.startsWith("on") && typeof value === "function") el.addEventListener(key.slice(2).toLowerCase(), value);
-    else if (key === "html") el.innerHTML = value; // only renderMarkdown() output
+    else if (key === "html") el.innerHTML = value;
     else if (key === "value") el.value = value;
     else if (key === "checked") el.checked = Boolean(value);
     else if (value === true) el.setAttribute(key, "");
@@ -36,7 +31,6 @@ function h(tag, props, ...children) {
   return el;
 }
 
-// like replaceChildren, but skips null and false and flattens arrays
 function fill(el, ...children) {
   el.replaceChildren();
   for (const child of children.flat(Infinity)) {
@@ -144,7 +138,6 @@ function field(id, text, control, { hint, needed, required, name } = {}) {
   );
 }
 
-// puts server validation messages next to the right inputs and focuses the first one
 function showFieldErrors(root, fields) {
   for (const el of root.querySelectorAll(".field .error")) { el.classList.add("hidden"); el.textContent = ""; }
   for (const el of root.querySelectorAll("[aria-invalid]")) el.removeAttribute("aria-invalid");
@@ -165,8 +158,6 @@ function showFieldErrors(root, fields) {
 }
 
 window.addEventListener("beforeunload", (e) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
-
-// ---------- login ----------
 
 function renderLogin(message) {
   const username = h("input", { class: "input", autocomplete: "username", required: true, autocapitalize: "off", spellcheck: "false" });
@@ -251,8 +242,6 @@ function renderPasswordChange(forced) {
   );
 }
 
-// ---------- shell and routing ----------
-
 const NAV = [
   ["mods", "Mods"],
   ["import", "Import"],
@@ -325,10 +314,8 @@ async function route() {
 }
 
 async function refreshOverview() {
-  try { overview = await api("/api/admin/overview"); } catch { /* the badge can wait */ }
+  try { overview = await api("/api/admin/overview"); } catch {}
 }
-
-// ---------- mods list ----------
 
 let modsFilter = { q: "", status: "", source: "" };
 
@@ -390,7 +377,6 @@ async function renderMods() {
     ],
   );
 }
-// ---------- mod editor ----------
 
 const EMPTY_MOD = {
   name: "", slug: "", summary: "", description: "", author: { name: "", url: "" }, category: null, tags: [],
@@ -399,7 +385,6 @@ const EMPTY_MOD = {
   redistribution: "unknown", redistribution_note: "", status: "draft", featured: false, releases: [], screenshots: [], thumbnail_url: null,
 };
 
-// turns the api shape into flat form values, and back
 function toForm(mod) {
   return {
     name: mod.name, slug: mod.slug, summary: mod.summary, description: mod.description,
@@ -432,7 +417,6 @@ async function renderEditor(id) {
   const markDirty = () => { dirty = true; unsaved.classList.remove("hidden"); };
   const formError = h("div", { class: "form-error hidden", role: "alert" });
 
-  // input builders that write straight into `form`
   const text = (key, props = {}) => {
     const input = h("input", { class: "input", value: form[key] ?? "", ...props });
     input.addEventListener("input", () => { form[key] = input.value; markDirty(); });
@@ -460,7 +444,6 @@ async function renderEditor(id) {
     return { input, wrap: h("div", { class: "stack" }, h("div", { class: "md-tabs" }, writeTab, previewTab), input, preview) };
   };
 
-  // ---- basics ----
   const description = markdownArea("description", 10);
   const basics = h(
     "section",
@@ -482,7 +465,6 @@ async function renderEditor(id) {
   );
   description.input.id = "description";
 
-  // ---- compatibility ----
   const platformChecks = h(
     "div",
     { class: "checks" },
@@ -529,7 +511,6 @@ async function renderEditor(id) {
     ),
   );
 
-  // ---- install ----
   const install = markdownArea("install_instructions", 6);
   install.input.id = "install_instructions";
   const issues = markdownArea("known_issues", 4);
@@ -546,7 +527,6 @@ async function renderEditor(id) {
     ),
   );
 
-  // ---- links and license ----
   const redistribution = h(
     "div",
     { class: "radio-list", role: "radiogroup", "aria-label": "Redistribution permission" },
@@ -576,7 +556,6 @@ async function renderEditor(id) {
     ),
   );
 
-  // ---- media and releases (only once the mod exists) ----
   const media = h("section", { class: "card" });
   const releases = h("section", { class: "card", dataset: { field: "releases" } });
 
@@ -768,7 +747,6 @@ async function renderEditor(id) {
     if (openForm) addButton.click();
   }
 
-  // ---- top bar ----
   const bar = h("div", { class: "editor-bar" });
   async function save() {
     formError.classList.add("hidden");
@@ -872,7 +850,6 @@ async function renderEditor(id) {
   shell("mods", root);
 }
 
-// a read-only look at the mod roughly how the app shows it, including unsaved edits
 function openPreview(mod, form) {
   const p = toPayload(form);
   const latest = mod.releases[0];
@@ -920,8 +897,6 @@ function openPreview(mod, form) {
   document.body.append(dialog);
   dialog.showModal();
 }
-
-// ---------- reports ----------
 
 let reportFilter = "open";
 
@@ -975,8 +950,6 @@ async function renderReports() {
     h("div", { class: "stack" }, cards.length ? cards : h("div", { class: "card" }, h("p", null, reportFilter === "open" ? "no open reports. nice." : "nothing here."))),
   ]);
 }
-
-// ---------- categories and tags ----------
 
 async function renderCategories() {
   categories = (await api("/api/admin/categories")).items;
@@ -1048,8 +1021,6 @@ async function renderCategories() {
   ]);
 }
 
-// ---------- mod requests ----------
-
 let requestFilter = "open";
 
 async function renderRequests() {
@@ -1108,8 +1079,6 @@ async function renderRequests() {
   ]);
 }
 
-// ---------- activity and account ----------
-
 async function renderActivity() {
   const { items } = await api("/api/admin/audit");
   shell("activity", [
@@ -1127,8 +1096,6 @@ function renderAccount() {
   ]);
 }
 
-// ---------- start ----------
-
 (async () => {
   try {
     me = await api("/api/admin/me");
@@ -1138,8 +1105,6 @@ function renderAccount() {
     if (err.status !== 401 && err.code !== "password_change_required") renderLogin(err.status === 0 ? err.message : "");
   }
 })();
-
-// ---------- bulk import ----------
 
 async function renderImport() {
   const filesInput = h("input", { type: "file", multiple: true, accept: ".dll,.zip", class: "hidden", id: "import-files" });
@@ -1243,7 +1208,6 @@ async function renderImport() {
   ]);
   await drawImported();
 }
-// ---------- community forum moderation ----------
 
 async function renderForum() {
   const { reports, posts, chat = [] } = await api("/api/admin/forum");
@@ -1345,7 +1309,6 @@ async function renderForum() {
       : h("div", { class: "card" }, h("p", { class: "muted" }, "no posts yet.")),
   ]);
 }
-// ---------- rewards program ----------
 
 async function renderRewardsAdmin() {
   const { enabled, members, events } = await api("/api/admin/rewards");

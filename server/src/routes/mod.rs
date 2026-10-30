@@ -1,4 +1,5 @@
 pub mod admin;
+pub mod assistant;
 pub mod forum;
 pub mod public;
 pub mod rewards;
@@ -42,9 +43,9 @@ pub fn router(state: AppState) -> Router {
         .merge(admin::router())
         .merge(forum::router())
         .merge(rewards::router())
+        .merge(assistant::router())
         .merge(admin_ui::router())
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit))
-        // small json bodies everywhere. the upload routes raise this for themselves.
         .layer(DefaultBodyLimit::max(256 * 1024))
         .layer(
             TraceLayer::new_for_http()
@@ -57,7 +58,6 @@ pub fn router(state: AppState) -> Router {
         .with_state(state)
 }
 
-/// a general limit so one visitor can't flood the server
 async fn rate_limit(State(state): State<AppState>, visitor: Visitor, request: Request, next: Next) -> Response {
     if request.uri().path() != "/health" && !state.limiter.check(&format!("all:{}", visitor.id), 600, Duration::from_secs(60)) {
         return AppError::too_many("too many requests. slow down a little and try again.").into_response();

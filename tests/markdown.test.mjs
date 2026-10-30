@@ -1,4 +1,3 @@
-// run: node --test tests/
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { renderMarkdown, safeUrl } from "../app/ui/shared/markdown.js";

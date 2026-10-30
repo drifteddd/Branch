@@ -1,16 +1,9 @@
-// a small markdown renderer that is safe by design.
-// it escapes everything first and only ever outputs tags it builds itself,
-// so a mod description can't sneak in scripts, iframes, images or styles.
-// supported: headings, paragraphs, bold, italic, inline code, code blocks,
-// lists, quotes, horizontal rules and http(s) links.
-
 const ESCAPES = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 
 export function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, (c) => ESCAPES[c]);
 }
 
-// returns a clean http(s) url or null. anything else (javascript:, file:, data:) is dropped.
 export function safeUrl(raw) {
   try {
     const url = new URL(String(raw).trim());
@@ -23,7 +16,6 @@ export function safeUrl(raw) {
 }
 
 function renderInline(text) {
-  // split out code spans first so nothing inside them gets formatted
   return text
     .split(/(`[^`\n]+`)/g)
     .map((part) => {
@@ -54,7 +46,6 @@ export function renderMarkdown(source) {
 
     if (/^\s*$/.test(line)) { i++; continue; }
 
-    // fenced code block
     if (/^\s*```/.test(line)) {
       const code = [];
       i++;
@@ -64,7 +55,6 @@ export function renderMarkdown(source) {
       continue;
     }
 
-    // headings. # becomes h3 so descriptions never compete with the page title
     const heading = /^(#{1,6})\s+(.*)$/.exec(line);
     if (heading) {
       const level = Math.min(heading[1].length + 2, 5);
@@ -75,7 +65,6 @@ export function renderMarkdown(source) {
 
     if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { out.push("<hr>"); i++; continue; }
 
-    // simple tables: a header row, a | --- | line, then rows
     if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1])) {
       const cells = (row) => row.trim().replace(/^\||\|$/g, "").split("|").map((c) => renderInline(c.trim()));
       const head = cells(line);
@@ -105,7 +94,6 @@ export function renderMarkdown(source) {
       const items = [];
       while (i < lines.length && marker.test(lines[i])) {
         let item = lines[i++].replace(marker, "");
-        // indented lines right after an item belong to it
         while (i < lines.length && /^\s{2,}\S/.test(lines[i]) && !marker.test(lines[i])) item += " " + lines[i++].trim();
         items.push(`<li>${renderInline(item)}</li>`);
       }

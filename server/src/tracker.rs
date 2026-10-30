@@ -1,7 +1,3 @@
-// the beta player tracker. a discord bot posts "room sync" cards to a channel. branch
-// reads them with its own bot, keeps only the room, region and each player's name, id
-// and color (no cosmetics or platform), and serves the newest 50 cards to the app.
-
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -19,7 +15,6 @@ use crate::state::AppState;
 
 const DEFAULT_CHANNEL: &str = "1540889169642000505";
 const DEFAULT_SOURCE: &str = "1540889201636151397";
-/// how many cards are kept and shown
 pub const KEEP: i64 = 50;
 const POLL_EVERY: Duration = Duration::from_secs(8);
 
@@ -58,7 +53,6 @@ fn env(key: &str) -> Option<String> {
     std::env::var(key).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
 }
 
-/// "**Username:** REM" -> ("username", "REM")
 fn key_value(line: &str) -> Option<(String, String)> {
     let line = line.replace('*', "");
     let (key, value) = line.split_once(':')?;
@@ -84,14 +78,12 @@ fn parse_player(text: &str) -> Option<Player> {
                     color = [parts[0], parts[1], parts[2]];
                 }
             }
-            // cosmetics and platform are left out on purpose
             _ => {}
         }
     }
     (!name.is_empty() && !id.is_empty()).then_some(Player { name, id, color })
 }
 
-/// turns one discord message into a card, or None if it isn't a room sync card
 pub fn parse_message(message: &Value) -> Option<Card> {
     let embeds = message.get("embeds")?.as_array()?;
     let embed = embeds
@@ -118,7 +110,6 @@ pub fn parse_message(message: &Value) -> Option<Card> {
             _ => {}
         }
     }
-    // some bots put the players in the description instead of fields
     if players.is_empty() {
         if let Some(desc) = embed.get("description").and_then(|d| d.as_str()) {
             let mut block = String::new();
@@ -154,7 +145,6 @@ pub fn parse_message(message: &Value) -> Option<Card> {
     })
 }
 
-/// saves new cards and drops everything older than the newest 50
 pub async fn save_cards(db: &PgPool, cards: &[Card]) -> Result<(), sqlx::Error> {
     for card in cards {
         sqlx::query(
@@ -199,7 +189,6 @@ async fn poll(state: &AppState, token: &str, channel: &str, source: &str) -> Res
         return Err(PollError::RateLimited(Duration::from_secs_f64(secs.clamp(1.0, 300.0))));
     }
     if !status.is_success() {
-        // never the token, only what discord said
         let message = body.get("message").and_then(|m| m.as_str()).unwrap_or("unknown error");
         return Err(PollError::Failed(format!("discord answered {status}: {message}")));
     }
@@ -216,7 +205,6 @@ async fn poll(state: &AppState, token: &str, channel: &str, source: &str) -> Res
     save_cards(&state.db, &cards).await.map_err(|e| PollError::Failed(format!("couldn't save cards: {e}")))
 }
 
-/// keeps reading the channel in the background. does nothing without a bot token.
 pub fn spawn(state: AppState) {
     let Some(token) = env("DISCORD_BOT_TOKEN") else {
         tracing::info!("DISCORD_BOT_TOKEN isn't set, the player tracker is off");
@@ -249,7 +237,6 @@ pub fn spawn(state: AppState) {
     });
 }
 
-/// the newest cards for the app, newest first
 pub async fn feed(State(state): State<AppState>) -> ApiResult<Response> {
     let rows: Vec<(String, String, String, i32, Value, DateTime<Utc>)> =
         sqlx::query_as("select message_id, room, region, player_count, players, posted_at from tracker_cards order by posted_at desc limit $1")

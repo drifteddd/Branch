@@ -1,5 +1,3 @@
-# runs on every push and pull request. no secrets are used here,
-# so it's safe for pull requests from anyone.
 name: checks
 
 on:
@@ -28,7 +26,6 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      # a throwaway database that only exists during this job
       TEST_DATABASE_URL: postgres://branch:branch@localhost:5432/branch_test
     defaults:
       run:

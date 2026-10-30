@@ -1,7 +1,3 @@
-// the admin api. every handler here takes `Admin` (or `AnyAdmin` for the few
-// that must work before the starting password is changed), so the session is
-// checked on the server for every single request.
-
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -34,7 +30,6 @@ use crate::uploads::{check_mod_file, process_image, ImageKind, MAX_IMAGE_BYTES, 
 use crate::util::{clean_url, slugify, too_long, valid_slug, Visitor};
 
 const MAX_SCREENSHOTS: i64 = 12;
-/// one upload to the bulk importer (a single mod or a zip full of them)
 const MAX_IMPORT_BYTES: usize = 150 * 1024 * 1024;
 
 pub fn router() -> Router<AppState> {
@@ -75,8 +70,6 @@ fn ok() -> Json<Value> {
     Json(json!({ "ok": true }))
 }
 
-// ---------- login and account ----------
-
 #[derive(Deserialize)]
 struct LoginInput {
     username: String,
@@ -104,7 +97,6 @@ async fn login(State(state): State<AppState>, visitor: Visitor, headers: HeaderM
             .await?;
 
     let Some((id, username, hash, must_change, locked_until)) = row else {
-        // still do the slow check so the response time is the same either way
         let _ = verify_password_async(input.password, state.dummy_hash.to_string()).await;
         return Err(wrong_login());
     };
@@ -114,7 +106,6 @@ async fn login(State(state): State<AppState>, visitor: Visitor, headers: HeaderM
     }
 
     if !verify_password_async(input.password, hash).await {
-        // 8 wrong passwords in a row locks the account for 15 minutes
         sqlx::query(
             "update admins set
                 failed_logins = case when failed_logins + 1 >= 8 then 0 else failed_logins + 1 end,
@@ -185,7 +176,6 @@ async fn change_password(State(state): State<AppState>, AnyAdmin(user): AnyAdmin
         .bind(user.id)
         .execute(&state.db)
         .await?;
-    // log out every other session, keep this one
     sqlx::query("delete from admin_sessions where admin_id = $1 and token_hash <> $2")
         .bind(user.id)
         .bind(&user.token_hash)
@@ -221,8 +211,6 @@ async fn overview(State(state): State<AppState>, Admin(_): Admin) -> ApiResult<J
         "report_reasons": REPORT_REASONS.iter().map(|(k, l)| json!({ "key": k, "label": l })).collect::<Vec<_>>(),
     })))
 }
-
-// ---------- mods ----------
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
@@ -312,7 +300,6 @@ struct ModInput {
     redistribution_note: String,
 }
 
-/// a mod after validation, ready to save
 struct CleanMod {
     slug: String,
     name: String,
@@ -357,8 +344,6 @@ fn text_field(errors: &mut FieldErrors, field: &str, raw: &str, max: usize) -> S
     value
 }
 
-/// drafts only need a name. everything else is checked for format, and the
-/// stricter "ready to publish" checks happen in check_publishable().
 fn clean_mod(input: ModInput) -> ApiResult<CleanMod> {
     let mut e = FieldErrors::default();
 
@@ -465,7 +450,6 @@ const MOD_COLUMNS: &str = "slug, name, summary, description, author_name, author
     install_instructions, known_issues, source_url, project_url, license_name, license_url, redistribution,
     redistribution_note";
 
-/// binds the 22 columns above, in the same order
 fn bind_mod<'q>(query: SqlQuery<'q, Postgres, PgArguments>, m: &CleanMod) -> SqlQuery<'q, Postgres, PgArguments> {
     query
         .bind(m.slug.clone())
@@ -584,7 +568,6 @@ async fn update_mod(State(state): State<AppState>, Admin(admin): Admin, Path(id)
     }
     set_tags(&mut tx, id, &m.tags).await?;
 
-    // a published mod has to stay complete. if this edit removed something required, undo it.
     if status == "published" {
         if let Err(err) = check_publishable(&mut tx, id).await {
             tx.rollback().await?;
@@ -597,7 +580,6 @@ async fn update_mod(State(state): State<AppState>, Admin(admin): Admin, Path(id)
     Ok(Json(admin_detail(&state.db, id).await?))
 }
 
-/// what a mod needs before people can see it
 async fn check_publishable(conn: &mut PgConnection, id: Uuid) -> ApiResult<()> {
     let row: Option<(String, String, Option<Uuid>, String, String)> =
         sqlx::query_as("select summary, author_name, category_id, license_name, redistribution from mods where id = $1")
@@ -605,7 +587,6 @@ async fn check_publishable(conn: &mut PgConnection, id: Uuid) -> ApiResult<()> {
             .fetch_optional(&mut *conn)
             .await?;
     let Some((summary, author, category, license, redistribution)) = row else { return Err(AppError::not_found("that mod doesn't exist")) };
-    // hosted files only count when sharing copies is allowed
     let (working, hosted_files, unknown_versions): (i64, i64, i64) = sqlx::query_as(
         "select
             count(*) filter (where not download_disabled and (
@@ -686,7 +667,6 @@ async fn delete_mod(State(state): State<AppState>, Admin(admin): Admin, Path(id)
     let name: Option<String> = sqlx::query_scalar("select name from mods where id = $1").bind(id).fetch_optional(&state.db).await?;
     let name = name.ok_or_else(|| AppError::not_found("that mod doesn't exist"))?;
 
-    // gather stored files first, the rows are about to disappear
     let mut keys: Vec<String> = sqlx::query_scalar(
         "select thumbnail_key from mods where id = $1 and thumbnail_key is not null
          union all select image_key from screenshots where mod_id = $1
@@ -705,15 +685,12 @@ async fn delete_mod(State(state): State<AppState>, Admin(admin): Admin, Path(id)
     Ok(ok())
 }
 
-// ---------- images ----------
-
 struct Upload {
     file_name: String,
     data: Bytes,
     fields: HashMap<String, String>,
 }
 
-/// reads a multipart form with one "file" field and any number of small text fields
 async fn read_upload(mut multipart: Multipart, max: usize) -> ApiResult<Upload> {
     let mut file: Option<(String, Bytes)> = None;
     let mut fields = HashMap::new();
@@ -839,8 +816,6 @@ async fn delete_screenshot(State(state): State<AppState>, Admin(admin): Admin, P
     Ok(Json(admin_detail(&state.db, mod_id).await?))
 }
 
-// ---------- releases ----------
-
 #[derive(Deserialize, Default)]
 #[serde(default)]
 struct ReleaseInput {
@@ -877,7 +852,6 @@ fn clean_release(input: ReleaseInput, redistribution: &str) -> ApiResult<CleanRe
     } else {
         None
     };
-    // credit alone isn't permission. only host copies the author allowed.
     e.check(
         kind != "hosted" || redistribution == "allowed",
         "download_kind",
@@ -936,8 +910,6 @@ async fn create_release(State(state): State<AppState>, Admin(admin): Admin, Path
 async fn update_release(State(state): State<AppState>, Admin(admin): Admin, Path(id): Path<Uuid>, Json(input): Json<ReleaseInput>) -> ApiResult<Json<ReleaseOut>> {
     let existing = find_release_row(&state.db, id).await?;
     let (mod_name, redistribution) = mod_redistribution(&state.db, existing.mod_id).await?;
-    // a release that's already hosted can keep its file even if the setting changed since,
-    // but switching a link to hosted needs permission
     let switching_to_hosted = input.download_kind == "hosted" && existing.download_kind != "hosted";
     let check_against = if switching_to_hosted { redistribution.as_str() } else { "allowed" };
     let r = clean_release(input, check_against)?;
@@ -957,7 +929,6 @@ async fn update_release(State(state): State<AppState>, Admin(admin): Admin, Path
     .execute(&state.db)
     .await?;
 
-    // moving from a hosted file to a link means the stored copy isn't needed anymore
     if r.download_kind == "external" {
         if let Some(key) = &existing.file_key {
             sqlx::query("update releases set file_key = null, file_name = null, file_size = null, file_sha256 = null, file_type = null where id = $1")
@@ -1058,8 +1029,6 @@ async fn set_release_availability(State(state): State<AppState>, Admin(admin): A
     Ok(Json(ReleaseOut::from(&find_release_row(&state.db, id).await?)))
 }
 
-// ---------- categories and tags ----------
-
 #[derive(FromRow, Serialize)]
 struct CategoryRow {
     id: Uuid,
@@ -1138,7 +1107,6 @@ async fn update_category(State(state): State<AppState>, Admin(admin): Admin, Pat
 }
 
 async fn delete_category(State(state): State<AppState>, Admin(admin): Admin, Path(id): Path<Uuid>) -> ApiResult<Json<Value>> {
-    // published mods in this category would be left without one, which breaks the publish rules
     let published: i64 = sqlx::query_scalar("select count(*) from mods where category_id = $1 and status = 'published'").bind(id).fetch_one(&state.db).await?;
     if published > 0 {
         return Err(AppError::new(StatusCode::CONFLICT, "in_use", format!("{published} published mod(s) still use this category. move them first.")));
@@ -1195,8 +1163,6 @@ async fn delete_tag(State(state): State<AppState>, Admin(admin): Admin, Path(id)
     audit(&state.db, &admin, "delete_tag", &name, "").await;
     Ok(ok())
 }
-
-// ---------- reports ----------
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
@@ -1277,8 +1243,6 @@ async fn delete_report(State(state): State<AppState>, Admin(admin): Admin, Path(
     Ok(ok())
 }
 
-// ---------- activity ----------
-
 #[derive(FromRow, Serialize)]
 struct AuditRow {
     id: i64,
@@ -1297,8 +1261,6 @@ async fn list_audit(State(state): State<AppState>, Admin(_): Admin) -> ApiResult
     .await?;
     Ok(Json(json!({ "items": rows })))
 }
-
-// ---------- mod requests ----------
 
 #[derive(FromRow, Serialize)]
 struct RequestRow {
@@ -1371,7 +1333,6 @@ async fn delete_request(State(state): State<AppState>, Admin(admin): Admin, Path
     Ok(ok())
 }
 
-/// accepts the request and starts a draft listing with what the person sent in
 async fn request_to_draft(State(state): State<AppState>, Admin(admin): Admin, Path(id): Path<Uuid>) -> ApiResult<Json<Value>> {
     let row: Option<(String, String, String, Option<Uuid>)> =
         sqlx::query_as("select mod_name, url, author, created_mod_id from mod_requests where id = $1").bind(id).fetch_optional(&state.db).await?;
@@ -1392,7 +1353,6 @@ async fn request_to_draft(State(state): State<AppState>, Admin(admin): Admin, Pa
     audit(&state.db, &admin, "accept_request", &name, "created a draft").await;
     Ok(Json(json!({ "mod_id": mod_id })))
 }
-/// makes a new draft with a free link name based on the mod's name
 pub(crate) async fn insert_draft(db: &PgPool, name: &str, author: &str, source_url: Option<String>, project_url: Option<String>) -> ApiResult<Uuid> {
     let name: String = name.chars().take(80).collect();
     let base = {
@@ -1420,9 +1380,6 @@ pub(crate) async fn insert_draft(db: &PgPool, name: &str, author: &str, source_u
     Err(AppError::new(StatusCode::CONFLICT, "slug_taken", "couldn't find a free link name for this mod. create it by hand instead."))
 }
 
-// ---------- bulk import ----------
-
-/// "GorillaFlyMenu_v1.2.dll" -> "Gorilla Fly Menu"
 fn name_from_file(file_name: &str) -> String {
     let stem = file_name.rsplit_once('.').map(|(s, _)| s).unwrap_or(file_name);
     let stem = match version_from_file(stem) {
@@ -1433,7 +1390,6 @@ fn name_from_file(file_name: &str) -> String {
     let mut prev: Option<char> = None;
     for c in stem.chars() {
         let c = if matches!(c, '_' | '-' | '.' | '+') { ' ' } else { c };
-        // split camelCase into words
         if let Some(p) = prev {
             if c.is_uppercase() && p.is_lowercase() {
                 out.push(' ');
@@ -1447,7 +1403,6 @@ fn name_from_file(file_name: &str) -> String {
     if name.is_empty() { "Imported mod".to_string() } else { name.chars().take(80).collect() }
 }
 
-/// finds a version number like 1.2 or v2.0.1 in a file name
 pub(crate) fn version_from_file(name: &str) -> Option<String> {
     let chars: Vec<char> = name.chars().collect();
     let mut i = 0;
@@ -1470,15 +1425,12 @@ pub(crate) fn version_from_file(name: &str) -> Option<String> {
     None
 }
 
-/// a zip "full of mods" is split into one entry per .dll or .zip inside it.
-/// anything else (one mod, or a zip with no mods inside) stays as one entry.
 fn split_upload(file_name: &str, data: Vec<u8>, split: bool) -> Vec<(String, Vec<u8>)> {
     use std::io::Read;
     let is_zip = data.starts_with(b"PK\x03\x04");
     if !(split && is_zip) {
         return vec![(file_name.to_string(), data)];
     }
-    // the archive borrows `data`, so it lives in its own block and is gone before `data` is returned
     let units = {
         let mut units: Vec<(String, Vec<u8>)> = Vec::new();
         if let Ok(mut archive) = zip::ZipArchive::new(std::io::Cursor::new(data.as_slice())) {
@@ -1566,7 +1518,6 @@ async fn import_one(state: &AppState, admin: &AdminUser, file_name: String, data
     Ok(json!({ "mod_id": mod_id, "name": name, "file_name": checked.name, "version": version, "scan_score": report.heuristic_score }))
 }
 
-/// bulk import: every mod file becomes a private draft with its file attached
 async fn import_mods(State(state): State<AppState>, Admin(admin): Admin, multipart: Multipart) -> ApiResult<Json<Value>> {
     let upload = read_upload(multipart, MAX_IMPORT_BYTES).await?;
     let split = upload.fields.get("split").map(|v| v == "true").unwrap_or(true);

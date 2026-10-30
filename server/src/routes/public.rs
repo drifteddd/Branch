@@ -1,5 +1,3 @@
-// everything the desktop app uses. no login needed for any of it.
-
 use std::time::Duration;
 
 use axum::body::Body;
@@ -108,7 +106,6 @@ struct ModSummary {
     downloads: i64,
     latest_version: Option<String>,
     community: bool,
-    /// the newest release date, or the last edit if there are no releases yet
     last_updated: NaiveDate,
 }
 
@@ -154,7 +151,6 @@ pub async fn list_mods(State(state): State<AppState>, Query(query): Query<ListQu
         qb.push(" and m.featured");
     }
     if let Some(slugs) = query.slugs.as_deref() {
-        // used for favorites and recently viewed, which are only stored on the person's computer
         let slugs: Vec<String> = slugs.split(',').map(str::trim).filter(|s| valid_slug(s)).take(200).map(String::from).collect();
         qb.push(" and m.slug = any(").push_bind(slugs).push(")");
     }
@@ -195,7 +191,6 @@ pub async fn list_mods(State(state): State<AppState>, Query(query): Query<ListQu
         })
         .collect();
 
-    // when a page is past the end, the window count is missing, so report what we know
     Ok(Json(json!({ "items": items, "page": page, "per_page": per_page, "total": total, "has_more": has_more })))
 }
 
@@ -210,8 +205,6 @@ struct TreeNode {
     added: DateTime<Utc>,
 }
 
-/// every published mod, small enough to draw the tree of life. oldest first, so the
-/// tree grows from the trunk outward.
 pub async fn tree(State(state): State<AppState>) -> ApiResult<Response> {
     let nodes: Vec<TreeNode> = sqlx::query_as(
         "select m.slug, m.name, c.slug as category_slug, c.name as category_name, m.download_count as downloads,
@@ -269,7 +262,6 @@ async fn find_release(state: &AppState, id: Uuid) -> ApiResult<DownloadTarget> {
     Ok(target)
 }
 
-/// counts each person once per release per day
 async fn count_download(state: &AppState, release_id: Uuid, visitor: &str) {
     let inserted = sqlx::query("insert into download_events (release_id, visitor) values ($1, $2) on conflict do nothing")
         .bind(release_id)
@@ -288,7 +280,6 @@ async fn count_download(state: &AppState, release_id: Uuid, visitor: &str) {
 
 pub async fn download(State(state): State<AppState>, visitor: Visitor, Path(id): Path<Uuid>) -> ApiResult<Response> {
     let target = find_release(&state, id).await?;
-    // a hosted copy is only ever handed out when sharing is allowed
     let hosted_ok = target.download_kind == "hosted" && target.redistribution == "allowed";
     let (Some(key), Some(name)) = (target.file_key.filter(|_| hosted_ok), target.file_name) else {
         return Err(AppError::not_found("this release isn't hosted on Branch"));
@@ -310,7 +301,6 @@ pub async fn download(State(state): State<AppState>, visitor: Visitor, Path(id):
         .map_err(AppError::internal)
 }
 
-/// for releases that live on the author's site: count it, then send the browser there
 pub async fn outbound(State(state): State<AppState>, visitor: Visitor, Path(id): Path<Uuid>) -> ApiResult<Response> {
     let target = find_release(&state, id).await?;
     let Some(url) = target.external_url.filter(|_| target.download_kind == "external") else {
@@ -320,15 +310,12 @@ pub async fn outbound(State(state): State<AppState>, visitor: Visitor, Path(id):
     Ok(Redirect::to(&url).into_response())
 }
 
-/// serves stored images. only keys branch made itself ("images/<uuid>.jpg") are allowed,
-/// so this can't be used to read anything else from storage.
 pub async fn file(State(state): State<AppState>, Path(key): Path<String>) -> ApiResult<Response> {
     let content_type = image_key_type(&key).ok_or_else(|| AppError::not_found("file not found"))?;
     let bytes = state.store.get(&StorePath::from(key.as_str())).await?.bytes().await?;
     Ok((
         [
             (header::CONTENT_TYPE, content_type),
-            // keys never get reused, so images can be cached forever. saves bandwidth.
             (header::CACHE_CONTROL, "public, max-age=31536000, immutable"),
         ],
         bytes,
@@ -357,7 +344,6 @@ pub struct ReportInput {
     details: String,
     #[serde(default)]
     contact: String,
-    /// the hidden "website" field. people never see it, so only bots fill it in.
     #[serde(default)]
     website: String,
 }
@@ -366,7 +352,6 @@ pub async fn create_report(State(state): State<AppState>, visitor: Visitor, Json
     if !state.limiter.check(&format!("report:{}", visitor.id), 5, Duration::from_secs(3600)) {
         return Err(AppError::too_many("you've sent a lot of reports. wait an hour and try again."));
     }
-    // pretend it worked so bots don't learn anything
     if !input.website.trim().is_empty() {
         return Ok((StatusCode::CREATED, Json(json!({ "ok": true }))));
     }
@@ -394,7 +379,6 @@ pub async fn create_report(State(state): State<AppState>, visitor: Visitor, Json
         return Err(AppError::too_many("you've sent a lot of reports today. try again tomorrow."));
     }
 
-    // the same person reporting the same thing twice in a day only counts once
     let duplicate: bool = sqlx::query_scalar(
         "select exists(select 1 from reports where visitor = $1 and mod_id = $2 and reason = $3 and created_at > now() - interval '1 day')",
     )
@@ -420,8 +404,6 @@ pub async fn create_report(State(state): State<AppState>, visitor: Visitor, Json
 
     Ok((StatusCode::CREATED, Json(json!({ "ok": true }))))
 }
-
-// ---------- mod requests ----------
 
 #[derive(Deserialize)]
 pub struct RequestInput {
@@ -499,13 +481,10 @@ pub async fn create_request(State(state): State<AppState>, visitor: Visitor, Jso
     Ok((StatusCode::CREATED, Json(json!({ "ok": true }))))
 }
 
-// ---------- mod checker ----------
-
 const AI_CALLS_KEY: &str = "__ai_calls__";
-/// bump when the model or prompt changes, so old cached answers aren't shown
 const CACHE_VERSION: &str = "v3";
 
-async fn usage_today(state: &AppState, visitor: &str) -> Result<i32, sqlx::Error> {
+pub(crate) async fn usage_today(state: &AppState, visitor: &str) -> Result<i32, sqlx::Error> {
     let used: Option<i32> = sqlx::query_scalar("select count from ai_usage where visitor = $1 and day = current_date")
         .bind(visitor)
         .fetch_optional(&state.db)
@@ -513,7 +492,7 @@ async fn usage_today(state: &AppState, visitor: &str) -> Result<i32, sqlx::Error
     Ok(used.unwrap_or(0))
 }
 
-async fn bump_usage(state: &AppState, visitor: &str) -> Result<i32, sqlx::Error> {
+pub(crate) async fn bump_usage(state: &AppState, visitor: &str) -> Result<i32, sqlx::Error> {
     sqlx::query_scalar(
         "insert into ai_usage (visitor, day, count) values ($1, current_date, 1)
          on conflict (visitor, day) do update set count = ai_usage.count + 1
@@ -524,8 +503,6 @@ async fn bump_usage(state: &AppState, visitor: &str) -> Result<i32, sqlx::Error>
     .await
 }
 
-/// true if an ai call is allowed right now. counts it against the shared daily cap,
-/// which covers every ai use (checker, uploads, duplicate checks, rewards reviews).
 pub(crate) async fn take_ai_budget(state: &AppState) -> ApiResult<bool> {
     if state.config.ai_api_key.is_none() || usage_today(state, AI_CALLS_KEY).await? >= state.config.ai_daily_global {
         return Ok(false);
@@ -576,7 +553,6 @@ pub async fn check_mod(State(state): State<AppState>, visitor: Visitor, mut mult
     }
     let (name, data) = upload.ok_or_else(|| AppError::bad_request("no file was attached"))?;
 
-    // the file only lives in memory for this request. it's never written anywhere.
     let report = tokio::task::spawn_blocking(move || crate::scan::scan(&name, &data))
         .await
         .map_err(AppError::internal)?
@@ -584,7 +560,6 @@ pub async fn check_mod(State(state): State<AppState>, visitor: Visitor, mut mult
 
     let used = bump_usage(&state, &visitor.id).await?;
 
-    // the cache key includes a version, so results from an older model or prompt aren't reused
     let cache_key = format!("{CACHE_VERSION}:{}", report.sha256);
     let cached: Option<Value> = sqlx::query_scalar("select result from ai_results where sha256 = $1 and created_at > now() - interval '30 days'")
         .bind(&cache_key)
@@ -609,7 +584,6 @@ pub async fn check_mod(State(state): State<AppState>, visitor: Visitor, mut mult
             };
             let value = match ai {
                 Some(v) => {
-                    // the model has the final say, but it can't wave away strong warning signs completely
                     let score = report.final_score(v.score);
                     json!({
                         "score": score,
@@ -679,11 +653,9 @@ pub async fn check_mod(State(state): State<AppState>, visitor: Visitor, mut mult
         "remaining": (limit - used).max(0),
     })))
 }
-// ---------- community uploads ----------
 
 const UPLOADS_PER_DAY: i64 = 10;
 
-/// the start of a description, used as the short summary in the list
 fn first_sentence(text: &str) -> String {
     let line = text.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
     let end = line.find(". ").map(|i| i + 1).unwrap_or(line.len());
@@ -691,7 +663,6 @@ fn first_sentence(text: &str) -> String {
     sentence.trim().to_string()
 }
 
-/// "hats, Cosmetics , fun" -> ["hats", "cosmetics", "fun"]. up to 5 short tags.
 fn parse_tags(raw: &str) -> Result<Vec<String>, &'static str> {
     let mut tags: Vec<String> = Vec::new();
     for part in raw.split(',') {
@@ -711,8 +682,6 @@ fn parse_tags(raw: &str) -> Result<Vec<String>, &'static str> {
     Ok(tags)
 }
 
-/// what's saved with an upload and shown on its page: the overview and details the ai
-/// wrote, plus a safety score. without the ai, only the basic scan's findings are kept.
 fn upload_insights(report: &crate::scan::ScanReport, score: u8, verdict: Option<&crate::ai::AiVerdict>, tags_by_ai: bool, category_by_ai: bool) -> Value {
     let insights = verdict.and_then(|v| v.insights.as_ref());
     let requirements: Vec<String> = match insights {
@@ -741,8 +710,6 @@ fn upload_insights(report: &crate::scan::ScanReport, score: u8, verdict: Option<
     })
 }
 
-/// anyone can upload their own mod. it needs a real mod file, a name and a description.
-/// every file goes through the automatic safety check, and likely-harmful files are refused.
 pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, mut multipart: Multipart) -> ApiResult<(StatusCode, Json<Value>)> {
     if !state.limiter.check(&format!("submit:{}", visitor.id), 20, Duration::from_secs(3600)) {
         return Err(AppError::too_many("slow down a little. try again in a few minutes."));
@@ -787,7 +754,6 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
     }
     let get = |key: &str| fields.get(key).map(|v| v.trim().to_string()).unwrap_or_default();
 
-    // bots fill in the hidden field. pretend it worked.
     if !get("website").is_empty() {
         return Ok((StatusCode::CREATED, Json(json!({ "ok": true }))));
     }
@@ -827,8 +793,6 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
     };
     errors.finish()?;
 
-    // the thumbnail is optional. it's checked first because it's quick, then re-encoded
-    // (which also strips hidden info like location) before it's stored
     let thumbnail = match thumbnail {
         Some(data) => Some(
             tokio::task::spawn_blocking(move || crate::uploads::process_image(&data, crate::uploads::ImageKind::Thumbnail))
@@ -850,8 +814,6 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
     .map_err(AppError::internal)?
     .map_err(|message| AppError::field("file", &message))?;
 
-    // the same safety check as the mod checker, with the ai when it's available.
-    // that one call also writes the overview, tags and other listing details.
     let mut score = report.heuristic_score;
     let mut ai_used = false;
     let mut verdict: Option<crate::ai::AiVerdict> = None;
@@ -859,7 +821,6 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
         bump_usage(&state, AI_CALLS_KEY).await?;
         let existing_tags: Vec<String> = sqlx::query_scalar("select name from tags order by name limit 200").fetch_all(&state.db).await?;
         let categories: Vec<String> = sqlx::query_scalar("select slug from categories order by sort_order, name").fetch_all(&state.db).await?;
-        // the ai also sees what the uploader claims, so it can spot a "hat mod" that steals passwords
         let claim = crate::ai::Claim { name: &name, description: &description, existing_tags: &existing_tags, categories: &categories };
         match crate::ai::ask(&state.http, &state.config, &report, Some(&claim)).await {
             Ok(v) => {
@@ -878,13 +839,11 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
         ));
     }
 
-    // only new mods: the exact same file, or a copy of a listed mod, is turned away
     let fingerprint = report.fingerprint();
     let uniqueness = crate::routes::rewards::check_upload_unique(&state, &checked.sha256, &name, &description, &fingerprint).await?;
     if !uniqueness.unique {
         return Err(AppError::field("file", &uniqueness.message));
     }
-    // the uploader's community identity, so uploads count toward rewards
     let community_key = get("key");
     let poster_id = if community_key.is_empty() {
         None
@@ -898,7 +857,6 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
     } else {
         crate::routes::admin::version_from_file(&checked.name).unwrap_or_else(|| "unversioned".into())
     };
-    // the ai fills in what the uploader left out: a category, and tags when they added none
     let insights = verdict.as_ref().and_then(|v| v.insights.clone());
     let mut category_by_ai: Option<String> = None;
     let category_id = match (category_id, insights.as_ref().and_then(|i| i.category.as_deref())) {

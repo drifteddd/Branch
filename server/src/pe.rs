@@ -1,27 +1,15 @@
-// reads the structure of a windows dll without running it: which windows functions it
-// imports, and for .net dlls (almost every gorilla tag mod) which methods it actually calls,
-// what types it defines and which libraries it depends on. this is much stronger evidence
-// than loose text, because it shows what the code really uses.
-// every read is bounds-checked, so a broken or hostile file just returns less information.
-
 #[derive(Default, Debug, Clone)]
 pub struct PeInfo {
     pub is_dotnet: bool,
-    /// "kernel32.dll!CreateRemoteThread"
     pub native_imports: Vec<String>,
     pub assembly_name: Option<String>,
     pub assembly_refs: Vec<String>,
-    /// "System.Net.WebClient::DownloadFile"
     pub api_calls: Vec<String>,
-    /// .net calls straight into windows: "kernel32!VirtualAllocEx"
     pub pinvokes: Vec<String>,
-    /// classes the mod itself defines: "MyMod.Plugin"
     pub defined_types: Vec<String>,
-    /// method names the mod defines: "StealTokens", "OnGUI"
     pub defined_methods: Vec<String>,
     pub type_count: usize,
     pub method_count: usize,
-    /// most names are gibberish, which usually means an obfuscator was used
     pub obfuscated_names: bool,
 }
 
@@ -152,7 +140,6 @@ fn read_imports(d: &[u8], sections: &[Section], rva: u32, is_64: bool) -> Vec<St
     out
 }
 
-// table numbers from the .net metadata spec (ecma-335 part ii, section 22)
 const MODULE: usize = 0x00;
 const TYPE_REF: usize = 0x01;
 const TYPE_DEF: usize = 0x02;
@@ -179,7 +166,7 @@ const GENERIC_PARAM_CONSTRAINT: usize = 0x2C;
 
 fn read_metadata(d: &[u8], md: usize, info: &mut PeInfo) -> Option<()> {
     if u32_at(d, md)? != 0x424A_5342 {
-        return None; // "BSJB"
+        return None;
     }
     let version_len = u32_at(d, md + 12)? as usize;
     let mut p = md + 16 + version_len;
@@ -223,7 +210,6 @@ fn read_metadata(d: &[u8], md: usize, info: &mut PeInfo) -> Option<()> {
             q += 4;
         }
     }
-    // some tools add 4 extra bytes here and set this flag
     if heap_sizes & 0x40 != 0 {
         q += 4;
     }
@@ -252,44 +238,43 @@ fn read_metadata(d: &[u8], md: usize, info: &mut PeInfo) -> Option<()> {
     let method_def_or_ref = coded(1, &[METHOD_DEF, MEMBER_REF]);
     let member_forwarded = coded(1, &[FIELD, METHOD_DEF]);
 
-    // bytes per row for every table up to AssemblyRef, in order
     let row_size: [usize; 0x24] = [
-        2 + str_size + 3 * guid_size,                                     // 00 Module
-        resolution_scope + 2 * str_size,                                  // 01 TypeRef
-        4 + 2 * str_size + type_def_or_ref + idx(FIELD) + idx(METHOD_DEF), // 02 TypeDef
-        idx(FIELD),                                                       // 03 FieldPtr
-        2 + str_size + blob_size,                                         // 04 Field
-        idx(METHOD_DEF),                                                  // 05 MethodPtr
-        4 + 2 + 2 + str_size + blob_size + idx(PARAM),                    // 06 MethodDef
-        idx(PARAM),                                                       // 07 ParamPtr
-        2 + 2 + str_size,                                                 // 08 Param
-        idx(TYPE_DEF) + type_def_or_ref,                                  // 09 InterfaceImpl
-        member_ref_parent + str_size + blob_size,                         // 0A MemberRef
-        2 + has_constant + blob_size,                                     // 0B Constant
-        has_custom_attribute + custom_attribute_type + blob_size,         // 0C CustomAttribute
-        has_field_marshal + blob_size,                                    // 0D FieldMarshal
-        2 + has_decl_security + blob_size,                                // 0E DeclSecurity
-        2 + 4 + idx(TYPE_DEF),                                            // 0F ClassLayout
-        4 + idx(FIELD),                                                   // 10 FieldLayout
-        blob_size,                                                        // 11 StandAloneSig
-        idx(TYPE_DEF) + idx(EVENT),                                       // 12 EventMap
-        idx(EVENT),                                                       // 13 EventPtr
-        2 + str_size + type_def_or_ref,                                   // 14 Event
-        idx(TYPE_DEF) + idx(PROPERTY),                                    // 15 PropertyMap
-        idx(PROPERTY),                                                    // 16 PropertyPtr
-        2 + str_size + blob_size,                                         // 17 Property
-        2 + idx(METHOD_DEF) + has_semantics,                              // 18 MethodSemantics
-        idx(TYPE_DEF) + 2 * method_def_or_ref,                            // 19 MethodImpl
-        str_size,                                                         // 1A ModuleRef
-        blob_size,                                                        // 1B TypeSpec
-        2 + member_forwarded + str_size + idx(MODULE_REF),                // 1C ImplMap
-        4 + idx(FIELD),                                                   // 1D FieldRVA
-        8,                                                                // 1E EncLog
-        4,                                                                // 1F EncMap
-        4 + 8 + 4 + blob_size + 2 * str_size,                             // 20 Assembly
-        4,                                                                // 21 AssemblyProcessor
-        12,                                                               // 22 AssemblyOS
-        8 + 4 + blob_size + 2 * str_size + blob_size,                     // 23 AssemblyRef
+        2 + str_size + 3 * guid_size,
+        resolution_scope + 2 * str_size,
+        4 + 2 * str_size + type_def_or_ref + idx(FIELD) + idx(METHOD_DEF),
+        idx(FIELD),
+        2 + str_size + blob_size,
+        idx(METHOD_DEF),
+        4 + 2 + 2 + str_size + blob_size + idx(PARAM),
+        idx(PARAM),
+        2 + 2 + str_size,
+        idx(TYPE_DEF) + type_def_or_ref,
+        member_ref_parent + str_size + blob_size,
+        2 + has_constant + blob_size,
+        has_custom_attribute + custom_attribute_type + blob_size,
+        has_field_marshal + blob_size,
+        2 + has_decl_security + blob_size,
+        2 + 4 + idx(TYPE_DEF),
+        4 + idx(FIELD),
+        blob_size,
+        idx(TYPE_DEF) + idx(EVENT),
+        idx(EVENT),
+        2 + str_size + type_def_or_ref,
+        idx(TYPE_DEF) + idx(PROPERTY),
+        idx(PROPERTY),
+        2 + str_size + blob_size,
+        2 + idx(METHOD_DEF) + has_semantics,
+        idx(TYPE_DEF) + 2 * method_def_or_ref,
+        str_size,
+        blob_size,
+        2 + member_forwarded + str_size + idx(MODULE_REF),
+        4 + idx(FIELD),
+        8,
+        4,
+        4 + 8 + 4 + blob_size + 2 * str_size,
+        4,
+        12,
+        8 + 4 + blob_size + 2 * str_size + blob_size,
     ];
     let mut start = [0usize; 0x24];
     let mut cursor = q;
@@ -307,7 +292,6 @@ fn read_metadata(d: &[u8], md: usize, info: &mut PeInfo) -> Option<()> {
     };
     let full_name = |ns: String, name: String| if ns.is_empty() { name } else { format!("{ns}.{name}") };
 
-    // types the code refers to, so member calls can be named
     let mut type_refs = Vec::new();
     for r in 0..(rows[TYPE_REF] as usize).min(50_000) {
         let o = start[TYPE_REF] + r * row_size[TYPE_REF];
@@ -410,11 +394,9 @@ mod tests {
         fake[1] = b'Z';
         fake[0x3c] = 0x80;
         fake[0x80..0x84].copy_from_slice(b"PE\0\0");
-        // no valid optional header magic, so nothing to read, but no panic either
         assert!(inspect(&fake).is_none());
     }
 
-    /// the ci machines have the .net runtime installed, so check a real .net dll when one exists
     #[test]
     fn reads_a_real_dotnet_dll_when_available() {
         let roots = ["/usr/share/dotnet/shared/Microsoft.NETCore.App", "/usr/lib/dotnet/shared/Microsoft.NETCore.App"];

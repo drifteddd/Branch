@@ -1,6 +1,6 @@
 # Terms of Use
 
-**Version 8** · Effective October 30, 2026
+**Version 9** · Effective October 30, 2026
 
 These Terms of Use (the "**Terms**") form a binding agreement between you and Drifted (the "**Operator**," "**we**," "**us**"), the operator of the Branch application, its server and related services (together, "**Branch**" or the "**Service**"). By selecting "Agree and continue," or by accessing or using the Service, you confirm that you have read, understood and agree to be bound by these Terms and by the Privacy Notice, which is incorporated by reference. If you do not agree, you must not access or use the Service.
 
@@ -77,6 +77,8 @@ You agree that you will not: (a) upload or distribute malicious code of any kind
 8.3 You must not rely on the Mod Checker as your sole means of protection.
 
 8.4 **Player Tracker (Beta).** The Player Tracker is a free beta feature that displays information about public Gorilla Tag rooms, including room codes, regions and player names, IDs and colors, as reported by a third-party Discord bot that the Operator does not control. It is provided "as is", may be delayed, incomplete or inaccurate, and may be changed or discontinued at any time. You use it at your own risk. You must not use it to harass, stalk, threaten or target any player.
+
+8.5 **Ask Branch.** Ask Branch is a free artificial-intelligence assistant. Its answers are generated automatically by a third-party model from information available in the Service, may be incomplete or wrong, and are not advice from the Operator. You use it at your own risk and should verify anything important. Free use is limited (currently twenty-five (25) messages per five (5) hours) and may be changed or suspended at any time. You must not use it to create malicious code, to harass or target any person, or to attempt to circumvent its limits or safeguards.
 
 ## 9. Intellectual Property and Copyright Complaints
 

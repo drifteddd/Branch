@@ -1,6 +1,3 @@
-// one error type for every handler. it turns into a json response like
-// {"error": "message people can read", "code": "short_code", "fields": {...}}
-
 use std::collections::BTreeMap;
 use std::fmt::Display;
 
@@ -55,7 +52,6 @@ impl AppError {
         Self::validation(fields)
     }
 
-    /// logs the real problem and gives people a plain message
     pub fn internal(err: impl Display) -> Self {
         tracing::error!(error = %err, "internal error");
         Self::new(StatusCode::INTERNAL_SERVER_ERROR, "internal", "something went wrong on the server. try again in a moment.")
@@ -90,7 +86,6 @@ impl From<anyhow::Error> for AppError {
     }
 }
 
-/// collects problems with a form so they can all be shown at once
 #[derive(Default)]
 pub struct FieldErrors(BTreeMap<String, String>);
 

@@ -1,5 +1,3 @@
-// "upload a mod": anyone can share their own mod. it needs a mod file, a name and a description.
-// everything else is optional, and the author can stay anonymous.
 import { h, clear, formatBytes } from "../dom.js";
 import { icon } from "../icons.js";
 import { uploadForm } from "../platform.js";
@@ -10,8 +8,6 @@ const MIN_DESCRIPTION = 30;
 const THUMB_W = 960;
 const THUMB_H = 540;
 
-// turns any picture (a file, or a screenshot pasted from the clipboard) into a 16:9 jpg
-// thumbnail, cropped from the middle. it's done here so huge screenshots upload fast.
 export async function makeThumbnail(blob) {
   if (!blob || !/^image\//.test(blob.type || "")) throw new Error("that isn't an image. use a png, jpg, webp or gif, or paste a screenshot");
   if (blob.size > 25 * 1024 * 1024) throw new Error("that image is too big (25 MB max)");
@@ -58,7 +54,6 @@ export function createUploadView(ctx) {
     );
   }
 
-  // pasting a screenshot anywhere on this page sets the thumbnail
   let onPaste = null;
   function handlePaste(event) {
     const item = [...(event.clipboardData?.items || [])].find((i) => i.kind === "file" && i.type.startsWith("image/"));
@@ -67,7 +62,6 @@ export function createUploadView(ctx) {
     onPaste(item.getAsFile());
   }
 
-  // after an upload: what Branch's AI added to the listing
   function aiNote(ai) {
     if (!ai) return null;
     const added = [
@@ -242,7 +236,6 @@ export function createUploadView(ctx) {
       h("div", null, submit),
     );
 
-    // as soon as someone edits a field, its old error goes away
     form.addEventListener("input", (event) => {
       const wrap = event.target.closest("[data-field]");
       if (!wrap) return;
@@ -297,7 +290,6 @@ export function createUploadView(ctx) {
       data.append("source_url", sourceUrl.value.trim());
       data.append("confirm", "true");
       data.append("website", trap.value);
-      // your community identity, so this upload counts toward rewards
       data.append("key", forumKey());
       data.append("file", chosen, chosen.name);
       if (thumbnail) data.append("thumbnail", thumbnail, "thumbnail.jpg");

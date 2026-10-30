@@ -1,7 +1,3 @@
-// the rust side of the desktop app. it does the jobs a web page shouldn't do on
-// its own: talking to the branch server, showing the save dialog, writing files
-// to disk and opening links in the normal browser.
-
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,8 +12,6 @@ use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 use tokio::io::AsyncWriteExt;
 
-/// the server address gets baked in at build time (the github workflow sets it).
-/// without it, the app talks to a server running on this computer.
 fn base_url() -> &'static str {
     match option_env!("BRANCH_API_URL") {
         Some(url) if !url.trim().is_empty() => url.trim().trim_end_matches('/'),
@@ -25,7 +19,6 @@ fn base_url() -> &'static str {
     }
 }
 
-/// errors are sent to the page as plain objects it can show to people
 #[derive(Debug, Serialize)]
 struct CmdError {
     kind: &'static str,
@@ -58,7 +51,6 @@ struct Http {
 #[derive(Default)]
 struct Downloads {
     cancel_flags: Mutex<HashMap<String, Arc<AtomicBool>>>,
-    // files saved this session. "show in folder" only works for these.
     saved: Mutex<HashSet<PathBuf>>,
     last_dir: Mutex<Option<PathBuf>>,
 }
@@ -76,7 +68,6 @@ fn window_material(material: State<'_, Material>) -> &'static str {
 }
 
 fn api_url(path: &str) -> Result<String, CmdError> {
-    // the page can only reach branch's own api, never some other address
     let bad = !path.starts_with("/api/")
         || path.contains("..")
         || path.contains('#')
@@ -104,7 +95,6 @@ async fn api_request(
     read_json(request.send().await?).await
 }
 
-/// turns a server reply into json, or into an error the page can show
 async fn read_json(response: reqwest::Response) -> Result<serde_json::Value, CmdError> {
     let status = response.status();
     let data: serde_json::Value = response.json().await.unwrap_or(serde_json::Value::Null);
@@ -119,8 +109,6 @@ async fn read_json(response: reqwest::Response) -> Result<serde_json::Value, Cmd
     Err(CmdError { kind: "http", status: Some(status.as_u16()), message, fields: data.get("fields").cloned() })
 }
 
-/// read-only calls to github's public api, for the in-app source code viewer.
-/// only "/repos/..." paths on api.github.com are allowed.
 #[tauri::command]
 async fn github_api(http: State<'_, Http>, path: String) -> Result<serde_json::Value, CmdError> {
     let bad = !path.starts_with("/repos/")
@@ -146,9 +134,6 @@ async fn github_api(http: State<'_, Http>, path: String) -> Result<serde_json::V
 
 const MAX_UPLOAD_BYTES: usize = 60 * 1024 * 1024;
 
-/// sends a file the person picked on the page (mod checker or community upload) to the server.
-/// the page builds the form and passes the raw bytes, so rust never chooses files on its own.
-/// only these two server paths can be used.
 #[tauri::command]
 async fn api_upload(request: tauri::ipc::Request<'_>, http: State<'_, Http>) -> Result<serde_json::Value, CmdError> {
     let header = |name: &str| request.headers().get(name).and_then(|v| v.to_str().ok()).map(str::to_owned);
@@ -202,7 +187,6 @@ struct Progress<'a> {
     total: Option<u64>,
 }
 
-/// keeps a suggested file name to normal characters so windows accepts it
 fn safe_file_name(name: &str) -> String {
     let base = name.rsplit(|c| c == '/' || c == '\\').next().unwrap_or("");
     let cleaned: String = base
@@ -234,7 +218,6 @@ async fn download_release(
     }
     let file_name = safe_file_name(&args.file_name);
 
-    // the save location always comes from the windows dialog, never from the page
     let start_dir = downloads.last_dir.lock().unwrap().clone().or_else(|| app.path().download_dir().ok());
     let (tx, rx) = tokio::sync::oneshot::channel();
     let mut dialog = app.dialog().file().set_title("Save mod file").set_file_name(file_name);
@@ -268,8 +251,6 @@ async fn download_release(
     }
 }
 
-/// streams the file into "<name>.part", checks the checksum, then renames it.
-/// returns Ok(false) when the person cancelled.
 async fn stream_to_file(
     app: &AppHandle,
     client: &reqwest::Client,
@@ -306,7 +287,6 @@ async fn stream_to_file(
         if cancel.load(Ordering::Relaxed) {
             break Ok(false);
         }
-        // wake up every quarter second so cancel works even if the server goes quiet
         let next = match tokio::time::timeout(Duration::from_millis(250), stream.next()).await {
             Ok(next) => next,
             Err(_) => {
@@ -337,7 +317,6 @@ async fn stream_to_file(
     };
 
     let flushed = file.flush().await;
-    // windows can't delete or rename a file that's still open
     drop(file);
 
     let finished = match outcome {
@@ -400,8 +379,6 @@ fn open_external(app: AppHandle, url: String) -> Result<(), CmdError> {
 
 #[cfg(windows)]
 fn apply_window_material(app: &tauri::App) -> &'static str {
-    // mica only exists on windows 11. on windows 10 this fails and the app
-    // just uses its normal solid background.
     match app.get_webview_window("main") {
         Some(window) if window_vibrancy::apply_mica(&window, None).is_ok() => "mica",
         _ => "none",
@@ -421,7 +398,6 @@ pub fn run() {
         .timeout(Duration::from_secs(30))
         .build()
         .expect("couldn't set up the http client");
-    // no total timeout for files, big downloads on slow internet are fine
     let files = reqwest::Client::builder()
         .user_agent(user_agent)
         .connect_timeout(Duration::from_secs(15))

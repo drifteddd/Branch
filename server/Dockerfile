@@ -1,6 +1,3 @@
-# builds the branch server. the build context is the repo root (railway.json sets this up),
-# because the admin panel reuses files from app/ui/shared.
-
 FROM rust:1-slim-bookworm AS build
 WORKDIR /src
 COPY server ./server

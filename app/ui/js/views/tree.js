@@ -1,7 +1,3 @@
-// the tree of life: every mod on branch drawn as a node on one big tree shaped like the app icon.
-// each category is its own limb, so similar mods sit together. mods are placed oldest first,
-// so the trunk holds the first mods and new ones grow at the tips. more mods = a bigger,
-// denser tree: limbs get longer and split into smaller branches.
 import { h, clear } from "../dom.js";
 import { icon } from "../icons.js";
 import { api, isDesktop } from "../platform.js";
@@ -9,12 +5,11 @@ import { errorBlock } from "../ui.js";
 import { settings } from "../store.js";
 
 const DEG = Math.PI / 180;
-const TRUNK_ANGLE = -83 * DEG; // leaning slightly right, like the icon
+const TRUNK_ANGLE = -83 * DEG;
 const PALETTE = ["#2f9e6b", "#3b7fc4", "#d4892b", "#8e5bd6", "#d1495b", "#1aa6a6", "#7a8b2c", "#c45cb0", "#5c6bc0", "#b5783a"];
 const NODE_RADIUS = 5.5;
 const MODS_PER_BRANCH = 7;
 
-// a tiny seeded random, so the same mods always grow the same tree
 function seeded(seed) {
   let s = seed >>> 0;
   return () => {
@@ -34,8 +29,6 @@ export function buildTree(mods) {
   const segments = [];
   const nodes = [];
   const leaves = [];
-  // "order" is when each piece appears in the grow animation: one unit per generation,
-  // so every limb grows at the same time, the way a real tree would
   let maxOrder = 1;
   const stamp = (item) => { maxOrder = Math.max(maxOrder, item.order + 1); return item; };
 
@@ -46,7 +39,6 @@ export function buildTree(mods) {
     if (!groups.has(mod.category_slug)) groups.set(mod.category_slug, { slug: mod.category_slug, name: mod.category_name || mod.category_slug, mods: [] });
     groups.get(mod.category_slug).mods.push(mod);
   }
-  // the biggest categories get the lowest, thickest limbs
   const categories = [...groups.values()].sort((a, b) => b.mods.length - a.mods.length || a.name.localeCompare(b.name));
   categories.forEach((c, i) => { c.color = PALETTE[i % PALETTE.length]; });
 
@@ -55,7 +47,6 @@ export function buildTree(mods) {
   const trunkWidth = 12 + 1.7 * Math.sqrt(total);
   const top = at(0, 0, TRUNK_ANGLE, trunkLength);
 
-  // puts mods along a branch, alternating sides
   const placeAlong = (list, from, to, angle, width, color, group, order, start = 0.3) => {
     const nx = -Math.sin(angle);
     const ny = Math.cos(angle);
@@ -84,7 +75,6 @@ export function buildTree(mods) {
       if (!chunk.length) continue;
       const t = 0.42 + (0.5 * (j + 1)) / (kids + 1);
       const p = lerp({ x, y }, end, t);
-      // like a real tree, most new branches reach up toward the light
       const up = angle < -Math.PI / 2 ? 1 : -1;
       const side = (j + depth) % 2 === 0 ? up : -up;
       const spread = (side === up ? 26 + random() * 14 : 20 + random() * 10) * DEG;
@@ -95,13 +85,11 @@ export function buildTree(mods) {
   segments.push(stamp({ x1: 0, y1: 0, x2: top.x, y2: top.y, w1: trunkWidth, w2: trunkWidth * 0.42, order: 0 }));
   placeAlong(loose.slice(0, 40), { x: 0, y: 0 }, top, TRUNK_ANGLE, trunkWidth, "#8a8a8e", null, 0, 0.08);
   if (loose.length > 40) grow(loose.slice(40), top.x, top.y, TRUNK_ANGLE - 8 * DEG, trunkWidth * 0.4, "#8a8a8e", null, 1, 1);
-  // the dark leaf on top of the trunk, like the icon
   else leaves.push(stamp({ x: top.x, y: top.y, angle: TRUNK_ANGLE, length: 24 + 3 * Math.sqrt(total), width: 10 + 1.2 * Math.sqrt(total), color: null, order: 1 }));
 
   categories.forEach((cat, i) => {
     const t = categories.length === 1 ? 0.55 : 0.26 + (0.66 * i) / (categories.length - 1);
     const base = lerp({ x: 0, y: 0 }, top, t);
-    // left limbs first, like the icon, then right
     const left = i % 2 === 0;
     const angle = TRUNK_ANGLE + (left ? -58 : 52) * DEG + (random() - 0.5) * 10 * DEG;
     const width = trunkWidth * (0.58 - 0.26 * t);
@@ -147,7 +135,6 @@ export function createTreeView() {
     const visible = (order) => order <= growth;
     const part = (order) => Math.max(0, Math.min(1, growth - order));
 
-    // leaves first, so branches and nodes sit on top
     for (const leaf of tree.leaves) {
       if (!visible(leaf.order)) continue;
       const g = part(leaf.order);
@@ -166,7 +153,6 @@ export function createTreeView() {
     }
     ctx2d.globalAlpha = 1;
 
-    // branches: tapered shapes with round ends
     ctx2d.fillStyle = c.ink;
     for (const s of tree.segments) {
       if (!visible(s.order)) continue;
@@ -187,7 +173,6 @@ export function createTreeView() {
       ctx2d.fill();
     }
 
-    // the mods
     const stroke = 1.6 / Math.max(view.k, 0.4);
     for (const n of tree.nodes) {
       if (!visible(n.order)) continue;
@@ -210,13 +195,11 @@ export function createTreeView() {
     }
     ctx2d.restore();
 
-    // names, only when zoomed in enough to read them
     if (view.k >= 1.35 && growth >= tree.maxOrder) {
       ctx2d.font = "500 12px " + getComputedStyle(document.body).fontFamily;
       ctx2d.textBaseline = "middle";
       ctx2d.lineJoin = "round";
       let drawn = 0;
-      // skip a name if it would cover one that's already drawn
       const taken = [];
       for (const n of tree.nodes) {
         const sx = n.x * view.k + view.x;
@@ -327,7 +310,7 @@ export function createTreeView() {
     let pinch = null;
 
     canvas.addEventListener("pointerdown", (e) => {
-      try { canvas.setPointerCapture(e.pointerId); } catch { /* fine without it */ }
+      try { canvas.setPointerCapture(e.pointerId); } catch {}
       pointers.set(e.pointerId, { x: e.offsetX, y: e.offsetY });
       dragStart = { x: e.offsetX, y: e.offsetY, vx: view.x, vy: view.y };
       moved = false;
@@ -411,7 +394,6 @@ export function createTreeView() {
     requestAnimationFrame(step);
   }
 
-  // the mods last drawn, so a refresh only redraws when something changed
   let drawnFrom = "";
 
   function setMods(mods, { quiet = false } = {}) {
@@ -442,7 +424,6 @@ export function createTreeView() {
       : "scroll to zoom · drag to move · click a node to open the mod";
     resize();
     if (quiet) {
-      // new mods just appear. the camera stays where the person left it
       growth = tree.maxOrder;
       requestDraw();
       return;
@@ -451,14 +432,12 @@ export function createTreeView() {
     grow();
   }
 
-  // called every so often by the app: grows the tree if mods were added
   async function poll() {
     if (!tree || !el.isConnected) return;
     try {
       const data = await api("/api/tree");
       if (JSON.stringify(data.mods) !== drawnFrom) setMods(data.mods, { quiet: true });
     } catch {
-      // try again next time
     }
   }
 
@@ -535,7 +514,6 @@ export function createTreeView() {
     }
   }
 
-  // the browser preview can draw a pretend big tree, to see how it grows
   if (!isDesktop) window.__branchTree = { setMods: (mods) => setMods(mods) };
 
   return {

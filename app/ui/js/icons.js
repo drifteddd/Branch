@@ -1,4 +1,3 @@
-// one icon set, all drawn on a 24px grid with the same stroke so they match.
 export const ICONS = {
   search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
   star: '<path d="M12 3.8l2.5 5.1 5.6.8-4 3.9 1 5.6-5.1-2.7-5 2.7 1-5.6-4.1-3.9 5.6-.8z"/>',
@@ -45,12 +44,10 @@ export function icon(name, className = "") {
   svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("focusable", "false");
   if (className) svg.setAttribute("class", className);
-  // the markup comes from the constant table above, never from data
   svg.innerHTML = ICONS[name] || "";
   return svg;
 }
 
-// fills every <span data-icon="..."> that's written directly in index.html
 export function hydrateIcons(root = document) {
   for (const slot of root.querySelectorAll("[data-icon]")) {
     if (slot.firstChild) continue;

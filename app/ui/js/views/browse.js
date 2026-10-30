@@ -1,6 +1,3 @@
-// the main list of mods. the same view handles all mods, featured, favorites
-// and recently viewed. it stays in memory while you look at a mod, so your
-// search, filters and scroll spot are still there when you come back.
 import { h, clear, formatDate, plural } from "../dom.js";
 import { icon } from "../icons.js";
 import { api } from "../platform.js";
@@ -9,7 +6,6 @@ import { compatBadge, errorBlock, skeletonRows, stateBlock, thumbnail, showCompa
 
 const PAGE_SIZE = 20;
 
-// "1.2" -> "v1.2", but words like "unversioned" stay as they are
 export function versionLabel(version) {
   const v = String(version || "").replace(/^v(?=\d)/i, "");
   return /^\d/.test(v) ? `v${v}` : v;
@@ -109,7 +105,6 @@ export function createBrowseView(ctx) {
     refresh();
   }
 
-  // a fingerprint of everything that changes what the list shows
   function currentKey() {
     const slugs = state.mode === "favorites" ? favorites.list() : state.mode === "recent" ? recent.list() : null;
     return JSON.stringify([state.mode, state.q, state.category, state.compat, state.sort, slugs]);
@@ -134,20 +129,17 @@ export function createBrowseView(ctx) {
     return `/api/mods?${params}`;
   }
 
-  // recently viewed keeps the order you opened things in
   function ordered(batch, slugs) {
     if (state.mode !== "recent") return batch;
     const order = new Map(slugs.map((s, i) => [s, i]));
     return [...batch].sort((a, b) => order.get(a.slug) - order.get(b.slug));
   }
 
-  // checks for new or changed mods without blanking the list. rows that didn't change
-  // stay exactly where they are, so your scroll spot and keyboard focus are kept.
   async function quietRefresh() {
     if (loading || loadedKey !== currentKey()) return;
     const slugs = slugsForMode();
     if (slugs && slugs.length === 0) return;
-    if (page > 5) return; // far down a long list: don't reshuffle under the reader
+    if (page > 5) return;
     const id = requestId;
     const fresh = [];
     let last = null;
@@ -158,11 +150,10 @@ export function createBrowseView(ctx) {
         if (!last.has_more) break;
       }
     } catch {
-      return; // offline for a moment. the next check will try again
+      return;
     }
     if (id !== requestId || loading || loadedKey !== currentKey()) return;
     if (fresh.length && !items.length) {
-      // the list was empty (like "no mods yet") and now there's something to show
       load(true);
       return;
     }
@@ -177,7 +168,6 @@ export function createBrowseView(ctx) {
       if (!old) row.classList.add("row-new");
       return row;
     });
-    // move rows into place one by one instead of replacing the list
     let cursor = list.firstChild;
     for (const row of rows) {
       if (row === cursor) cursor = cursor.nextSibling;
@@ -228,7 +218,7 @@ export function createBrowseView(ctx) {
 
     try {
       const data = await api(listUrl(page + 1, slugs));
-      if (id !== requestId) return; // a newer search already started
+      if (id !== requestId) return;
       page = data.page;
       hasMore = data.has_more;
       total = data.total;
@@ -343,12 +333,10 @@ export function createBrowseView(ctx) {
       h("div", { class: "row-side" }, compatBadge(mod.compatibility, ctx.meta)),
       star,
     );
-    // lets the quiet refresh tell whether this row is still up to date
     row.signature = JSON.stringify(mod);
     return row;
   }
 
-  // keep stars in sync when a favorite changes somewhere else (like the mod page)
   changes.addEventListener("favorites", () => {
     for (const button of list.querySelectorAll(".fav-toggle")) {
       const on = favorites.has(button.dataset.slug);
@@ -359,7 +347,6 @@ export function createBrowseView(ctx) {
     }
   });
 
-  // up and down arrows move between rows, like a native list
   list.addEventListener("keydown", (event) => {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
     const links = [...list.querySelectorAll(".row-link")];
@@ -370,7 +357,6 @@ export function createBrowseView(ctx) {
     if (next) next.focus();
   });
 
-  // load the next page a little before the bottom is reached
   const observer = new IntersectionObserver(
     (entries) => {
       if (entries.some((e) => e.isIntersecting) && hasMore && !loading) load(false);

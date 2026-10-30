@@ -1,4 +1,3 @@
-// shared interface pieces: toasts, confirm dialogs, empty/error states, badges.
 import { h, clear } from "./dom.js";
 import { icon } from "./icons.js";
 import { assetUrl } from "./platform.js";
@@ -13,7 +12,6 @@ export function toast(message, { tone = "neutral", timeout = 3200 } = {}) {
   }, timeout);
 }
 
-// a modal confirm for destructive actions. resolves true or false.
 export function confirmDialog({ title, message, confirmLabel = "Confirm", destructive = false }) {
   return new Promise((resolve) => {
     const cancel = h("button", { class: "btn", type: "button", value: "cancel" }, "Cancel");
@@ -34,7 +32,6 @@ export function confirmDialog({ title, message, confirmLabel = "Confirm", destru
   });
 }
 
-// used for empty lists, errors and "not found" pages
 export function stateBlock({ iconName = "info", title, message, actions = [] }) {
   return h(
     "div",
@@ -73,7 +70,6 @@ export function thumbnail(path, className = "thumb") {
   return img;
 }
 
-// explains what each compatibility status means, so badges are never a guess
 export function showCompatHelp(meta) {
   const close = h("button", { class: "btn btn-primary", type: "button" }, "Done");
   const dialog = h(

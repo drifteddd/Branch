@@ -1,5 +1,3 @@
-// small helpers used all over the server.
-
 use std::convert::Infallible;
 use std::net::SocketAddr;
 
@@ -12,7 +10,6 @@ use url::Url;
 
 use crate::state::AppState;
 
-/// "Sky Lanterns 2!" -> "sky-lanterns-2"
 pub fn slugify(text: &str) -> String {
     let mut out = String::new();
     let mut last_dash = false;
@@ -43,8 +40,6 @@ pub fn too_long(text: &str, max_chars: usize) -> bool {
     text.chars().count() > max_chars
 }
 
-/// checks a link someone typed. empty means "no link". only full http(s) links are allowed,
-/// so things like javascript: or file: links can never end up in the app.
 pub fn clean_url(raw: &str) -> Result<Option<String>, &'static str> {
     let raw = raw.trim();
     if raw.is_empty() {
@@ -63,8 +58,6 @@ pub fn clean_url(raw: &str) -> Result<Option<String>, &'static str> {
     Ok(Some(url.to_string()))
 }
 
-/// turns an uploaded file name into something safe to store and send back.
-/// path parts are dropped, so "../../x.dll" becomes "x.dll".
 pub fn sanitize_filename(name: &str) -> Option<String> {
     let base = name.rsplit(|c| c == '/' || c == '\\').next().unwrap_or("");
     let mut out = String::new();
@@ -79,14 +72,12 @@ pub fn sanitize_filename(name: &str) -> Option<String> {
     if out.is_empty() || out.len() > 120 {
         return None;
     }
-    // windows refuses files named like old device names, even with an extension
     let stem = out.split('.').next().unwrap_or("").to_ascii_uppercase();
     let reserved = matches!(stem.as_str(), "CON" | "PRN" | "AUX" | "NUL")
         || ((stem.starts_with("COM") || stem.starts_with("LPT")) && stem.len() == 4);
     Some(if reserved { format!("file-{out}") } else { out })
 }
 
-/// escapes % and _ so a search for "100%" doesn't act like a wildcard
 pub fn like_pattern(query: &str) -> String {
     let mut out = String::from("%");
     for c in query.chars() {
@@ -103,8 +94,6 @@ pub fn sha256_hex(data: &[u8]) -> String {
     hex::encode(Sha256::digest(data))
 }
 
-/// a keyed one-way hash of an ip address. the same ip always gives the same
-/// value, but you can't get the ip back without the server secret.
 pub fn visitor_hash(secret: &str, ip: &str) -> String {
     let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("hmac accepts any key length");
     mac.update(ip.as_bytes());
@@ -114,7 +103,6 @@ pub fn visitor_hash(secret: &str, ip: &str) -> String {
 pub fn client_ip(headers: &HeaderMap, peer: Option<SocketAddr>, trust_proxy: bool) -> String {
     if trust_proxy {
         if let Some(forwarded) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
-            // the proxy adds the real address at the end. anything before it could be made up.
             if let Some(last) = forwarded.rsplit(',').map(str::trim).find(|s| !s.is_empty()) {
                 return last.to_string();
             }
@@ -123,7 +111,6 @@ pub fn client_ip(headers: &HeaderMap, peer: Option<SocketAddr>, trust_proxy: boo
     peer.map(|p| p.ip().to_string()).unwrap_or_else(|| "unknown".into())
 }
 
-/// who's asking, as a hashed id. used for rate limits and download counts.
 pub struct Visitor {
     pub id: String,
 }

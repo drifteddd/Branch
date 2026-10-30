@@ -26,8 +26,6 @@ use crate::config::Config;
 use crate::ratelimit::RateLimiter;
 use crate::state::AppState;
 
-/// connects to everything, runs migrations and makes sure the first admin exists.
-/// tests use this too, so they run against the exact same setup.
 pub async fn build_state(config: Config) -> anyhow::Result<AppState> {
     let db = PgPoolOptions::new()
         .max_connections(10)
@@ -65,7 +63,6 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
     tracker::spawn(state.clone());
 
     let app = routes::router(state);
-    // listening on [::] accepts ipv4 and ipv6, which railway's private network needs
     let addr = SocketAddr::from((Ipv6Addr::UNSPECIFIED, port));
     let listener = tokio::net::TcpListener::bind(addr).await.with_context(|| format!("couldn't listen on port {port}"))?;
     tracing::info!("branch server is listening on port {port}");
@@ -76,8 +73,6 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// hourly housekeeping. this is what keeps the privacy notice true:
-/// download records go after 30 days, closed reports after 180.
 fn spawn_cleanup(state: AppState) {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(Duration::from_secs(3600));
@@ -92,6 +87,7 @@ fn spawn_cleanup(state: AppState) {
                 "delete from ai_results where created_at < now() - interval '30 days'",
                 "delete from forum_reports where status = 'closed' and closed_at < now() - interval '180 days'",
                 "delete from chat_messages where created_at < now() - interval '30 days'",
+                "delete from assistant_usage where created_at < now() - interval '1 day'",
             ];
             for sql in jobs {
                 if let Err(err) = sqlx::query(sql).execute(&state.db).await {

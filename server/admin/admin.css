@@ -1,10 +1,6 @@
-/* admin panel layout. colors and controls come from /shared/tokens.css */
-
 .muted { color: var(--text-3); }
 .small { font-size: 12.5px; }
 .hidden { display: none !important; }
-
-/* ---------- login ---------- */
 
 .auth {
   min-height: 100vh;
@@ -23,8 +19,6 @@
 }
 .auth-card header { display: grid; justify-items: center; gap: 8px; text-align: center; margin-bottom: 4px; }
 .auth-card h1 { font-size: 20px; }
-
-/* ---------- shell ---------- */
 
 .layout { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 100vh; }
 .side {
@@ -62,8 +56,6 @@
 .page-head h1 { font-size: 22px; margin-right: auto; }
 .page-head .back { margin-right: 4px; }
 
-/* ---------- cards and tables ---------- */
-
 .card {
   border-radius: var(--r-l);
   background: var(--surface);
@@ -92,8 +84,6 @@
 
 .toolbar-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
 .toolbar-row .input { max-width: 320px; }
-
-/* ---------- editor ---------- */
 
 .editor-bar {
   position: sticky;
@@ -164,15 +154,11 @@ input[type="file"] { font-size: 13px; }
 .form-error { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-radius: var(--r-m); background: var(--danger-soft); color: var(--danger); }
 .notice-box { padding: 10px 12px; border-radius: var(--r-m); background: var(--surface-2); color: var(--text-2); font-size: 13px; }
 
-/* ---------- reports ---------- */
-
 .report { display: grid; gap: 10px; }
 .report-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
 .report-head h2 { font-size: 15px; }
 .report-body { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
 .report-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-
-/* ---------- preview ---------- */
 
 dialog.preview { width: min(980px, calc(100vw - 32px)); }
 .preview-head { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }
@@ -183,8 +169,6 @@ dialog.preview { width: min(980px, calc(100vw - 32px)); }
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; margin: 0; }
 .facts dt { color: var(--text-3); }
 .facts dd { margin: 0; }
-
-/* ---------- toasts ---------- */
 
 .toasts { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 50; display: grid; gap: 8px; justify-items: center; pointer-events: none; }
 .toast { padding: 9px 16px; border-radius: 999px; background: var(--text); color: var(--bg); box-shadow: var(--shadow-2); font-weight: 500; animation: toast-in var(--med) var(--ease); }
@@ -203,7 +187,6 @@ dialog.preview { width: min(980px, calc(100vw - 32px)); }
 
 .grow { flex: 1; }
 
-/* ---------- import ---------- */
 .import-split { margin-top: 12px; }
 .import-queue { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
 .import-queue li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 10px; border-radius: var(--r-s); background: var(--surface-2); }

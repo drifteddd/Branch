@@ -1,12 +1,5 @@
-/*
-  branch design tokens. shared by the desktop app and the admin panel.
-  colors are named by what they do, not what they look like, so dark mode
-  only has to swap values here.
-*/
-
 :root {
   color-scheme: light;
-  /* sf pro if it's installed, otherwise windows' own segoe ui variable */
   --font: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
   --mono: "SF Mono", "Cascadia Mono", Consolas, ui-monospace, monospace;
@@ -26,7 +19,6 @@
   --line: rgba(0, 0, 0, 0.08);
   --line-strong: rgba(0, 0, 0, 0.16);
 
-  /* black-and-white like the icon: black pill buttons, blue only for links and focus */
   --accent: #1d1d1f;
   --accent-hover: #000000;
   --accent-press: #3a3a3c;
@@ -58,7 +50,6 @@
   --med: 240ms;
 }
 
-/* dark only when someone picks it (or picks "match windows" and windows is dark) */
 @media (prefers-color-scheme: dark) {
   :root[data-theme="system"] {
     color-scheme: dark;
@@ -90,11 +81,8 @@
   }
 }
 
-/* ---------- base ---------- */
-
 *, *::before, *::after { box-sizing: border-box; }
 
-/* components set their own display, so make sure hidden always wins */
 [hidden] { display: none !important; }
 
 html, body { margin: 0; height: 100%; }
@@ -126,8 +114,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
   overflow: hidden; clip: rect(0 0 0 0);
   white-space: nowrap;
 }
-
-/* ---------- buttons ---------- */
 
 .btn {
   display: inline-flex;
@@ -183,8 +169,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .icon-btn:active { background: var(--surface-press); }
 .icon-btn svg { width: 18px; height: 18px; }
 
-/* ---------- form controls ---------- */
-
 .field { display: grid; gap: 6px; }
 .field > label, .field-label { font-weight: 600; font-size: 13px; }
 .field .hint { color: var(--text-3); font-size: 12.5px; }
@@ -221,7 +205,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .select option { background: var(--surface); color: var(--text); }
 
-/* segmented control built from radio buttons, so arrow keys work for free */
 .segmented {
   display: inline-flex;
   padding: 2px;
@@ -248,8 +231,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .switch input:checked { background: #34c759; }
 .switch input:checked::after { transform: translateX(16px); }
 
-/* ---------- badges ---------- */
-
 .badge {
   display: inline-flex;
   align-items: center;
@@ -269,8 +250,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .badge.outdated { background: var(--warn-soft); color: var(--warn); }
 .badge.broken { background: var(--danger-soft); color: var(--danger); }
 
-/* ---------- markdown output ---------- */
-
 .prose { line-height: 1.6; color: var(--text); overflow-wrap: anywhere; }
 .prose > * + * { margin-top: 10px; }
 .prose h3, .prose h4, .prose h5 { margin-top: 18px; font-size: 15px; }
@@ -284,8 +263,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .prose table { width: 100%; border-collapse: collapse; font-size: 0.95em; }
 .prose th, .prose td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
 .prose th { font-weight: 600; color: var(--text-2); }
-
-/* ---------- dialogs ---------- */
 
 dialog.sheet {
   width: min(520px, calc(100vw - 32px));
@@ -306,8 +283,6 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.32); animation: fade-in var
 @keyframes sheet-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 
-/* ---------- skeletons ---------- */
-
 .skeleton {
   border-radius: var(--r-s);
   background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-hover) 50%, var(--surface-2) 75%);
@@ -316,16 +291,12 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, 0.32); animation: fade-in var
 }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
 
-/* ---------- motion and transparency preferences ---------- */
-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
 }
 :root[data-motion="reduce"] *, :root[data-motion="reduce"] *::before, :root[data-motion="reduce"] *::after {
   animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important;
 }
-
-/* ---------- source code viewer (shared/source-viewer.js) ---------- */
 
 dialog.source-viewer { width: min(1200px, calc(100vw - 32px)); height: min(820px, calc(100vh - 48px)); max-height: none; display: none; }
 dialog.source-viewer[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); }

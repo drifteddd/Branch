@@ -3,7 +3,6 @@ use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // a local .env file is handy in development. on railway the variables are set in the dashboard.
     let _ = dotenvy::dotenv();
 
     tracing_subscriber::fmt()

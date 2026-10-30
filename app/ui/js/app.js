@@ -1,10 +1,10 @@
-// app shell: routing, sidebar, search box, theme and keyboard shortcuts.
 import { h, clear, debounce } from "./dom.js";
 import { icon, hydrateIcons } from "./icons.js";
 import { api, appWindow, initPlatform, isDesktop, openExternal, setNativeTheme, windowMaterial } from "./platform.js";
 import { settings, favorites, recent } from "./store.js";
 import { runSplash } from "./splash.js";
 import { requireTerms } from "./terms.js";
+import { showStoryOnce } from "./story.js";
 import { toast } from "./ui.js";
 import { createBrowseView } from "./views/browse.js";
 import { createDetailView } from "./views/detail.js";
@@ -15,6 +15,7 @@ import { createRewardsView } from "./views/rewards.js";
 import { createCheckerView } from "./views/checker.js";
 import { createTreeView } from "./views/tree.js";
 import { createTrackerView } from "./views/tracker.js";
+import { createAssistantView } from "./views/assistant.js";
 
 const root = document.documentElement;
 const main = document.getElementById("main");
@@ -34,7 +35,6 @@ const ctx = {
   link(href, label) {
     return h("a", { class: "btn btn-primary", href }, label);
   },
-  // after someone uploads a mod, the lists reload the next time they're opened
   refreshLists() {
     views.browse.invalidate();
     loadMeta();
@@ -45,7 +45,6 @@ const ctx = {
   setSearchText(text) {
     search.value = text;
   },
-  // keeps the address in sync with the category so "back" returns to the same list
   syncBrowseHash() {
     const route = currentRoute;
     if (!route || route.name !== "browse") return;
@@ -77,6 +76,7 @@ const views = {
   check: createCheckerView(ctx),
   tree: createTreeView(ctx),
   tracker: createTrackerView(ctx),
+  ask: createAssistantView(ctx),
 };
 
 let currentRoute = null;
@@ -99,6 +99,7 @@ function parseRoute() {
   if (first === "check") return { name: "check", path };
   if (first === "tree") return { name: "tree", path };
   if (first === "tracker") return { name: "tracker", path };
+  if (first === "ask") return { name: "ask", path };
   if (first === "legal" && parts[1]) return { name: "legal", path, doc: parts[1] };
   return { name: "browse", path: "/browse", mode: "all", category: "" };
 }
@@ -127,7 +128,6 @@ function route() {
   closeSidebar();
 
   const scrollTo = view.show(next) || 0;
-  // wait a frame so the restored list has its height before scrolling
   requestAnimationFrame(() => { main.scrollTop = scrollTo; });
 }
 
@@ -139,7 +139,7 @@ function markSidebar() {
   if (route.name === "browse") {
     if (route.mode === "all" && ctx.browse.category) active = categoryNav.querySelector(`[data-category="${CSS.escape(ctx.browse.category)}"]`);
     else active = sidebar.querySelector(`[data-nav="${route.mode}"]`);
-  } else if (["settings", "about", "upload", "check", "forum", "rewards", "tree", "tracker"].includes(route.name)) {
+  } else if (["settings", "about", "upload", "check", "forum", "rewards", "tree", "tracker", "ask"].includes(route.name)) {
     active = sidebar.querySelector(`[data-nav="${route.name}"]`);
   } else if (route.name === "legal") {
     active = sidebar.querySelector('[data-nav="about"]');
@@ -164,20 +164,15 @@ async function loadMeta() {
     renderCategories();
     views.browse.metaChanged();
   } catch {
-    // the browse view shows its own error with a retry. try meta again later.
     setTimeout(loadMeta, 15_000);
   }
 }
 
-// ---------- staying up to date ----------
-
-// every 30 seconds the app quietly checks for new mods, so people who leave Branch
-// open still see what was just added. nothing flashes or jumps while it does.
 const REFRESH_EVERY = 30_000;
 let lastRefresh = Date.now();
 
 async function refreshEverything() {
-  if (document.hidden) return; // minimized: catch up when the window comes back
+  if (document.hidden) return;
   lastRefresh = Date.now();
   try {
     const meta = await api("/api/meta");
@@ -187,7 +182,7 @@ async function refreshEverything() {
       views.browse.metaChanged();
     }
   } catch {
-    return; // offline for a moment. try again next time
+    return;
   }
   await views.browse.quietRefresh();
   if (currentView === views.tree) await views.tree.poll();
@@ -198,19 +193,14 @@ function startAutoRefresh() {
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && Date.now() - lastRefresh > REFRESH_EVERY) refreshEverything();
   });
-  // the browser preview can trigger a check right away, for testing
   if (!isDesktop) window.__branchRefresh = refreshEverything;
 }
-
-// ---------- theme ----------
 
 function applyTheme(theme) {
   if (theme === "system" || theme === "dark") root.dataset.theme = theme;
   else delete root.dataset.theme;
   setNativeTheme(theme);
 }
-
-// ---------- search ----------
 
 const runSearch = debounce(() => {
   const q = search.value.trim();
@@ -235,8 +225,6 @@ search.addEventListener("keydown", (event) => {
   }
 });
 
-// ---------- sidebar on narrow windows ----------
-
 function openSidebar() {
   sidebar.classList.add("open");
   scrim.hidden = false;
@@ -254,8 +242,6 @@ function closeSidebar() {
 sidebarToggle.addEventListener("click", () => (sidebar.classList.contains("open") ? closeSidebar() : openSidebar()));
 scrim.addEventListener("click", closeSidebar);
 
-// ---------- navigation ----------
-
 backButton.addEventListener("click", goBack);
 
 function goBack() {
@@ -263,7 +249,6 @@ function goBack() {
   else location.hash = "#/browse";
 }
 
-// every link marked external opens in the normal browser, never inside branch
 document.addEventListener("click", (event) => {
   const link = event.target.closest("a[data-external]");
   if (!link) return;
@@ -294,10 +279,6 @@ document.addEventListener("keydown", (event) => {
 
 window.addEventListener("hashchange", route);
 
-// ---------- start ----------
-
-// ---------- window buttons ----------
-
 function setupWindow() {
   if (!isDesktop || !appWindow) return;
   root.classList.add("is-desktop");
@@ -305,7 +286,6 @@ function setupWindow() {
   document.getElementById("wc-close").addEventListener("click", () => appWindow.close());
   document.getElementById("wc-min").addEventListener("click", () => appWindow.minimize());
   document.getElementById("wc-max").addEventListener("click", () => appWindow.toggleMaximize());
-  // swap the maximize icon for the restore icon, like windows does
   const syncMaximized = async () => {
     try {
       const maximized = await appWindow.isMaximized();
@@ -314,7 +294,6 @@ function setupWindow() {
       button.setAttribute("aria-label", maximized ? "Restore" : "Maximize");
       button.title = maximized ? "Restore" : "Maximize";
     } catch {
-      // not important enough to show an error
     }
   };
   window.addEventListener("resize", syncMaximized);
@@ -322,8 +301,6 @@ function setupWindow() {
   window.addEventListener("blur", () => root.classList.add("window-inactive"));
   window.addEventListener("focus", () => root.classList.remove("window-inactive"));
 }
-
-// ---------- start ----------
 
 async function start() {
   hydrateIcons();
@@ -344,7 +321,6 @@ async function start() {
       ctx.meta = await api("/api/meta");
       for (const c of ctx.meta.categories) say(`Loading ${c.name}`);
       renderCategories();
-      // start loading the first screen behind the splash
       route();
       say("Loading the mod list");
       for (let page = 1; page <= 10; page++) {
@@ -362,6 +338,7 @@ async function start() {
   });
 
   await requireTerms();
+  await showStoryOnce();
 
   if (!currentRoute) route();
   if (!ctx.meta) loadMeta();

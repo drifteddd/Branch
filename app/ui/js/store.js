@@ -1,6 +1,3 @@
-// everything branch remembers lives here, only on this computer.
-// storage can fail (private mode, full disk), so every read has a fallback.
-
 const KEYS = {
   settings: "branch.settings",
   favorites: "branch.favorites",
@@ -23,11 +20,9 @@ function write(key, value) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    // nothing useful to do. the app still works, it just won't remember.
   }
 }
 
-// other parts of the app listen to this to refresh stars and lists
 export const changes = new EventTarget();
 
 function slugList(key) {

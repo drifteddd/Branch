@@ -1,8 +1,3 @@
-// the basic scan behind the mod checker. it never runs the file. it reads the
-// text hidden inside it (names, links, windows functions) and looks for things
-// malware needs, like sending data to a discord webhook or injecting into other
-// programs. cheats and game changes are deliberately not on this list.
-
 use std::collections::BTreeSet;
 use std::io::{Cursor, Read};
 
@@ -26,7 +21,6 @@ pub struct Indicator {
 #[derive(Serialize, Clone, Debug)]
 pub struct Capability {
     pub name: &'static str,
-    /// "normal", "unusual" or "dangerous"
     pub level: &'static str,
     pub evidence: Vec<String>,
 }
@@ -53,7 +47,6 @@ struct CapabilityRule {
     needles: &'static [&'static str],
 }
 
-// matched against lowercased "Namespace.Type::Method" calls and "dll!Function" imports
 const CAPABILITY_RULES: &[CapabilityRule] = &[
     CapabilityRule { name: "Injects code into other programs", level: "dangerous", weight: 35, needles: &["!createremotethread", "!writeprocessmemory", "!virtualallocex", "!ntunmapviewofsection", "!queueuserapc", "!setthreadcontext", "!ntwritevirtualmemory"] },
     CapabilityRule { name: "Hooks the keyboard system-wide", level: "dangerous", weight: 25, needles: &["!setwindowshookex"] },
@@ -73,7 +66,6 @@ const CAPABILITY_RULES: &[CapabilityRule] = &[
     CapabilityRule { name: "Draws its own menu or interface", level: "normal", weight: 0, needles: &["unityengine.gui::", "unityengine.guilayout::", "unityengine.ui."] },
 ];
 
-// calls every program makes. leaving them out keeps the ai focused on what matters.
 const BORING_OWNERS: &[&str] = &[
     "system.object", "system.string", "system.collections", "system.linq", "system.text.stringbuilder", "system.math", "system.runtime.compilerservices",
     "system.diagnostics.debug", "system.int", "system.single", "system.double", "system.boolean", "system.array", "system.enum", "system.type::gettypefromhandle",
@@ -123,7 +115,6 @@ fn summarize_code(infos: &[(String, crate::pe::PeInfo)]) -> CodeSummary {
         }
     }
 
-    // calls that match a risky capability go first, then everything else that isn't boring
     let risky = |c: &str| CAPABILITY_RULES.iter().any(|r| r.weight > 0 && matches_rule(c, r));
     let mut notable: Vec<String> = calls.iter().filter(|c| risky(c.as_str())).cloned().collect();
     for c in &calls {
@@ -141,7 +132,6 @@ fn summarize_code(infos: &[(String, crate::pe::PeInfo)]) -> CodeSummary {
     s
 }
 
-/// the extra score from what the code really calls
 fn capability_weight(code: &CodeSummary) -> u32 {
     code.capabilities
         .iter()
@@ -150,14 +140,12 @@ fn capability_weight(code: &CodeSummary) -> u32 {
         .sum()
 }
 
-// names nearly every mod has, so they say nothing about whether two mods are the same
 const COMMON_NAMES: &[&str] = &[
     "awake", "start", "update", "fixedupdate", "lateupdate", "onenable", "ondisable", "ondestroy", "ongui", "plugin", "main", "invoke", "dispose",
     "tostring", "equals", "gethashcode", "finalize", "initialize", "init", "load", "unload", "prefix", "postfix", "patch", "patches", "instance",
     "config", "settings", "utils", "helpers", "constants", "pluginfo", "myplugininfo", "resources",
 ];
 
-/// how much two fingerprints overlap, from 0 (nothing shared) to 1 (identical)
 pub fn similarity(a: &[String], b: &[String]) -> f32 {
     if a.is_empty() || b.is_empty() {
         return 0.0;
@@ -169,8 +157,6 @@ pub fn similarity(a: &[String], b: &[String]) -> f32 {
 }
 
 impl ScanReport {
-    /// the mod's own class and method names, used to spot re-uploads of the same mod
-    /// even when the file was renamed or rebuilt
     pub fn fingerprint(&self) -> Vec<String> {
         let mut set = BTreeSet::new();
         for t in &self.code.defined_types {
@@ -188,19 +174,13 @@ impl ScanReport {
         set.into_iter().take(400).collect()
     }
 
-    /// true when the scanner found at least one concrete malware sign (a strong text signal
-    /// like a webhook or browser login path, or a dangerous capability like injection).
-    /// without one, the ai isn't allowed to call a file more than "a few odd things".
     pub fn has_strong_signals(&self) -> bool {
         self.indicators.iter().any(|i| i.weight >= 20) || self.code.capabilities.iter().any(|c| c.level == "dangerous")
     }
 
-    /// combines the ai's score with the scanner's evidence
     pub fn final_score(&self, ai_score: u8) -> u8 {
-        // the ai can't wave away strong warning signs completely...
         let floor = (self.heuristic_score as f32 * 0.6).round() as u8;
         let score = ai_score.max(floor);
-        // ...and can't call a file suspicious without at least one concrete sign
         if self.has_strong_signals() { score } else { score.min(40) }
     }
 }
@@ -225,7 +205,6 @@ pub struct ScanReport {
     pub mod_markers: Vec<&'static str>,
     pub encoded_blobs: usize,
     pub heuristic_score: u8,
-    /// what the code itself references, read from the dll structure (see pe.rs)
     pub code: CodeSummary,
 }
 
@@ -236,7 +215,6 @@ struct Rule {
     needles: &'static [&'static str],
 }
 
-// all needles are lowercase. weights add up into the basic score (capped at 100).
 const RULES: &[Rule] = &[
     Rule { category: "stealing", label: "has a discord webhook (often used to send stolen data)", weight: 30, needles: &["discord.com/api/webhooks", "discordapp.com/api/webhooks"] },
     Rule { category: "stealing", label: "talks to the telegram bot api (often used to send stolen data)", weight: 25, needles: &["api.telegram.org/bot"] },
@@ -254,14 +232,12 @@ const RULES: &[Rule] = &[
     Rule { category: "download and run", label: "fetches text from paste sites", weight: 20, needles: &["pastebin.com/raw", "hastebin", "paste.ee/r", "rentry.co/"] },
     Rule { category: "staying hidden", label: "sets itself to start with windows", weight: 25, needles: &["currentversion\\run", "schtasks", "start menu\\programs\\startup", "\\winlogon"] },
     Rule { category: "staying hidden", label: "tries to avoid antivirus or analysis tools", weight: 25, needles: &["add-mppreference", "exclusionpath", "disableantispyware", "vboxservice", "vmwaretray", "sbiedll", "processhacker"] },
-    // lots of normal programs check for a debugger, so this one only counts a little
     Rule { category: "staying hidden", label: "checks if a debugger is attached (common in normal programs too)", weight: 5, needles: &["checkremotedebuggerpresent", "isdebuggerpresent"] },
     Rule { category: "hiding code", label: "was run through an obfuscator", weight: 10, needles: &["confuserex", "confused by", ".net reactor", "babelobfuscator", "smartassembly", "eazfuscator"] },
     Rule { category: "hiding code", label: "loads extra code while running (common in .net, mods use it too)", weight: 4, needles: &["assembly.load", "loadfrom", "virtualprotect", "reflection.emit", "invokemember"] },
     Rule { category: "mining", label: "has crypto miner settings", weight: 35, needles: &["stratum+tcp", "xmrig", "nicehash", "cryptonight", "--donate-level"] },
 ];
 
-// normal gorilla tag mod stuff. shown to the ai so it knows what's expected.
 const MOD_MARKERS: &[(&str, &str)] = &[
     ("bepinex", "BepInEx"),
     ("harmonylib", "Harmony"),
@@ -277,7 +253,6 @@ const MOD_MARKERS: &[(&str, &str)] = &[
 const RISKY_EXTENSIONS: &[&str] = &[".exe", ".scr", ".bat", ".cmd", ".ps1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".hta", ".lnk", ".msi", ".com", ".pif", ".jar"];
 const ARCHIVE_EXTENSIONS: &[&str] = &[".zip", ".rar", ".7z", ".tar", ".gz"];
 
-/// collects readable text from binary data: plain ascii and the utf-16 text .net uses
 fn extract_strings(data: &[u8], out: &mut Vec<String>) {
     const MIN: usize = 5;
     const MAX_STRINGS: usize = 200_000;
@@ -397,7 +372,6 @@ pub fn scan(original_name: &str, data: &[u8]) -> Result<ScanReport, String> {
             if ARCHIVE_EXTENSIONS.iter().any(|ext| lower.ends_with(ext)) {
                 nested_archives.push(truncate(&name, 120));
             }
-            // read each file with a cap, so a "zip bomb" can't blow up memory
             if unzipped >= MAX_UNZIPPED_TOTAL {
                 continue;
             }
@@ -465,8 +439,6 @@ pub fn scan(original_name: &str, data: &[u8]) -> Result<ScanReport, String> {
     };
 
     let code = summarize_code(&dlls);
-    // the same danger is often found both as text and as a real call, so the two scores
-    // aren't simply added: the bigger one counts fully and the other only partly
     let text_weight: u32 = indicators.iter().map(|i| i.weight).sum();
     let call_weight = capability_weight(&code);
     let combined = text_weight.max(call_weight) + text_weight.min(call_weight) / 3;
@@ -500,7 +472,6 @@ mod tests {
         data.extend_from_slice(b"\x00\x00");
         data.extend_from_slice(text.as_bytes());
         data.extend_from_slice(b"\x00\x00");
-        // the same text as utf-16, like .net stores user strings
         for c in "BepInEx.BaseUnityPlugin".chars() {
             data.push(c as u8);
             data.push(0);

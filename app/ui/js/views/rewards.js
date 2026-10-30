@@ -1,6 +1,3 @@
-// the rewards page: earn robux for uploading unique mods.
-// upload 10 unique mods, apply, get accepted, then every new unique upload earns 10 R$
-// (up to 50 a day and 500 total). a limited-time offer the operator can end at any time.
 import { h, clear, formatDate } from "../dom.js";
 import { icon } from "../icons.js";
 import { api, openExternal } from "../platform.js";
@@ -10,7 +7,6 @@ import { settings } from "../store.js";
 
 const reduceMotion = () => settings.get().reduceMotion || matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-// grows a bar from 0 to its value so progress feels earned
 function animateBar(fill, percent) {
   const target = Math.max(0, Math.min(100, percent));
   if (reduceMotion()) {

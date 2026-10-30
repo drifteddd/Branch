@@ -8,12 +8,10 @@
   <link rel="stylesheet" href="shared/tokens.css">
   <link rel="stylesheet" href="styles/app.css">
   <link rel="stylesheet" href="styles/splash.css">
-  <!-- runs before paint so the saved theme doesn't flash -->
   <script src="js/boot.js"></script>
   <script type="module" src="js/app.js"></script>
 </head>
 <body>
-  <!-- startup screen. app.js fills in the loading text and removes it when ready -->
   <div class="splash" id="splash" role="status" aria-live="polite" aria-label="Loading Branch">
     <div class="splash-inner">
       <img class="splash-icon" src="shared/branch-mark.svg" alt="" width="76" height="76">
@@ -25,7 +23,6 @@
 
   <a class="skip-link" href="#main">Skip to content</a>
 
-  <!-- windows-style window buttons, only shown in the desktop app (it draws its own title bar) -->
   <div class="window-controls" id="window-controls" role="group" aria-label="Window" hidden>
     <button class="wc wc-min" id="wc-min" type="button" aria-label="Minimize" title="Minimize"><svg viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5h10"/></svg></button>
     <button class="wc wc-max" id="wc-max" type="button" aria-label="Maximize" title="Maximize"><svg viewBox="0 0 10 10" aria-hidden="true" class="icon-max"><rect x="0.5" y="0.5" width="9" height="9"/></svg><svg viewBox="0 0 10 10" aria-hidden="true" class="icon-restore"><rect x="0.5" y="2.5" width="7" height="7"/><path d="M2.5 2.5V0.5h7v7h-2"/></svg></button>
@@ -55,6 +52,7 @@
 
       <p class="nav-heading" id="tools-heading">Tools</p>
       <ul class="nav" role="list" aria-labelledby="tools-heading">
+        <li><a href="#/ask" data-nav="ask"><span data-icon="sparkle"></span>Ask Branch</a></li>
         <li><a href="#/check" data-nav="check"><span data-icon="shield"></span>Mod checker</a></li>
         <li><a href="#/upload" data-nav="upload"><span data-icon="upload"></span>Upload a mod</a></li>
         <li><a href="#/rewards" data-nav="rewards"><span data-icon="gift"></span>Rewards</a></li>

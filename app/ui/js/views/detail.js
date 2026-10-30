@@ -1,4 +1,3 @@
-// the page for a single mod.
 import { h, clear, formatDate, formatBytes, formatNumber, hostOf } from "../dom.js";
 import { icon } from "../icons.js";
 import { renderMarkdown } from "../../shared/markdown.js";
@@ -21,7 +20,6 @@ export function createDetailView(ctx) {
   let currentSlug = null;
   let currentMod = null;
   let requestId = 0;
-  // downloads keep going if you leave the page, so their state lives out here
   const downloads = new Map();
   const downloadSlots = new Map();
 
@@ -81,7 +79,6 @@ export function createDetailView(ctx) {
     syncFav();
     const favListener = () => syncFav();
     changes.addEventListener("favorites", favListener);
-    // stop listening once this page is replaced
     queueMicrotask(() => {
       const observer = new MutationObserver(() => {
         if (!el.contains(favButton)) { changes.removeEventListener("favorites", favListener); observer.disconnect(); }
@@ -90,7 +87,6 @@ export function createDetailView(ctx) {
     });
 
     const reportButton = h("button", { class: "btn btn-quiet", type: "button", onclick: () => openReportDialog(ctx, mod) }, icon("flag"), "Report");
-    // only shown when the mod has a github source link
     const sourceButton = parseGithub(mod.source_url || "")
       ? h("button", { class: "btn btn-quiet", type: "button", onclick: () => openSourceViewer(mod.source_url, { fetchJson: githubFetch, openLink: (u) => openExternal(u) }) }, icon("code"), "View source code")
       : null;
@@ -157,8 +153,6 @@ export function createDetailView(ctx) {
     return h("article", { class: "detail-page", "aria-labelledby": "detail-title" }, warnings, head, h("div", { class: "detail-body" }, main, side));
   }
 
-  // what Branch's automatic check wrote when the mod was uploaded: an overview from the
-  // code (separate from the uploader's own description) and a built-in safety score
   function aiSection(mod) {
     const ai = mod.ai;
     if (!ai || !ai.risk) return null;
@@ -252,8 +246,6 @@ export function createDetailView(ctx) {
     const button = h("button", { class: "btn btn-primary btn-large", type: "button" }, icon("download"), /^\d/.test(versionLabel(release.version).replace(/^v/, "")) ? `Download ${versionLabel(release.version)}` : "Download");
     const fileBits = [release.file?.type ? `.${release.file.type} file` : null, release.file ? formatBytes(release.file.size) : null].filter(Boolean).join(", ");
     area.append(button, h("p", { class: "download-note" }, `direct download from Branch${fileBits ? ` (${fileBits})` : ""}. you pick where it's saved.`), status);
-    // the page can be rebuilt while a download runs, so progress always paints
-    // into whichever button and status area are on screen right now
     downloadSlots.set(release.id, { button, status, retry: () => startDownload(mod, release) });
     button.addEventListener("click", () => startDownload(mod, release));
     repaintDownload(release.id);

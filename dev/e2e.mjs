@@ -1,6 +1,3 @@
-// clicks through the real interface in a headless browser against the demo server.
-// it uses edge or chrome through the devtools protocol, so nothing has to be installed.
-// run: node dev/e2e.mjs        (screenshots end up in dev/.screens/)
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -36,13 +33,11 @@ const profile = mkdtempSync(join(tmpdir(), "branch-e2e-"));
 const browser = spawn(browserPath, [
   "--headless=new", `--remote-debugging-port=${DEBUG_PORT}`, `--user-data-dir=${profile}`,
   "--no-first-run", "--no-default-browser-check", "--disable-gpu", "--window-size=1280,800",
-  // ci machines run chrome in a container where its sandbox isn't available
   ...(process.platform === "linux" ? ["--no-sandbox"] : []),
   "about:blank",
 ], { stdio: "ignore" });
 
 async function waitForBrowser() {
-  // a cold browser on a busy ci machine can take a while to start
   for (let i = 0; i < 600; i++) {
     try { return await (await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/version`)).json(); } catch { await sleep(100); }
   }
@@ -86,7 +81,7 @@ async function evaluate(expression) {
 async function waitFor(expression, what, timeout = 6000) {
   const start = Date.now();
   while (Date.now() - start < timeout) {
-    try { if (await evaluate(`Boolean(${expression})`)) return; } catch { /* page still loading */ }
+    try { if (await evaluate(`Boolean(${expression})`)) return; } catch {}
     await sleep(80);
   }
   throw new Error(`timed out waiting for: ${what}`);
@@ -94,14 +89,16 @@ async function waitFor(expression, what, timeout = 6000) {
 async function go(url) {
   await cdp("Page.navigate", { url });
   await waitFor("document.readyState === 'complete'", "page load");
-  // the app shows its ~3 second startup screen first. the admin panel has none.
   await waitFor("!document.getElementById('splash') || document.getElementById('splash').classList.contains('done')", "startup screen", 30000);
-  if (await evaluate("Boolean(document.getElementById('splash'))")) await sleep(450); // let it finish fading out
-  // the first launch asks to accept the terms
+  if (await evaluate("Boolean(document.getElementById('splash'))")) await sleep(450);
   if (await evaluate("Boolean(document.querySelector('dialog.terms-sheet[open]'))")) {
     await evaluate("document.getElementById('terms-agree').click()");
     await evaluate("[...document.querySelectorAll('dialog.terms-sheet button')].find(b => b.textContent.includes('Agree')).click()");
     await waitFor("!document.querySelector('dialog.terms-sheet')", "terms accepted");
+  }
+  if (await evaluate("Boolean(document.querySelector('dialog.story-sheet[open]'))")) {
+    await evaluate("[...document.querySelectorAll('dialog.story-sheet button')].find(b => b.textContent.includes(\"Let's go\")).click()");
+    await waitFor("!document.querySelector('dialog.story-sheet')", "story closed");
   }
 }
 async function setFile(selector, path) {
@@ -116,7 +113,6 @@ async function setSize(width, height) {
   await cdp("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
 }
 
-// page helpers, injected as strings
 const type = (sel, text) => `(() => { const el = document.querySelector(${JSON.stringify(sel)}); el.focus(); el.value = ${JSON.stringify(text)}; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`;
 const choose = (sel, value) => `(() => { const el = document.querySelector(${JSON.stringify(sel)}); el.value = ${JSON.stringify(value)}; el.dispatchEvent(new Event('change', { bubbles: true })); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`;
 const click = (sel) => `(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) throw new Error('missing ' + ${JSON.stringify(sel)}); el.click(); return true; })()`;
@@ -147,12 +143,9 @@ await cdp("Page.enable");
 await cdp("Runtime.enable");
 await cdp("Browser.setDownloadBehavior", { behavior: "deny" }).catch(() => {});
 await setSize(1280, 800);
-// start in light mode no matter what the computer is set to. dark mode gets its own test.
 await cdp("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] });
 
 console.log(`testing against the demo server with ${browserPath}`);
-
-// ---------- desktop app interface ----------
 
 await test("startup screen shows what it loads and takes about 3 seconds", async () => {
   const started = Date.now();
@@ -177,8 +170,14 @@ await test("terms must be accepted before using the app, once", async () => {
   await evaluate(click("#terms-agree"));
   await evaluate(`${agree}.click()`);
   await waitFor(`!document.querySelector("dialog.terms-sheet")`, "terms closed");
+  await waitFor(`document.querySelector("dialog.story-sheet[open]")`, "why i made branch screen after the terms");
+  assert(await evaluate(`document.querySelector("dialog.story-sheet").textContent.includes("ii engine")`), "story text missing");
+  await sleep(300);
+  await screenshot("story");
+  await evaluate(`[...document.querySelectorAll("dialog.story-sheet button")].find(b => b.textContent.includes("Let's go")).click()`);
+  await waitFor(`!document.querySelector("dialog.story-sheet")`, "story closed");
   await go(`${BASE}/`);
-  assert(!(await evaluate(`Boolean(document.querySelector("dialog.terms-sheet"))`)), "terms asked twice");
+  assert(!(await evaluate(`Boolean(document.querySelector("dialog.terms-sheet") || document.querySelector("dialog.story-sheet"))`)), "terms or story shown twice");
 });
 
 await test("browse list loads with skeletons first", async () => {
@@ -223,7 +222,6 @@ await test("category, compatibility and sort filters work", async () => {
 await test("opening a mod and going back keeps search and scroll", async () => {
   await setSize(1280, 600);
   await evaluate(type("#search", "demo"));
-  // the search waits 250ms before it runs, then the list reloads
   await sleep(500);
   await waitFor(`${rows}.length >= 10 && document.querySelector('.mod-list').getAttribute('aria-busy') === 'false'`, "results");
   await sleep(200);
@@ -238,7 +236,6 @@ await test("opening a mod and going back keeps search and scroll", async () => {
   const top = await evaluate(`document.getElementById('main').scrollTop`);
   assert(Math.abs(top - 300) < 5, `scroll position was ${top}, expected 300`);
   await setSize(1280, 800);
-// start in light mode no matter what the computer is set to. dark mode gets its own test.
 await cdp("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] });
   await evaluate(clickText(".filters button", "Clear filters"));
 });
@@ -357,7 +354,6 @@ await test("narrow window collapses the sidebar", async () => {
   await screenshot("browse-narrow-sidebar");
   assert(await evaluate(`document.documentElement.scrollWidth <= 760`), "page scrolls sideways");
   await setSize(1280, 800);
-// start in light mode no matter what the computer is set to. dark mode gets its own test.
 await cdp("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] });
 });
 
@@ -389,10 +385,8 @@ await test("community upload needs a file, name, description and rights confirma
   await evaluate(type("#up-description", "adds tiny hats to every player in private lobbies. demo upload."));
   await evaluate(click("#up-anonymous"));
   assert(await evaluate(`document.querySelector("#up-author").disabled`), "author field should lock when anonymous");
-  // the thumbnail is optional: pasting something that isn't an image shows an error
   await evaluate(`(() => { const dt = new DataTransfer(); dt.items.add(new File(["hello"], "notes.png", { type: "image/png" })); document.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true })); return true; })()`);
   await waitFor(`!document.querySelector("#up-thumbnail-error").hidden`, "bad image error");
-  // paste a wide "screenshot". it becomes a 16:9 thumbnail
   await evaluate(`(async () => {
     const c = document.createElement("canvas"); c.width = 1920; c.height = 1200;
     const g = c.getContext("2d"); const grad = g.createLinearGradient(0, 0, 1920, 1200); grad.addColorStop(0, "#2f9e6b"); grad.addColorStop(1, "#3b7fc4");
@@ -412,7 +406,6 @@ await test("community upload needs a file, name, description and rights confirma
   await waitFor(`document.querySelector(".detail-title")?.textContent === "E2E Tiny Hats"`, "uploaded mod page");
   assert(await evaluate(`document.querySelector(".byline").textContent.includes("Anonymous")`), "author should be Anonymous");
   await waitFor(`document.querySelector(".hero-media img")?.src.includes("/files/uploaded/") && document.querySelector(".hero-media img").naturalWidth === 960`, "uploaded thumbnail on the mod page");
-  // the ai's overview sits apart from the uploader's description, with a safety score
   assert(await evaluate(`document.querySelector(".ai-card #ai-title")?.textContent === "AI overview" && document.querySelector(".ai-overview").textContent.includes("BepInEx plugin")`), "ai overview missing");
   assert(await evaluate(`document.querySelector(".ai-score strong").textContent === "8" && document.querySelector(".ai-meter").getAttribute("aria-valuenow") === "8"`), "risk score missing");
   assert(await evaluate(`document.querySelector(".ai-pill")?.textContent === "No ban risk"`), "ban risk missing");
@@ -496,7 +489,6 @@ await test("main chat: send a message and see other people's messages arrive liv
   await evaluate(type("#chat-input", "hello everyone"));
   await evaluate(click(".chat-form button[type=submit]"));
   await waitFor(`[...document.querySelectorAll(".chat-msg")].some(m => m.textContent.includes("hello everyone") && m.textContent.includes("Cool Climber"))`, "own message");
-  // someone else talks from another computer
   const otherKey = "e".repeat(64);
   await evaluate(`fetch("/api/forum/me", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: "${otherKey}" }) }).then(() => fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: "${otherKey}", body: "hi! anyone got a hat mod?" }) }))`);
   await waitFor(`[...document.querySelectorAll(".chat-msg")].some(m => m.textContent.includes("anyone got a hat mod"))`, "live message from someone else", 8000);
@@ -514,7 +506,6 @@ await test("new mods show up on their own without reloading the list", async () 
   await evaluate(choose("#filter-sort", "newest"));
   await waitFor(`${rows}.length >= 10 && !document.querySelector(".skeleton-row")`, "newest list");
   const before = await evaluate(`${rows}.length`);
-  // mark a row: if the list were rebuilt, this mark would be gone
   await evaluate(`document.querySelectorAll(".mod-row")[2].dataset.kept = "yes"`);
   await evaluate(`(async () => {
     const form = new FormData();
@@ -530,7 +521,6 @@ await test("new mods show up on their own without reloading the list", async () 
   assert(await evaluate(`Boolean(document.querySelector('.mod-row[data-kept="yes"]'))`), "the list was rebuilt instead of updated");
   assert((await evaluate(`${rows}.length`)) === before + 1 || (await evaluate(`${rows}.length`)) === before, "row count is off");
   await screenshot("auto-refresh");
-  // nothing changed: a second check leaves the page alone
   await evaluate(`document.querySelector(".mod-row").dataset.kept = "top"`);
   await evaluate(`window.__branchRefresh()`);
   assert(await evaluate(`document.querySelector(".mod-row").dataset.kept === "top"`), "an unchanged list was redrawn");
@@ -545,7 +535,6 @@ await test("player tracker streams players in one at a time, with search and reg
   assert(!(await evaluate(`/cosmetic|platform/i.test(document.querySelector(".tk-feed").textContent)`)), "cosmetics or platform shown");
   await sleep(1500);
   await screenshot("tracker");
-  // the bot finds a new room with three players
   await evaluate(`fetch("/api/dev/tracker-card", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ room: "TEST1", region: "EU", players: [
     { name: "STREAMONE", id: "AAAA000000000001", color: [255, 0, 0] },
     { name: "STREAMTWO", id: "AAAA000000000002", color: [0, 255, 0] },
@@ -554,13 +543,34 @@ await test("player tracker streams players in one at a time, with search and reg
   assert(!(await evaluate(`document.querySelector(".tk-feed").textContent.includes("STREAMTHREE")`)), "the whole room arrived at once instead of one by one");
   await waitFor(`[...document.querySelectorAll(".tk-name")].slice(0, 3).map(n => n.textContent).join() === "STREAMTHREE,STREAMTWO,STREAMONE"`, "all three streamed in, newest on top", 6000);
   assert((await evaluate(`document.querySelectorAll(".tk-card").length`)) <= 50, "feed should keep at most 50 players");
-  assert(await evaluate(`document.querySelector(".tk-card .tk-room").textContent.includes("TEST1") && document.querySelector(".tk-card .tk-id code").textContent === "AAAA000000000003" && document.querySelector(".tk-card .tk-color").textContent === "color 0 0 9"`), "player card details");
+  assert(await evaluate(`document.querySelector(".tk-card .tk-room").textContent.includes("TEST1") && document.querySelector(".tk-card .tk-id code").textContent === "AAAA000000000003" && document.querySelector(".tk-card").textContent.includes("Color0 0 9")`), "player card details");
+  assert(await evaluate(`(() => { const t = new Date(document.querySelector(".tk-card time").getAttribute("datetime")).getTime(); return Date.now() - t < 15000; })()`), "the time should be when the player appeared, not when the bot found the room");
+  assert(await evaluate(`getComputedStyle(document.querySelector(".tk-card .tk-glyph")).maskImage.includes("branch-glyph")`), "branch icon missing on the color");
+  assert(!(await evaluate(`document.querySelector(".tracker-view").textContent.includes("coming up")`)), "coming up should be gone");
   await evaluate(type(".tk-search", "streamtwo"));
   await waitFor(`document.querySelectorAll(".tk-card").length === 1 && document.querySelector(".tk-name").textContent === "STREAMTWO"`, "search result");
   await evaluate(type(".tk-search", ""));
   await evaluate(clickText(".tk-filter", "EU"));
-  await waitFor(`document.querySelectorAll(".tk-card").length > 0 && [...document.querySelectorAll(".tk-card .tk-chip:not(.tk-room)")].every(c => c.textContent === "EU")`, "only EU players");
+  await waitFor(`document.querySelectorAll(".tk-card").length > 0 && [...document.querySelectorAll(".tk-card")].every(c => c.textContent.includes("RegionEU"))`, "only EU players");
   await evaluate(clickText(".tk-filter", "All regions"));
+});
+
+await test("ask branch answers with mod links and counts free messages", async () => {
+  await go(`${BASE}/#/ask`);
+  await waitFor(`document.querySelector(".as-meter-text")?.textContent.includes("25 of 25")`, "usage meter");
+  await screenshot("ask-empty");
+  await evaluate(clickText(".as-suggestion", "best cosmetic"));
+  await waitFor(`document.querySelector(".as-msg.user")?.textContent.includes("best cosmetic") && document.querySelector(".as-typing")`, "question and typing dots");
+  await waitFor(`document.querySelector(".as-msg.assistant .as-mod-link")`, "reply with a mod link", 8000);
+  assert(await evaluate(`document.querySelector(".as-msg.assistant table") !== null`), "tables should render");
+  assert(await evaluate(`document.querySelector(".as-meter-text").textContent.includes("24 of 25")`), "usage should go down by one");
+  await evaluate(type(".as-input", "who did the tracker find last?"));
+  await evaluate(click(".as-send"));
+  await waitFor(`document.querySelectorAll(".as-msg.assistant").length === 2 && document.querySelectorAll(".as-msg.assistant")[1].textContent.includes("room")`, "tracker answer", 8000);
+  await screenshot("ask-chat");
+  const href = await evaluate(`document.querySelector(".as-mod-link").getAttribute("href")`);
+  await evaluate(click(".as-mod-link"));
+  await waitFor(`location.hash === ${JSON.stringify(href)} && document.querySelector(".detail-title")`, "mod page from the chat link");
 });
 
 await test("tree of life draws every mod as a node, zooms, finds and opens mods", async () => {
@@ -573,14 +583,12 @@ await test("tree of life draws every mod as a node, zooms, finds and opens mods"
   assert(await evaluate(`document.querySelectorAll(".tree-chip").length >= 3`), "category legend missing");
   await sleep(3200);
   await screenshot("tree-small");
-  // a drawn canvas has solid pixels somewhere (the trunk)
   assert(await evaluate(`(() => { const c = document.querySelector(".tree-canvas"); const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; for (let i = 3; i < d.length; i += 4) if (d[i] > 200) return true; return false; })()`), "canvas is empty");
   await evaluate(type(".tree-search", "lantern"));
   await waitFor(`document.querySelector(".tree-results:not([hidden]) button")`, "search result");
   await evaluate(click(".tree-results button"));
   await sleep(700);
   await screenshot("tree-zoomed");
-  // the found mod is now in the middle: click it
   const box = await evaluate(`(() => { const r = document.querySelector(".tree-canvas").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
   await cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x, y: box.y });
   await cdp("Input.dispatchMouseEvent", { type: "mousePressed", x: box.x, y: box.y, button: "left", clickCount: 1 });
@@ -591,7 +599,6 @@ await test("tree of life draws every mod as a node, zooms, finds and opens mods"
   await evaluate(clickText(".tree-tools button", "View as list"));
   await waitFor(`document.querySelectorAll(".tree-list a").length === ${count}`, "list view with every mod");
   await evaluate(clickText(".tree-tools button", "View as tree"));
-  // a pretend big catalog, to see how the tree fills out
   await evaluate(`(() => { const cats = [["hats","Hats"],["movement","Movement"],["ui","Interface"],["maps","Maps"],["sounds","Sounds"],["cosmetics","Cosmetics"],["tools","Tools"],["fun","Fun"]]; const mods = []; for (let i = 0; i < 900; i++) { const c = cats[(i * 7 + (i % 5)) % cats.length]; const w = i % 9 === 0 ? null : c; mods.push({ slug: "m" + i, name: "Mod Number " + i, category_slug: w && w[0], category_name: w && w[1], downloads: i, community: i % 3 === 0 }); } window.__branchTree.setMods(mods); return true; })()`);
   await sleep(3200);
   await screenshot("tree-big");
@@ -599,8 +606,6 @@ await test("tree of life draws every mod as a node, zooms, finds and opens mods"
   await sleep(300);
   await screenshot("tree-big-zoom");
 });
-
-// ---------- admin panel ----------
 
 await test("admin login rejects a wrong password", async () => {
   await go(`${BASE}/admin`);
@@ -724,7 +729,6 @@ await test("rewards: reach 10 unique uploads, apply, get accepted, earn and get 
   await waitFor(`document.querySelector(".rw-big")`, "progress");
   await sleep(1200);
   await screenshot("rewards-progress");
-  // upload until this person has 10 unique mods (each file is different)
   await evaluate(`(async () => {
     const key = localStorage.getItem("branch.forumKey");
     for (let i = 0; i < 12; i++) {
@@ -739,7 +743,6 @@ await test("rewards: reach 10 unique uploads, apply, get accepted, earn and get 
       await fetch("/api/submissions", { method: "POST", body: form });
     }
   })()`);
-  // open another page first: going to the same address again wouldn't reload anything
   await go(`${BASE}/#/browse`);
   await go(`${BASE}/#/rewards`);
   await waitFor(`document.querySelector(".rw-big span")?.textContent === "10" && document.querySelector("#rw-username")`, "apply form after 10 uploads");
@@ -795,12 +798,10 @@ await test("admin sees and resolves the report", async () => {
   await waitFor(`!document.querySelector('.report') || document.querySelector('.card p')?.textContent.includes('no open reports')`, "resolved");
 });
 
-// ---------- done ----------
-
 ws.close();
 browser.kill();
 server.close();
-try { rmSync(profile, { recursive: true, force: true }); } catch { /* the browser may still hold files */ }
+try { rmSync(profile, { recursive: true, force: true }); } catch {}
 
 const failed = results.filter(([ok]) => !ok);
 console.log(`\n${results.length - failed.length} passed, ${failed.length} failed. screenshots: ${screens}`);

@@ -1,6 +1,3 @@
-// your community identity, without an account. the app makes a random secret key the
-// first time and keeps it on this computer. the server only stores a hash of it, and
-// gives you a random name you can change in settings.
 import { api } from "./platform.js";
 
 const KEY = "branch.forumKey";
@@ -21,7 +18,6 @@ export function forumKey() {
     }
     return key;
   } catch {
-    // storage blocked: a key that only lasts until the app closes
     cached = cached || { key: newKey() };
     return cached.key;
   }
@@ -45,12 +41,10 @@ export async function randomName() {
   return me;
 }
 
-// starts over with a brand new identity (and a new random name)
 export function resetIdentity() {
   try {
     localStorage.removeItem(KEY);
   } catch {
-    // nothing to clear
   }
   cached = null;
   me = null;
