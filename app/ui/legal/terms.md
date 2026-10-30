@@ -1,6 +1,6 @@
 # Terms of Use
 
-**Version 7** · Effective October 30, 2026
+**Version 8** · Effective October 30, 2026
 
 These Terms of Use (the "**Terms**") form a binding agreement between you and Drifted (the "**Operator**," "**we**," "**us**"), the operator of the Branch application, its server and related services (together, "**Branch**" or the "**Service**"). By selecting "Agree and continue," or by accessing or using the Service, you confirm that you have read, understood and agree to be bound by these Terms and by the Privacy Notice, which is incorporated by reference. If you do not agree, you must not access or use the Service.
 
@@ -75,6 +75,8 @@ You agree that you will not: (a) upload or distribute malicious code of any kind
 8.2 You must only submit files that you are entitled to share. By using the Mod Checker, you authorize the processing described in the Privacy Notice, including transmission of information extracted from the file to the Operator's artificial-intelligence provider.
 
 8.3 You must not rely on the Mod Checker as your sole means of protection.
+
+8.4 **Player Tracker (Beta).** The Player Tracker is a free beta feature that displays information about public Gorilla Tag rooms, including room codes, regions and player names, IDs and colors, as reported by a third-party Discord bot that the Operator does not control. It is provided "as is", may be delayed, incomplete or inaccurate, and may be changed or discontinued at any time. You use it at your own risk. You must not use it to harass, stalk, threaten or target any player.
 
 ## 9. Intellectual Property and Copyright Complaints
 

@@ -58,6 +58,27 @@ function demoSvg(n, label) {
 const images = new Map();
 const uploadedImages = new Map();
 
+// demo player tracker: 50 rooms found over the last 50 minutes, newest first
+const trackerCards = (() => {
+  const names = ["REM", "FOREST", "LOPE", "PANCAKE", "SUNRISE", "GORILLA", "ECHO", "MANGO", "PIXEL", "NOVA", "BANANA", "SHADOW", "TOAST", "RIVER", "COMET"];
+  const regions = ["US", "USW", "EU"];
+  let seed = 7;
+  const rand = (n) => { seed = (seed * 16807) % 2147483647; return seed % n; };
+  const hex = () => Array.from({ length: 16 }, () => "0123456789ABCDEF"[rand(16)]).join("");
+  const step = () => Math.round((rand(10) * 255) / 9);
+  return Array.from({ length: 50 }, (_, i) => {
+    const count = 3 + rand(7);
+    return {
+      id: `demo-card-${i}`,
+      room: Array.from({ length: 4 + rand(2) }, () => "ABCDEFGHJKLMNPQRSTUVWXYZ0123456789"[rand(34)]).join(""),
+      region: regions[rand(3)],
+      player_count: count,
+      players: Array.from({ length: count }, () => ({ name: `${names[rand(names.length)]}${rand(3) ? "" : rand(9999)}`, id: hex(), color: [step(), step(), step()] })),
+      seen_at: new Date(Date.now() - (i + 1) * 60_000).toISOString(),
+    };
+  });
+})();
+
 function demoFile(seed, size) {
   const buf = Buffer.alloc(size);
   buf.write("MZ", 0, "ascii");
@@ -457,6 +478,13 @@ async function adminApi(req, res, path, url) {
 async function publicApi(req, res, path, url) {
   if (path === "/api/meta") {
     return send(res, 200, { categories: categories.map((c) => ({ ...c, mod_count: mods.filter((m) => m.status === "published" && m.category?.id === c.id).length })), compatibility: COMPATIBILITY, platforms: PLATFORMS, report_reasons: REASONS });
+  }
+  if (path === "/api/tracker") return send(res, 200, { status: "live", checked_at: new Date().toISOString(), cards: trackerCards.slice(0, 50) });
+  // demo only: pretend the bot just found a room
+  if (path === "/api/dev/tracker-card" && req.method === "POST") {
+    const body = await json(req);
+    trackerCards.unshift({ id: `card-${randomUUID()}`, room: body.room, region: body.region || "US", player_count: body.players.length, players: body.players, seen_at: new Date().toISOString() });
+    return send(res, 201, { ok: true });
   }
   if (path === "/api/tree") {
     const list = mods.filter((m) => m.status === "published").sort((a, b) => String(a.published_at || a.created_at).localeCompare(String(b.published_at || b.created_at)));

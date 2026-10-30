@@ -31,6 +31,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/reports", post(public::create_report))
         .route("/api/requests", post(public::create_request))
         .route("/api/check/usage", get(public::check_usage))
+        .route("/api/tracker", get(crate::tracker::feed))
         .route("/api/submissions", post(public::create_submission).layer(DefaultBodyLimit::max(crate::scan::MAX_CHECK_BYTES + crate::uploads::MAX_IMAGE_BYTES + 128 * 1024)))
         .route("/api/check", post(public::check_mod).layer(DefaultBodyLimit::max(crate::scan::MAX_CHECK_BYTES + 64 * 1024)))
         .route("/files/{*key}", get(public::file));

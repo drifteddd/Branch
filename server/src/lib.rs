@@ -10,6 +10,7 @@ pub mod routes;
 pub mod scan;
 pub mod state;
 pub mod storage;
+pub mod tracker;
 pub mod uploads;
 pub mod util;
 
@@ -61,6 +62,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
     let port = config.port;
     let state = build_state(config).await?;
     spawn_cleanup(state.clone());
+    tracker::spawn(state.clone());
 
     let app = routes::router(state);
     // listening on [::] accepts ipv4 and ipv6, which railway's private network needs

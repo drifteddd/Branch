@@ -18,6 +18,7 @@ const NEW_PASSWORD: &str = "a much longer new passphrase";
 struct Client {
     app: Router,
     cookie: Option<String>,
+    db: sqlx::PgPool,
 }
 
 struct Reply {
@@ -144,7 +145,8 @@ async fn setup() -> Option<Client> {
         ai_daily_global: 10,
     };
     let state = branch_server::build_state(config).await.unwrap();
-    Some(Client { app: branch_server::routes::router(state), cookie: None })
+    let db = state.db.clone();
+    Some(Client { app: branch_server::routes::router(state), cookie: None, db })
 }
 
 // one long test, because every step builds on the one before it
@@ -159,6 +161,29 @@ async fn full_flow() {
     assert_eq!(r.status, StatusCode::OK);
     assert_eq!(r.json["categories"].as_array().unwrap().len(), 5, "starter categories from the migration");
     let category_id = r.json["categories"][0]["id"].as_str().unwrap().to_string();
+
+    // ---- player tracker: the newest 50 room cards, without cosmetics ----
+    let r = c.get("/api/tracker").await;
+    assert_eq!(r.status, StatusCode::OK);
+    assert_eq!(r.json["cards"].as_array().unwrap().len(), 0);
+    let start = chrono::Utc::now() - chrono::Duration::minutes(60);
+    let cards: Vec<branch_server::tracker::Card> = (0..52)
+        .map(|i| branch_server::tracker::Card {
+            message_id: format!("m{i}"),
+            room: format!("R{i}"),
+            region: "EU".into(),
+            player_count: 1,
+            players: vec![branch_server::tracker::Player { name: format!("PLAYER{i}"), id: format!("ABC{i}"), color: [142, 255, 0] }],
+            posted_at: start + chrono::Duration::minutes(i),
+        })
+        .collect();
+    branch_server::tracker::save_cards(&c.db, &cards).await.unwrap();
+    branch_server::tracker::save_cards(&c.db, &cards[..3]).await.unwrap();
+    let r = c.get("/api/tracker").await;
+    let shown = r.json["cards"].as_array().unwrap();
+    assert_eq!(shown.len(), 50, "only the newest 50 are kept, and repeats aren't added twice");
+    assert_eq!(shown[0]["room"], "R51", "newest first");
+    assert_eq!(shown[0]["players"][0], json!({ "name": "PLAYER51", "id": "ABC51", "color": [142, 255, 0] }));
 
     // ---- admin routes are locked ----
     let r = c.get("/api/admin/mods").await;

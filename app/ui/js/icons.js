@@ -30,6 +30,7 @@ export const ICONS = {
   code: '<path d="M9 7.5 4.5 12 9 16.5M15 7.5l4.5 4.5-4.5 4.5"/>',
   tree: '<path d="M11 21c0-6 .5-10 2.5-15"/><path d="M11.4 15 6.5 11.5M12.2 10.5l4.8-2.5M11.7 13l5 1.5"/><circle cx="5.5" cy="10.8" r="1.4"/><circle cx="18" cy="7.5" r="1.4"/><circle cx="17.8" cy="14.8" r="1.4"/><circle cx="13.8" cy="4.5" r="1.4"/>',
   image: '<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="m4 17 4.5-4.5 3.5 3.5 2.5-2.5L20 18"/>',
+  radar: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><path d="M12 12l5.5-5.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
 };
 

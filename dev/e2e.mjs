@@ -537,6 +537,32 @@ await test("new mods show up on their own without reloading the list", async () 
   await evaluate(choose("#filter-sort", "updated"));
 });
 
+await test("player tracker streams players in one at a time, with search and region filters", async () => {
+  await setSize(1280, 820);
+  await go(`${BASE}/#/tracker`);
+  await evaluate(`window.__branchTrackerDelay = 500`);
+  await waitFor(`document.querySelector(".tk-status.live") && document.querySelectorAll(".tk-card").length >= 40`, "tracker feed filled");
+  assert(!(await evaluate(`/cosmetic|platform/i.test(document.querySelector(".tk-feed").textContent)`)), "cosmetics or platform shown");
+  await sleep(1500);
+  await screenshot("tracker");
+  // the bot finds a new room with three players
+  await evaluate(`fetch("/api/dev/tracker-card", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ room: "TEST1", region: "EU", players: [
+    { name: "STREAMONE", id: "AAAA000000000001", color: [255, 0, 0] },
+    { name: "STREAMTWO", id: "AAAA000000000002", color: [0, 255, 0] },
+    { name: "STREAMTHREE", id: "AAAA000000000003", color: [0, 0, 255] } ] }) })`);
+  await waitFor(`document.querySelector(".tk-name")?.textContent === "STREAMONE"`, "first new player at the top", 12000);
+  assert(!(await evaluate(`document.querySelector(".tk-feed").textContent.includes("STREAMTHREE")`)), "the whole room arrived at once instead of one by one");
+  await waitFor(`[...document.querySelectorAll(".tk-name")].slice(0, 3).map(n => n.textContent).join() === "STREAMTHREE,STREAMTWO,STREAMONE"`, "all three streamed in, newest on top", 6000);
+  assert((await evaluate(`document.querySelectorAll(".tk-card").length`)) <= 50, "feed should keep at most 50 players");
+  assert(await evaluate(`document.querySelector(".tk-card .tk-room").textContent.includes("TEST1") && document.querySelector(".tk-card .tk-id code").textContent === "AAAA000000000003" && document.querySelector(".tk-card .tk-color").textContent === "color 0 0 9"`), "player card details");
+  await evaluate(type(".tk-search", "streamtwo"));
+  await waitFor(`document.querySelectorAll(".tk-card").length === 1 && document.querySelector(".tk-name").textContent === "STREAMTWO"`, "search result");
+  await evaluate(type(".tk-search", ""));
+  await evaluate(clickText(".tk-filter", "EU"));
+  await waitFor(`document.querySelectorAll(".tk-card").length > 0 && [...document.querySelectorAll(".tk-card .tk-chip:not(.tk-room)")].every(c => c.textContent === "EU")`, "only EU players");
+  await evaluate(clickText(".tk-filter", "All regions"));
+});
+
 await test("tree of life draws every mod as a node, zooms, finds and opens mods", async () => {
   await setSize(1280, 820);
   await go(`${BASE}/#/tree`);
