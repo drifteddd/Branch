@@ -832,3 +832,8 @@
 .thumb-side { display: grid; gap: 6px; }
 .thumb-actions { display: flex; gap: 6px; }
 .thumb-actions:empty { display: none; }
+/* a mod that just arrived through the auto refresh */
+.mod-row.row-new { animation: row-new 2.4s var(--ease); }
+@keyframes row-new { 0%, 35% { background: var(--ok-soft); } 100% { background: transparent; } }
+@media (prefers-reduced-motion: reduce) { .mod-row.row-new { animation: none; } }
+:root[data-motion="reduce"] .mod-row.row-new { animation: none; }

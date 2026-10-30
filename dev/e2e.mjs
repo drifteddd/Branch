@@ -499,6 +499,34 @@ await test("clicking the about icon 7 times opens the admin panel", async () => 
   await evaluate(`for (let i = 0; i < 7; i++) document.querySelector(".about-icon").click()`);
   await waitFor(`[...document.querySelectorAll(".toast")].some(t => t.textContent.includes("admin panel"))`, "admin toast");
 });
+await test("new mods show up on their own without reloading the list", async () => {
+  await go(`${BASE}/#/browse`);
+  await evaluate(choose("#filter-sort", "newest"));
+  await waitFor(`${rows}.length >= 10 && !document.querySelector(".skeleton-row")`, "newest list");
+  const before = await evaluate(`${rows}.length`);
+  // mark a row: if the list were rebuilt, this mark would be gone
+  await evaluate(`document.querySelectorAll(".mod-row")[2].dataset.kept = "yes"`);
+  await evaluate(`(async () => {
+    const form = new FormData();
+    form.append("name", "Fresh Live Mod");
+    form.append("description", "a mod uploaded by someone else while this app was open.");
+    form.append("confirm", "true");
+    form.append("file", new Blob(["MZ fresh live mod " + Math.random()]), "fresh.dll");
+    await fetch("/api/submissions", { method: "POST", body: form });
+  })()`);
+  await evaluate(`window.__branchRefresh()`);
+  await waitFor(`${rowNames}[0] === "Fresh Live Mod"`, "new mod at the top", 8000);
+  assert(await evaluate(`document.querySelector(".mod-row").classList.contains("row-new")`), "new row isn't highlighted");
+  assert(await evaluate(`Boolean(document.querySelector('.mod-row[data-kept="yes"]'))`), "the list was rebuilt instead of updated");
+  assert((await evaluate(`${rows}.length`)) === before + 1 || (await evaluate(`${rows}.length`)) === before, "row count is off");
+  await screenshot("auto-refresh");
+  // nothing changed: a second check leaves the page alone
+  await evaluate(`document.querySelector(".mod-row").dataset.kept = "top"`);
+  await evaluate(`window.__branchRefresh()`);
+  assert(await evaluate(`document.querySelector(".mod-row").dataset.kept === "top"`), "an unchanged list was redrawn");
+  await evaluate(choose("#filter-sort", "updated"));
+});
+
 await test("tree of life draws every mod as a node, zooms, finds and opens mods", async () => {
   await setSize(1280, 820);
   await go(`${BASE}/#/tree`);
@@ -616,9 +644,9 @@ await test("admin sees every mod, filters community uploads and removes one", as
   await go(`${BASE}/admin#/mods`);
   await waitFor(`document.querySelector(".page-head h1")?.textContent === "All mods"`, "all mods list");
   await evaluate(choose(".toolbar-row select:nth-of-type(2)", "community"));
-  await waitFor(`document.querySelectorAll("tbody tr").length === 1 && document.querySelector("tbody").textContent.includes("E2E Tiny Hats")`, "only the community upload");
+  await waitFor(`document.querySelector("tbody")?.textContent.includes("E2E Tiny Hats") && !document.querySelector("tbody").textContent.includes("Lantern Trail")`, "only community uploads");
   await screenshot("admin-all-mods");
-  await evaluate(clickText("tbody .row-actions button", "Remove"));
+  await evaluate(`[...document.querySelectorAll("tbody tr")].find(r => r.textContent.includes("E2E Tiny Hats")).querySelector(".row-actions button:last-child").click()`);
   await waitFor(`document.querySelector("dialog[open]")`, "confirm");
   await evaluate(clickText("dialog[open] button", "Remove forever"));
   await waitFor(`!document.querySelector("tbody") || !document.querySelector("tbody").textContent.includes("E2E Tiny Hats")`, "removed");

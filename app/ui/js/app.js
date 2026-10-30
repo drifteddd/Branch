@@ -166,6 +166,39 @@ async function loadMeta() {
   }
 }
 
+// ---------- staying up to date ----------
+
+// every 30 seconds the app quietly checks for new mods, so people who leave Branch
+// open still see what was just added. nothing flashes or jumps while it does.
+const REFRESH_EVERY = 30_000;
+let lastRefresh = Date.now();
+
+async function refreshEverything() {
+  if (document.hidden) return; // minimized: catch up when the window comes back
+  lastRefresh = Date.now();
+  try {
+    const meta = await api("/api/meta");
+    if (JSON.stringify(meta) !== JSON.stringify(ctx.meta)) {
+      ctx.meta = meta;
+      renderCategories();
+      views.browse.metaChanged();
+    }
+  } catch {
+    return; // offline for a moment. try again next time
+  }
+  await views.browse.quietRefresh();
+  if (currentView === views.tree) await views.tree.poll();
+}
+
+function startAutoRefresh() {
+  setInterval(refreshEverything, REFRESH_EVERY);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && Date.now() - lastRefresh > REFRESH_EVERY) refreshEverything();
+  });
+  // the browser preview can trigger a check right away, for testing
+  if (!isDesktop) window.__branchRefresh = refreshEverything;
+}
+
 // ---------- theme ----------
 
 function applyTheme(theme) {
@@ -330,6 +363,7 @@ async function start() {
   if (!currentRoute) route();
   if (!ctx.meta) loadMeta();
   else views.browse.metaChanged();
+  startAutoRefresh();
 }
 
 start();

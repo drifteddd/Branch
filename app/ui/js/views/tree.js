@@ -411,10 +411,15 @@ export function createTreeView() {
     requestAnimationFrame(step);
   }
 
-  function setMods(mods) {
+  // the mods last drawn, so a refresh only redraws when something changed
+  let drawnFrom = "";
+
+  function setMods(mods, { quiet = false } = {}) {
+    drawnFrom = JSON.stringify(mods);
+    const focusedSlug = quiet ? focused?.mod.slug : null;
     tree = buildTree(mods);
     hovered = null;
-    focused = null;
+    focused = focusedSlug ? tree.nodes.find((n) => n.mod.slug === focusedSlug) || null : null;
     const branches = tree.segments.length - 1;
     stats.textContent = `${mods.length} ${mods.length === 1 ? "mod" : "mods"} · ${tree.categories.length} ${tree.categories.length === 1 ? "limb" : "limbs"} · ${branches} ${branches === 1 ? "branch" : "branches"}`;
     clear(legend).append(
@@ -436,8 +441,25 @@ export function createTreeView() {
       ? "the tree is just a sapling for now. it grows a new node for every mod added to Branch"
       : "scroll to zoom · drag to move · click a node to open the mod";
     resize();
+    if (quiet) {
+      // new mods just appear. the camera stays where the person left it
+      growth = tree.maxOrder;
+      requestDraw();
+      return;
+    }
     fitAll(false);
     grow();
+  }
+
+  // called every so often by the app: grows the tree if mods were added
+  async function poll() {
+    if (!tree || !el.isConnected) return;
+    try {
+      const data = await api("/api/tree");
+      if (JSON.stringify(data.mods) !== drawnFrom) setMods(data.mods, { quiet: true });
+    } catch {
+      // try again next time
+    }
   }
 
   function resize() {
@@ -520,6 +542,7 @@ export function createTreeView() {
     el,
     title: () => "Tree of Life",
     show() { render(); return 0; },
+    poll,
     hide() { resizeObserver?.disconnect(); },
   };
 }

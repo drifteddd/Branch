@@ -121,6 +121,82 @@ export function createBrowseView(ctx) {
     return null;
   }
 
+  function listUrl(pageNumber, slugs) {
+    const params = new URLSearchParams();
+    if (state.q) params.set("q", state.q);
+    if (state.category) params.set("category", state.category);
+    if (state.compat) params.set("compat", state.compat);
+    params.set("sort", state.mode === "recent" ? "updated" : state.sort);
+    if (state.mode === "featured") params.set("featured", "true");
+    if (slugs) params.set("slugs", slugs.join(","));
+    params.set("page", String(pageNumber));
+    params.set("per_page", String(state.mode === "recent" ? 30 : PAGE_SIZE));
+    return `/api/mods?${params}`;
+  }
+
+  // recently viewed keeps the order you opened things in
+  function ordered(batch, slugs) {
+    if (state.mode !== "recent") return batch;
+    const order = new Map(slugs.map((s, i) => [s, i]));
+    return [...batch].sort((a, b) => order.get(a.slug) - order.get(b.slug));
+  }
+
+  // checks for new or changed mods without blanking the list. rows that didn't change
+  // stay exactly where they are, so your scroll spot and keyboard focus are kept.
+  async function quietRefresh() {
+    if (loading || loadedKey !== currentKey()) return;
+    const slugs = slugsForMode();
+    if (slugs && slugs.length === 0) return;
+    if (page > 5) return; // far down a long list: don't reshuffle under the reader
+    const id = requestId;
+    const fresh = [];
+    let last = null;
+    try {
+      for (let p = 1; p <= Math.max(1, page); p++) {
+        last = await api(listUrl(p, slugs));
+        fresh.push(...ordered(last.items, slugs));
+        if (!last.has_more) break;
+      }
+    } catch {
+      return; // offline for a moment. the next check will try again
+    }
+    if (id !== requestId || loading || loadedKey !== currentKey()) return;
+    if (fresh.length && !items.length) {
+      // the list was empty (like "no mods yet") and now there's something to show
+      load(true);
+      return;
+    }
+    if (last.total === total && JSON.stringify(fresh) === JSON.stringify(items)) return;
+
+    const before = new Map([...list.querySelectorAll(".mod-row")].map((row) => [row.dataset.slug, row]));
+    const focusedSlug = document.activeElement?.closest?.(".mod-row")?.dataset.slug;
+    const rows = fresh.map((mod) => {
+      const old = before.get(mod.slug);
+      if (old && old.signature === JSON.stringify(mod)) return old;
+      const row = renderRow(mod);
+      if (!old) row.classList.add("row-new");
+      return row;
+    });
+    // move rows into place one by one instead of replacing the list
+    let cursor = list.firstChild;
+    for (const row of rows) {
+      if (row === cursor) cursor = cursor.nextSibling;
+      else list.insertBefore(row, cursor);
+    }
+    while (cursor) {
+      const next = cursor.nextSibling;
+      cursor.remove();
+      cursor = next;
+    }
+    if (focusedSlug) list.querySelector(`.mod-row[data-slug="${CSS.escape(focusedSlug)}"] .row-link`)?.focus({ preventScroll: true });
+    items = fresh;
+    total = last.total;
+    hasMore = last.has_more;
+    renderFooter();
+    renderCount();
+    if (!items.length) renderEmpty();
+  }
+
   async function load(reset) {
     if (loading && !reset) return;
     const id = ++requestId;
@@ -150,27 +226,13 @@ export function createBrowseView(ctx) {
       return;
     }
 
-    const params = new URLSearchParams();
-    if (state.q) params.set("q", state.q);
-    if (state.category) params.set("category", state.category);
-    if (state.compat) params.set("compat", state.compat);
-    params.set("sort", state.mode === "recent" ? "updated" : state.sort);
-    if (state.mode === "featured") params.set("featured", "true");
-    if (slugs) params.set("slugs", slugs.join(","));
-    params.set("page", String(page + 1));
-    params.set("per_page", String(state.mode === "recent" ? 30 : PAGE_SIZE));
-
     try {
-      const data = await api(`/api/mods?${params}`);
+      const data = await api(listUrl(page + 1, slugs));
       if (id !== requestId) return; // a newer search already started
       page = data.page;
       hasMore = data.has_more;
       total = data.total;
-      let batch = data.items;
-      if (state.mode === "recent") {
-        const order = new Map(slugs.map((s, i) => [s, i]));
-        batch = [...batch].sort((a, b) => order.get(a.slug) - order.get(b.slug));
-      }
+      const batch = ordered(data.items, slugs);
       if (reset) clear(list);
       items.push(...batch);
       list.append(...batch.map(renderRow));
@@ -260,7 +322,7 @@ export function createBrowseView(ctx) {
 
     const meta = [`by ${mod.author || "unknown author"}`, mod.category?.name, mod.last_updated ? `Updated ${formatDate(mod.last_updated)}` : null].filter(Boolean);
 
-    return h(
+    const row = h(
       "li",
       { class: "mod-row", dataset: { slug: mod.slug } },
       thumbnail(mod.thumbnail_url),
@@ -281,6 +343,9 @@ export function createBrowseView(ctx) {
       h("div", { class: "row-side" }, compatBadge(mod.compatibility, ctx.meta)),
       star,
     );
+    // lets the quiet refresh tell whether this row is still up to date
+    row.signature = JSON.stringify(mod);
+    return row;
   }
 
   // keep stars in sync when a favorite changes somewhere else (like the mod page)
@@ -335,6 +400,7 @@ export function createBrowseView(ctx) {
       savedScroll = scrollTop;
     },
     refresh,
+    quietRefresh,
     metaChanged: fillFilterOptions,
     invalidate() {
       loadedKey = null;

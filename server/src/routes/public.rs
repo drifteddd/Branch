@@ -223,7 +223,7 @@ pub async fn tree(State(state): State<AppState>) -> ApiResult<Response> {
     )
     .fetch_all(&state.db)
     .await?;
-    Ok(([(header::CACHE_CONTROL, "public, max-age=60")], Json(json!({ "mods": nodes }))).into_response())
+    Ok(([(header::CACHE_CONTROL, "public, max-age=15")], Json(json!({ "mods": nodes }))).into_response())
 }
 
 pub async fn mod_detail(State(state): State<AppState>, Path(slug): Path<String>) -> ApiResult<Json<ModDetail>> {
