@@ -13,9 +13,13 @@ function seen() {
 
 export function showStoryOnce() {
   if (seen()) return Promise.resolve();
+  return showStory();
+}
+
+export function showStory({ again = false } = {}) {
   return new Promise((resolve) => {
     const point = (iconName, title, text) => h("li", null, h("span", { class: "story-icon" }, icon(iconName)), h("div", null, h("strong", null, title), h("p", null, text)));
-    const go = h("button", { class: "btn btn-primary btn-large", type: "button" }, "Let's go");
+    const go = h("button", { class: "btn btn-primary btn-large", type: "button" }, again ? "Close" : "Let's go");
     const dialog = h(
       "dialog",
       { class: "sheet story-sheet", "aria-labelledby": "story-title" },

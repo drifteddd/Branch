@@ -2,6 +2,7 @@ import { h, clear } from "../dom.js";
 import { icon } from "../icons.js";
 import { renderMarkdown } from "../../shared/markdown.js";
 import { appVersion, assetUrl, isDesktop, openExternal } from "../platform.js";
+import { showStory } from "../story.js";
 
 function adminDoor() {
   const img = h("img", { src: "shared/branch-mark.svg", alt: "", width: "88", height: "88", class: "about-icon" });
@@ -132,6 +133,7 @@ export function createAboutView(ctx) {
       h("h1", { class: "view-title", id: "about-title" }, "Branch"),
       h("p", { class: "muted" }, "Version ", version),
       h("p", { class: "made-by" }, "made by Drifted"),
+      h("button", { class: "btn about-story", type: "button", onclick: () => showStory({ again: true }) }, icon("info"), "Why I made Branch"),
     ),
     group(
       null,

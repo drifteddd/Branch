@@ -338,6 +338,10 @@ await test("dark mode setting applies and persists", async () => {
 await test("about and legal pages open", async () => {
   await go(`${BASE}/#/about`);
   await waitFor(`document.querySelector('.made-by')?.textContent === 'made by Drifted'`, "about page");
+  await evaluate(clickText(".about-story", "Why I made Branch"));
+  await waitFor(`document.querySelector("dialog.story-sheet[open]")?.textContent.includes("ii engine")`, "story from the about page");
+  await evaluate(`[...document.querySelectorAll("dialog.story-sheet button")].find(b => b.textContent === "Close").click()`);
+  await waitFor(`!document.querySelector("dialog.story-sheet")`, "story closed");
   await evaluate(clickText(".link-row", "Privacy Notice"));
   await waitFor(`document.querySelector('.legal-doc h3')?.textContent === 'Privacy Notice'`, "privacy page");
 });
