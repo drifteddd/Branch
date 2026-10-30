@@ -389,12 +389,28 @@ await test("community upload needs a file, name, description and rights confirma
   await evaluate(type("#up-description", "adds tiny hats to every player in private lobbies. demo upload."));
   await evaluate(click("#up-anonymous"));
   assert(await evaluate(`document.querySelector("#up-author").disabled`), "author field should lock when anonymous");
+  // the thumbnail is optional: pasting something that isn't an image shows an error
+  await evaluate(`(() => { const dt = new DataTransfer(); dt.items.add(new File(["hello"], "notes.png", { type: "image/png" })); document.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true })); return true; })()`);
+  await waitFor(`!document.querySelector("#up-thumbnail-error").hidden`, "bad image error");
+  // paste a wide "screenshot". it becomes a 16:9 thumbnail
+  await evaluate(`(async () => {
+    const c = document.createElement("canvas"); c.width = 1920; c.height = 1200;
+    const g = c.getContext("2d"); const grad = g.createLinearGradient(0, 0, 1920, 1200); grad.addColorStop(0, "#2f9e6b"); grad.addColorStop(1, "#3b7fc4");
+    g.fillStyle = grad; g.fillRect(0, 0, 1920, 1200); g.fillStyle = "#fff"; g.font = "bold 120px sans-serif"; g.fillText("tiny hats", 640, 640);
+    const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+    const dt = new DataTransfer(); dt.items.add(new File([blob], "screenshot.png", { type: "image/png" }));
+    document.dispatchEvent(new ClipboardEvent("paste", { clipboardData: dt, bubbles: true }));
+    return true;
+  })()`);
+  await waitFor(`document.querySelector(".thumb-preview")?.complete && !document.querySelector(".thumb-preview").hidden && document.querySelector(".thumb-preview").naturalWidth === 960 && document.querySelector(".thumb-preview").naturalHeight === 540`, "16:9 thumbnail preview");
+  assert(await evaluate(`document.querySelector("#up-thumbnail-error").hidden`), "error should clear after a good image");
   await screenshot("upload");
   await evaluate(click(".form-card button[type=submit]"));
   await waitFor(`document.querySelector(".state-block h2")?.textContent === "Your mod is live"`, "upload done", 8000);
   await evaluate(clickText(".state-block a", "View your mod"));
   await waitFor(`document.querySelector(".detail-title")?.textContent === "E2E Tiny Hats"`, "uploaded mod page");
   assert(await evaluate(`document.querySelector(".byline").textContent.includes("Anonymous")`), "author should be Anonymous");
+  await waitFor(`document.querySelector(".hero-media img")?.src.includes("/files/uploaded/") && document.querySelector(".hero-media img").naturalWidth === 960`, "uploaded thumbnail on the mod page");
   assert(await evaluate(`document.querySelector(".detail-warnings").textContent.includes("Community upload")`), "community note missing");
   await go(`${BASE}/#/browse`);
   await waitFor(`[...document.querySelectorAll(".mod-row")].some(r => r.textContent.includes("E2E Tiny Hats") && r.textContent.includes("Community"))`, "community badge in the list");

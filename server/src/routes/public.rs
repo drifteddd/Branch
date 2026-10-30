@@ -706,6 +706,7 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
     }
 
     let mut file: Option<(String, bytes::Bytes)> = None;
+    let mut thumbnail: Option<bytes::Bytes> = None;
     let mut fields: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     loop {
         let field = match multipart.next_field().await {
@@ -714,7 +715,15 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
             Err(_) => return Err(AppError::new(StatusCode::PAYLOAD_TOO_LARGE, "too_large", "the upload was cut off or is bigger than 50 MB")),
         };
         let name = field.name().unwrap_or("").to_string();
-        if name == "file" {
+        if name == "thumbnail" {
+            let data = field.bytes().await.map_err(|_| AppError::field("thumbnail", "the thumbnail is too big or the upload was cut off"))?;
+            if data.len() > crate::uploads::MAX_IMAGE_BYTES {
+                return Err(AppError::field("thumbnail", "thumbnails can be up to 8 MB"));
+            }
+            if !data.is_empty() {
+                thumbnail = Some(data);
+            }
+        } else if name == "file" {
             let file_name = field.file_name().unwrap_or("mod.dll").to_string();
             let data = field
                 .bytes()
@@ -764,6 +773,18 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
         id
     };
     errors.finish()?;
+
+    // the thumbnail is optional. it's checked first because it's quick, then re-encoded
+    // (which also strips hidden info like location) before it's stored
+    let thumbnail = match thumbnail {
+        Some(data) => Some(
+            tokio::task::spawn_blocking(move || crate::uploads::process_image(&data, crate::uploads::ImageKind::Thumbnail))
+                .await
+                .map_err(AppError::internal)?
+                .map_err(|message| AppError::field("thumbnail", &message))?,
+        ),
+        None => None,
+    };
 
     let (original_name, data) = file.expect("checked above");
     let data = data.to_vec();
@@ -832,13 +853,25 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
         let _ = sqlx::query("delete from mods where id = $1").bind(mod_id).execute(&state.db).await;
         return Err(err.into());
     }
+    let thumbnail_key = match thumbnail {
+        Some(image) => {
+            let image_key = format!("images/{}.{}", Uuid::new_v4(), image.ext);
+            if let Err(err) = crate::storage::put(state.store.as_ref(), &image_key, image.bytes).await {
+                crate::storage::delete_quietly(state.store.as_ref(), &key).await;
+                let _ = sqlx::query("delete from mods where id = $1").bind(mod_id).execute(&state.db).await;
+                return Err(err.into());
+            }
+            Some(image_key)
+        }
+        None => None,
+    };
 
     let saved: Result<String, sqlx::Error> = async {
         let slug: String = sqlx::query_scalar(
             "update mods set summary = $1, description = $2, category_id = $3, status = 'published', published_at = now(),
                 source = 'community', uploader = $4, redistribution = 'allowed',
                 redistribution_note = 'the uploader confirmed that they made this mod or have permission to share it.',
-                import_info = $5, code_fingerprint = $7, unique_status = 'unique', uploader_poster = $8
+                import_info = $5, code_fingerprint = $7, unique_status = 'unique', uploader_poster = $8, thumbnail_key = $9
              where id = $6 returning slug",
         )
         .bind(first_sentence(&description))
@@ -849,6 +882,7 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
         .bind(mod_id)
         .bind(&fingerprint)
         .bind(poster_id)
+        .bind(&thumbnail_key)
         .fetch_one(&state.db)
         .await?;
         sqlx::query(
@@ -891,6 +925,9 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
         }
         Err(err) => {
             crate::storage::delete_quietly(state.store.as_ref(), &key).await;
+            if let Some(image_key) = &thumbnail_key {
+                crate::storage::delete_quietly(state.store.as_ref(), image_key).await;
+            }
             let _ = sqlx::query("delete from mods where id = $1").bind(mod_id).execute(&state.db).await;
             Err(err.into())
         }

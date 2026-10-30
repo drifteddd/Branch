@@ -69,13 +69,19 @@ impl Client {
     }
 
     async fn form(&mut self, path: &str, fields: &[(&str, &str)], file: Option<(&str, &[u8])>) -> Reply {
+        let files: Vec<(&str, &str, &[u8])> = file.map(|(file_name, data)| ("file", file_name, data)).into_iter().collect();
+        self.form_files(path, fields, &files).await
+    }
+
+    /// a form with any number of files, each as (field, file name, bytes)
+    async fn form_files(&mut self, path: &str, fields: &[(&str, &str)], files: &[(&str, &str, &[u8])]) -> Reply {
         let boundary = "branchformboundary";
         let mut body = Vec::new();
         for (name, value) in fields {
             body.extend_from_slice(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n").as_bytes());
         }
-        if let Some((file_name, data)) = file {
-            body.extend_from_slice(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{file_name}\"\r\nContent-Type: application/octet-stream\r\n\r\n").as_bytes());
+        for (field, file_name, data) in files {
+            body.extend_from_slice(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"{field}\"; filename=\"{file_name}\"\r\nContent-Type: application/octet-stream\r\n\r\n").as_bytes());
             body.extend_from_slice(data);
             body.extend_from_slice(b"\r\n");
         }
@@ -421,11 +427,19 @@ async fn full_flow() {
     assert!(r.json["fields"]["file"].as_str().unwrap().contains("safety check"));
     // uploads from the app carry the person's community key, so they count toward rewards
     let member_key = "f00d".repeat(16);
-    let r = c.form("/api/submissions", &[("name", "Tiny Hats"), ("description", description), ("anonymous", "true"), ("author", "should be hidden"), ("confirm", "true"), ("key", member_key.as_str())], Some(("TinyHats_v2.1.dll", &b"MZ BepInEx hats"[..]))).await;
+    let upload_fields = [("name", "Tiny Hats"), ("description", description), ("anonymous", "true"), ("author", "should be hidden"), ("confirm", "true"), ("key", member_key.as_str())];
+    // the thumbnail is optional, but a broken one is turned away
+    let r = c.form_files("/api/submissions", &upload_fields, &[("file", "TinyHats_v2.1.dll", &b"MZ BepInEx hats"[..]), ("thumbnail", "thumb.png", &b"not really a png"[..])]).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "{}", r.json);
+    assert!(r.json["fields"]["thumbnail"].is_string(), "{}", r.json);
+    let thumb = png_bytes();
+    let r = c.form_files("/api/submissions", &upload_fields, &[("file", "TinyHats_v2.1.dll", &b"MZ BepInEx hats"[..]), ("thumbnail", "thumb.png", &thumb[..])]).await;
     assert_eq!(r.status, StatusCode::CREATED, "{}", r.json);
     let slug = r.json["slug"].as_str().unwrap().to_string();
     let r = c.get(&format!("/api/mods/{slug}")).await;
     assert_eq!(r.status, StatusCode::OK, "community uploads go live right away");
+    let thumbnail_url = r.json["thumbnail_url"].as_str().expect("the uploaded thumbnail is on the mod").to_string();
+    assert_eq!(c.get(&thumbnail_url).await.status, StatusCode::OK);
     assert_eq!(r.json["author"]["name"], "Anonymous");
     assert_eq!(r.json["community"], true);
     assert_eq!(r.json["releases"][0]["version"], "2.1");

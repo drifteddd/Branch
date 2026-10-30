@@ -56,6 +56,7 @@ function demoSvg(n, label) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="hsl(${hue},45%,42%)"/><stop offset="1" stop-color="hsl(${(hue + 40) % 360},50%,24%)"/></linearGradient></defs><rect width="640" height="360" fill="url(#g)"/><circle cx="${120 + ((n * 83) % 400)}" cy="${90 + ((n * 37) % 160)}" r="70" fill="rgba(255,255,255,.12)"/><text x="32" y="320" font-family="Segoe UI, sans-serif" font-size="30" font-weight="700" fill="rgba(255,255,255,.92)">DEMO · ${label.replace(/[<&]/g, "")}</text></svg>`;
 }
 const images = new Map();
+const uploadedImages = new Map();
 
 function demoFile(seed, size) {
   const buf = Buffer.alloc(size);
@@ -140,7 +141,7 @@ function summary(m) {
 // a tiny multipart reader, good enough for the demo admin uploads
 function parseMultipart(req, body) {
   const boundary = /boundary=(.+)$/.exec(req.headers["content-type"] || "")?.[1];
-  const result = { fields: {}, file: null };
+  const result = { fields: {}, file: null, files: {} };
   if (!boundary) return result;
   for (const part of body.toString("latin1").split(`--${boundary}`)) {
     const [head, ...rest] = part.split("\r\n\r\n");
@@ -148,7 +149,11 @@ function parseMultipart(req, body) {
     const content = rest.join("\r\n\r\n").replace(/\r\n$/, "");
     const name = /name="([^"]+)"/.exec(head)?.[1];
     const filename = /filename="([^"]*)"/.exec(head)?.[1];
-    if (filename != null) result.file = { name: filename, data: Buffer.from(content, "latin1") };
+    if (filename != null) {
+      const upload = { name: filename, data: Buffer.from(content, "latin1"), type: /content-type:\s*([^\r\n]+)/i.exec(head)?.[1] || "" };
+      result.files[name] = upload;
+      if (name !== "thumbnail") result.file = upload;
+    }
     else if (name) result.fields[name] = content;
   }
   return result;
@@ -614,14 +619,16 @@ async function publicApi(req, res, path, url) {
     }
   }
   if (path === "/api/submissions" && req.method === "POST") {
-    const { file, fields } = parseMultipart(req, await readBody(req));
+    const { file, fields, files: parts } = parseMultipart(req, await readBody(req));
     if (fields.website) return send(res, 201, { ok: true });
+    const thumb = parts.thumbnail;
     const errors = {};
     const name = (fields.name || "").trim();
     const description = (fields.description || "").trim();
     if (name.length < 2) errors.name = "give your mod a name";
     if (description.length < 30) errors.description = "describe what your mod does (at least 30 characters)";
     if (fields.confirm !== "true") errors.confirm = "you have to confirm that you have the right to share this mod";
+    if (thumb && !/^(\x89PNG|\xff\xd8\xff|GIF8|RIFF)/.test(thumb.data.subarray(0, 4).toString("latin1"))) errors.thumbnail = "couldn't read this image";
     if (!file) errors.file = "attach your mod file (.dll or .zip)";
     else if (!["MZ", "PK"].includes(file.data.subarray(0, 2).toString("latin1"))) errors.file = "this .dll doesn't look like a real windows dll";
     if (Object.keys(errors).length) return fail(res, 422, Object.values(errors)[0], errors);
@@ -633,6 +640,11 @@ async function publicApi(req, res, path, url) {
     const author = fields.anonymous === "true" ? "Anonymous" : (fields.author || "").trim() || "Anonymous";
     modPayloadToMod(m, { name, slug: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${mods.length}`, author_name: author, description, summary: description.split(". ")[0].slice(0, 200), redistribution: "allowed" });
     m.status = "published";
+    if (thumb) {
+      const key = `${randomUUID()}.jpg`;
+      uploadedImages.set(key, thumb.data);
+      m.thumbnail_url = `/files/uploaded/${key}`;
+    }
     files.set(m.id, file.data);
     m.releases.push(refreshRelease({ id: randomUUID(), version: fields.version || "unversioned", released_on: new Date().toISOString().slice(0, 10), changelog: "", game_version: "", kind: "hosted", external_url: null, file: { name: file.name, size: file.data.length, sha256: createHash("sha256").update(file.data).digest("hex"), type: "dll" }, disabled: false, disabled_reason: "", created_at: new Date().toISOString() }));
     files.set(m.releases[0].id, file.data);
@@ -713,6 +725,10 @@ export function startMockServer(port = 5173) {
     try {
       if (path.startsWith("/api/admin/")) return await adminApi(req, res, path, url);
       if (path.startsWith("/api/")) return await publicApi(req, res, path, url);
+      if (path.startsWith("/files/uploaded/")) {
+        const data = uploadedImages.get(path.slice("/files/uploaded/".length));
+        return data ? send(res, 200, data, { "content-type": "image/jpeg" }) : fail(res, 404, "not found");
+      }
       if (path.startsWith("/files/demo/")) {
         const svg = images.get(path.slice("/files/demo/".length));
         return svg ? send(res, 200, svg, { "content-type": "image/svg+xml; charset=utf-8" }) : fail(res, 404, "not found");

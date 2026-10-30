@@ -818,3 +818,17 @@
 .tree-list h3 { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
 .tree-list ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13.5px; }
 @media (max-width: 720px) { .tree-search { width: 100%; } .tree-tools { width: 100%; } .tree-search-wrap { flex: 1; } }
+/* upload thumbnail */
+.recommended { margin-left: 8px; padding: 1px 8px; border-radius: 980px; background: var(--ok-soft); color: var(--ok); font-size: 11.5px; font-weight: 600; vertical-align: 1px; }
+.thumb-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 14px; }
+.thumb-drop { position: relative; display: grid; place-items: center; width: min(100%, 384px); aspect-ratio: 16 / 9; padding: 0; overflow: hidden; border: 1.5px dashed var(--line-strong); border-radius: var(--r-l); background: var(--surface-2); color: var(--text-2); font: inherit; cursor: pointer; transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease); }
+.thumb-drop:hover, .thumb-drop.dragging { border-color: var(--text-3); background: var(--surface-hover); }
+.thumb-drop.dragging { border-color: var(--focus); }
+.thumb-drop:focus-visible { outline: 3px solid var(--focus-soft); outline-offset: 2px; }
+.thumb-drop.has-image { border-style: solid; border-color: var(--line); }
+.thumb-empty { display: grid; justify-items: center; gap: 4px; padding: 16px; text-align: center; }
+.thumb-empty svg { width: 30px; height: 30px; color: var(--text-3); margin-bottom: 2px; }
+.thumb-preview { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.thumb-side { display: grid; gap: 6px; }
+.thumb-actions { display: flex; gap: 6px; }
+.thumb-actions:empty { display: none; }

@@ -7,6 +7,40 @@ import { forumKey } from "../forum-identity.js";
 import { stateBlock } from "../ui.js";
 
 const MIN_DESCRIPTION = 30;
+const THUMB_W = 960;
+const THUMB_H = 540;
+
+// turns any picture (a file, or a screenshot pasted from the clipboard) into a 16:9 jpg
+// thumbnail, cropped from the middle. it's done here so huge screenshots upload fast.
+export async function makeThumbnail(blob) {
+  if (!blob || !/^image\//.test(blob.type || "")) throw new Error("that isn't an image. use a png, jpg, webp or gif, or paste a screenshot");
+  if (blob.size > 25 * 1024 * 1024) throw new Error("that image is too big (25 MB max)");
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(blob);
+  } catch {
+    throw new Error("couldn't read that image. try a different one");
+  }
+  const target = THUMB_W / THUMB_H;
+  let sw = bitmap.width;
+  let sh = bitmap.height;
+  if (sw / sh > target) sw = Math.round(sh * target);
+  else sh = Math.round(sw / target);
+  const sx = Math.round((bitmap.width - sw) / 2);
+  const sy = Math.round((bitmap.height - sh) / 2);
+  const w = Math.min(THUMB_W, sw);
+  const hgt = Math.round(w / target);
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = hgt;
+  const c = canvas.getContext("2d");
+  c.imageSmoothingQuality = "high";
+  c.drawImage(bitmap, sx, sy, sw, sh, 0, 0, w, hgt);
+  bitmap.close?.();
+  const out = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.86));
+  if (!out) throw new Error("couldn't make a thumbnail from that image");
+  return out;
+}
 
 export function createUploadView(ctx) {
   const el = h("section", { class: "view page", "aria-labelledby": "upload-title" });
@@ -24,8 +58,79 @@ export function createUploadView(ctx) {
     );
   }
 
+  // pasting a screenshot anywhere on this page sets the thumbnail
+  let onPaste = null;
+  function handlePaste(event) {
+    const item = [...(event.clipboardData?.items || [])].find((i) => i.kind === "file" && i.type.startsWith("image/"));
+    if (!item || !onPaste) return;
+    event.preventDefault();
+    onPaste(item.getAsFile());
+  }
+
   function render() {
     let chosen = null;
+    let thumbnail = null;
+    let thumbUrl = null;
+    const thumbInput = h("input", { type: "file", accept: "image/png,image/jpeg,image/webp,image/gif", class: "visually-hidden", id: "up-thumb-file", tabindex: "-1" });
+    const thumbError = h("p", { class: "error", id: "up-thumbnail-error", hidden: true });
+    const thumbPreview = h("img", { class: "thumb-preview", alt: "thumbnail preview", hidden: true });
+    const thumbEmpty = h(
+      "div",
+      { class: "thumb-empty" },
+      icon("image"),
+      h("strong", null, "Paste a screenshot here"),
+      h("span", { class: "muted small" }, "press Ctrl+V, drop an image, or click to choose one"),
+    );
+    const thumbDrop = h("button", { class: "thumb-drop", type: "button", id: "up-thumbnail", "aria-describedby": "up-thumbnail-hint up-thumbnail-error", onclick: () => thumbInput.click() }, thumbEmpty, thumbPreview);
+    const thumbRemove = h("button", { class: "btn btn-quiet", type: "button", hidden: true }, "Remove");
+    const thumbChange = h("button", { class: "btn", type: "button", hidden: true, onclick: () => thumbInput.click() }, "Change");
+    const thumbStatus = h("span", { class: "muted small", "aria-live": "polite" });
+
+    async function setThumbnail(blob) {
+      thumbError.hidden = true;
+      thumbStatus.textContent = "making the thumbnail…";
+      try {
+        const made = await makeThumbnail(blob);
+        thumbnail = made;
+        if (thumbUrl) URL.revokeObjectURL(thumbUrl);
+        thumbUrl = URL.createObjectURL(made);
+        thumbPreview.src = thumbUrl;
+        thumbPreview.hidden = false;
+        thumbEmpty.hidden = true;
+        thumbRemove.hidden = false;
+        thumbChange.hidden = false;
+        thumbDrop.classList.add("has-image");
+        thumbStatus.textContent = "thumbnail added";
+      } catch (err) {
+        thumbStatus.textContent = "";
+        thumbError.textContent = err.message;
+        thumbError.hidden = false;
+      }
+    }
+    function clearThumbnail() {
+      thumbnail = null;
+      if (thumbUrl) URL.revokeObjectURL(thumbUrl);
+      thumbUrl = null;
+      thumbPreview.removeAttribute("src");
+      thumbPreview.hidden = true;
+      thumbEmpty.hidden = false;
+      thumbRemove.hidden = true;
+      thumbChange.hidden = true;
+      thumbDrop.classList.remove("has-image");
+      thumbInput.value = "";
+      thumbStatus.textContent = "thumbnail removed";
+    }
+    onPaste = setThumbnail;
+    thumbRemove.addEventListener("click", clearThumbnail);
+    thumbInput.addEventListener("change", () => { if (thumbInput.files?.[0]) setThumbnail(thumbInput.files[0]); });
+    thumbDrop.addEventListener("dragover", (e) => { e.preventDefault(); thumbDrop.classList.add("dragging"); });
+    thumbDrop.addEventListener("dragleave", () => thumbDrop.classList.remove("dragging"));
+    thumbDrop.addEventListener("drop", (e) => {
+      e.preventDefault();
+      thumbDrop.classList.remove("dragging");
+      const dropped = e.dataTransfer?.files?.[0];
+      if (dropped) setThumbnail(dropped);
+    });
     const fileInput = h("input", { type: "file", accept: ".dll,.zip", class: "visually-hidden", id: "up-file", tabindex: "-1" });
     const fileLabel = h("span", { class: "file-chosen muted" }, "no file chosen");
     const fileButton = h("button", { class: "btn", type: "button", onclick: () => fileInput.click() }, icon("upload"), "Choose mod file");
@@ -70,6 +175,19 @@ export function createUploadView(ctx) {
       field("name", "Mod name", name, { required: true }),
       field("description", "Description", description, { required: true, hint: "say what the mod does and how to use it. be accurate: misleading uploads get removed." }),
       counter,
+      h(
+        "div",
+        { class: "field", dataset: { field: "thumbnail" } },
+        h("label", { for: "up-thumbnail" }, "Thumbnail", h("span", { class: "recommended" }, "recommended")),
+        h("div", { class: "thumb-row" }, thumbDrop, h("div", { class: "thumb-side" }, h("div", { class: "thumb-actions" }, thumbChange, thumbRemove), thumbStatus)),
+        thumbInput,
+        h(
+          "p",
+          { class: "hint", id: "up-thumbnail-hint" },
+          "optional, but mods with a thumbnail stand out. a screenshot of your mod in Gorilla Tag works best: press Win+Shift+S in game, pick the area, then come back and press Ctrl+V. it's cropped to 16:9 for you, so keep the mod near the middle.",
+        ),
+        thumbError,
+      ),
       h(
         "div",
         { class: "field", dataset: { field: "author" } },
@@ -158,6 +276,7 @@ export function createUploadView(ctx) {
       // your community identity, so this upload counts toward rewards
       data.append("key", forumKey());
       data.append("file", chosen, chosen.name);
+      if (thumbnail) data.append("thumbnail", thumbnail, "thumbnail.jpg");
 
       submit.disabled = true;
       submit.textContent = "Uploading and checking…";
@@ -208,5 +327,14 @@ export function createUploadView(ctx) {
     );
   }
 
-  return { el, title: () => "Upload a mod", show() { if (!el.querySelector("form")) render(); return 0; }, hide() {} };
+  return {
+    el,
+    title: () => "Upload a mod",
+    show() {
+      if (!el.querySelector("form")) render();
+      document.addEventListener("paste", handlePaste);
+      return 0;
+    },
+    hide() { document.removeEventListener("paste", handlePaste); },
+  };
 }
