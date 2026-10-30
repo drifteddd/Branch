@@ -42,7 +42,8 @@ const browser = spawn(browserPath, [
 ], { stdio: "ignore" });
 
 async function waitForBrowser() {
-  for (let i = 0; i < 100; i++) {
+  // a cold browser on a busy ci machine can take a while to start
+  for (let i = 0; i < 600; i++) {
     try { return await (await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/version`)).json(); } catch { await sleep(100); }
   }
   throw new Error("browser didn't start");
