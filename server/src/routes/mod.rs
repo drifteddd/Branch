@@ -25,6 +25,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/meta", get(public::meta))
         .route("/api/mods", get(public::list_mods))
         .route("/api/mods/{slug}", get(public::mod_detail))
+        .route("/api/tree", get(public::tree))
         .route("/api/releases/{id}/download", get(public::download))
         .route("/api/releases/{id}/out", get(public::outbound))
         .route("/api/reports", post(public::create_report))

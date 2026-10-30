@@ -13,6 +13,7 @@ import { createUploadView } from "./views/upload.js";
 import { createForumView } from "./views/forum.js";
 import { createRewardsView } from "./views/rewards.js";
 import { createCheckerView } from "./views/checker.js";
+import { createTreeView } from "./views/tree.js";
 
 const root = document.documentElement;
 const main = document.getElementById("main");
@@ -73,6 +74,7 @@ const views = {
   forum: createForumView(ctx),
   rewards: createRewardsView(ctx),
   check: createCheckerView(ctx),
+  tree: createTreeView(ctx),
 };
 
 let currentRoute = null;
@@ -93,6 +95,7 @@ function parseRoute() {
   if (first === "rewards") return { name: "rewards", path };
   if (first === "forum") return { name: "forum", path, thread: parts[1] ? decodeURIComponent(parts[1]) : null, board: params.get("board") || "" };
   if (first === "check") return { name: "check", path };
+  if (first === "tree") return { name: "tree", path };
   if (first === "legal" && parts[1]) return { name: "legal", path, doc: parts[1] };
   return { name: "browse", path: "/browse", mode: "all", category: "" };
 }
@@ -133,7 +136,7 @@ function markSidebar() {
   if (route.name === "browse") {
     if (route.mode === "all" && ctx.browse.category) active = categoryNav.querySelector(`[data-category="${CSS.escape(ctx.browse.category)}"]`);
     else active = sidebar.querySelector(`[data-nav="${route.mode}"]`);
-  } else if (["settings", "about", "upload", "check", "forum", "rewards"].includes(route.name)) {
+  } else if (["settings", "about", "upload", "check", "forum", "rewards", "tree"].includes(route.name)) {
     active = sidebar.querySelector(`[data-nav="${route.name}"]`);
   } else if (route.name === "legal") {
     active = sidebar.querySelector('[data-nav="about"]');

@@ -483,6 +483,43 @@ await test("clicking the about icon 7 times opens the admin panel", async () => 
   await evaluate(`for (let i = 0; i < 7; i++) document.querySelector(".about-icon").click()`);
   await waitFor(`[...document.querySelectorAll(".toast")].some(t => t.textContent.includes("admin panel"))`, "admin toast");
 });
+await test("tree of life draws every mod as a node, zooms, finds and opens mods", async () => {
+  await setSize(1280, 820);
+  await go(`${BASE}/#/tree`);
+  await waitFor(`/^\\d+ mods/.test(document.querySelector(".tree-stats")?.textContent || "")`, "tree stats");
+  const count = await evaluate(`parseInt(document.querySelector(".tree-stats").textContent)`);
+  const published = await evaluate(`fetch("/api/mods?per_page=100").then(r => r.json()).then(d => d.total)`);
+  assert(count === published, `tree has ${count} mods, the catalog has ${published}`);
+  assert(await evaluate(`document.querySelectorAll(".tree-chip").length >= 3`), "category legend missing");
+  await sleep(3200);
+  await screenshot("tree-small");
+  // a drawn canvas has solid pixels somewhere (the trunk)
+  assert(await evaluate(`(() => { const c = document.querySelector(".tree-canvas"); const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; for (let i = 3; i < d.length; i += 4) if (d[i] > 200) return true; return false; })()`), "canvas is empty");
+  await evaluate(type(".tree-search", "lantern"));
+  await waitFor(`document.querySelector(".tree-results:not([hidden]) button")`, "search result");
+  await evaluate(click(".tree-results button"));
+  await sleep(700);
+  await screenshot("tree-zoomed");
+  // the found mod is now in the middle: click it
+  const box = await evaluate(`(() => { const r = document.querySelector(".tree-canvas").getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
+  await cdp("Input.dispatchMouseEvent", { type: "mouseMoved", x: box.x, y: box.y });
+  await cdp("Input.dispatchMouseEvent", { type: "mousePressed", x: box.x, y: box.y, button: "left", clickCount: 1 });
+  await cdp("Input.dispatchMouseEvent", { type: "mouseReleased", x: box.x, y: box.y, button: "left", clickCount: 1 });
+  await waitFor(`location.hash.startsWith("#/mod/") && document.querySelector(".detail-title")`, "mod page after clicking a node");
+  await go(`${BASE}/#/tree`);
+  await waitFor(`document.querySelector(".tree-chip")`, "back on the tree");
+  await evaluate(clickText(".tree-tools button", "View as list"));
+  await waitFor(`document.querySelectorAll(".tree-list a").length === ${count}`, "list view with every mod");
+  await evaluate(clickText(".tree-tools button", "View as tree"));
+  // a pretend big catalog, to see how the tree fills out
+  await evaluate(`(() => { const cats = [["hats","Hats"],["movement","Movement"],["ui","Interface"],["maps","Maps"],["sounds","Sounds"],["cosmetics","Cosmetics"],["tools","Tools"],["fun","Fun"]]; const mods = []; for (let i = 0; i < 900; i++) { const c = cats[(i * 7 + (i % 5)) % cats.length]; const w = i % 9 === 0 ? null : c; mods.push({ slug: "m" + i, name: "Mod Number " + i, category_slug: w && w[0], category_name: w && w[1], downloads: i, community: i % 3 === 0 }); } window.__branchTree.setMods(mods); return true; })()`);
+  await sleep(3200);
+  await screenshot("tree-big");
+  await evaluate(`document.querySelector(".tree-canvas").dispatchEvent(new WheelEvent("wheel", { deltaY: -1200, clientX: 700, clientY: 420, bubbles: true, cancelable: true }))`);
+  await sleep(300);
+  await screenshot("tree-big-zoom");
+});
+
 // ---------- admin panel ----------
 
 await test("admin login rejects a wrong password", async () => {

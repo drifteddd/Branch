@@ -15,6 +15,7 @@ open it, search or scroll, click a mod, press download. made a mod? upload it in
 ## what you can do
 
 - **browse and search** mods by name, description, author or tag
+- **explore the tree of life**: every mod on Branch drawn as a node on one big tree. each category is its own limb, and the tree grows new branches as people add mods. zoom in to read names and click any node to open that mod
 - **filter** by category and compatibility, and **sort** by recently updated, newest, name or downloads
 - **read about a mod** before you get it: screenshots, install steps, changelog, requirements, license and the file's checksum
 - **view a mod's source code** right in the app, when the author has it on github

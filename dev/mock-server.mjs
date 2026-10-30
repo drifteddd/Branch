@@ -453,6 +453,10 @@ async function publicApi(req, res, path, url) {
   if (path === "/api/meta") {
     return send(res, 200, { categories: categories.map((c) => ({ ...c, mod_count: mods.filter((m) => m.status === "published" && m.category?.id === c.id).length })), compatibility: COMPATIBILITY, platforms: PLATFORMS, report_reasons: REASONS });
   }
+  if (path === "/api/tree") {
+    const list = mods.filter((m) => m.status === "published").sort((a, b) => String(a.published_at || a.created_at).localeCompare(String(b.published_at || b.created_at)));
+    return send(res, 200, { mods: list.map((m) => ({ slug: m.slug, name: m.name, category_slug: m.category?.slug || null, category_name: m.category?.name || null, downloads: m.downloads, community: Boolean(m.community), added: m.published_at || m.created_at })) });
+  }
   if (path === "/api/mods") {
     const p = url.searchParams;
     let list = mods.filter((m) => m.status === "published");

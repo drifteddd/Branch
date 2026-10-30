@@ -199,6 +199,33 @@ pub async fn list_mods(State(state): State<AppState>, Query(query): Query<ListQu
     Ok(Json(json!({ "items": items, "page": page, "per_page": per_page, "total": total, "has_more": has_more })))
 }
 
+#[derive(FromRow, Serialize)]
+struct TreeNode {
+    slug: String,
+    name: String,
+    category_slug: Option<String>,
+    category_name: Option<String>,
+    downloads: i64,
+    community: bool,
+    added: DateTime<Utc>,
+}
+
+/// every published mod, small enough to draw the tree of life. oldest first, so the
+/// tree grows from the trunk outward.
+pub async fn tree(State(state): State<AppState>) -> ApiResult<Response> {
+    let nodes: Vec<TreeNode> = sqlx::query_as(
+        "select m.slug, m.name, c.slug as category_slug, c.name as category_name, m.download_count as downloads,
+                (m.source = 'community') as community, coalesce(m.published_at, m.created_at) as added
+         from mods m left join categories c on c.id = m.category_id
+         where m.status = 'published'
+         order by coalesce(m.published_at, m.created_at), m.id
+         limit 20000",
+    )
+    .fetch_all(&state.db)
+    .await?;
+    Ok(([(header::CACHE_CONTROL, "public, max-age=60")], Json(json!({ "mods": nodes }))).into_response())
+}
+
 pub async fn mod_detail(State(state): State<AppState>, Path(slug): Path<String>) -> ApiResult<Json<ModDetail>> {
     if !valid_slug(&slug) {
         return Err(AppError::not_found("that mod isn't listed"));

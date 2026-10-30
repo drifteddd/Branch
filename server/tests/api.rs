@@ -487,6 +487,12 @@ async fn full_flow() {
     assert_eq!(r.json["member"]["paid"], 10);
     assert_eq!(r.json["member"]["owed"], 0);
 
+    // the tree of life lists every published mod, oldest first
+    let r = c.get("/api/tree").await;
+    let tree = r.json["mods"].as_array().unwrap();
+    assert!(tree.len() >= 11, "{}", r.json);
+    assert_eq!(tree.last().unwrap()["name"], "Brand New Mod");
+
     // the program can be switched off
     c.json("POST", "/api/admin/rewards/settings", json!({ "enabled": false })).await;
     assert_eq!(c.json("POST", "/api/rewards/me", json!({ "key": member_key })).await.json["enabled"], false);
