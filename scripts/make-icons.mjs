@@ -28,18 +28,60 @@ function inCapsule(x, y, ax, ay, bx, by, radius) {
   return (x - (ax + t * dx)) ** 2 + (y - (ay + t * dy)) ** 2 <= radius * radius;
 }
 
-function inLeaf(x, y) {
-  const a = (-29.5 * Math.PI) / 180;
-  const dx = x - 780, dy = y - 376;
-  const u = dx * Math.cos(a) + dy * Math.sin(a);
-  const v = -dx * Math.sin(a) + dy * Math.cos(a);
-  return (u / 120) ** 2 + (v / 62) ** 2 <= 1;
+// the trunk and its limbs: [x1, y1, x2, y2, thickness at the start, thickness at the tip, leaf length, leaf width]
+// each limb gets thinner toward its tip and ends in a pointed leaf.
+const LIMBS = [
+  [470, 840, 540, 262, 34, 21, 66, 28],
+  [500, 600, 332, 470, 22, 14, 80, 33],
+  [520, 458, 688, 356, 20, 13, 80, 33],
+  [492, 716, 636, 656, 17, 11, 64, 27],
+  [528, 368, 424, 308, 15, 10, 58, 24],
+];
+
+// a leaf is a pointed lens shape: width w * (1 - s²) along its length
+function leafFor([x1, y1, bx, by, , , length, width]) {
+  const len = Math.hypot(bx - x1, by - y1);
+  const ux = (bx - x1) / len, uy = (by - y1) / len;
+  // the leaf starts a little inside the limb's tip, so they join smoothly
+  return { cx: bx + ux * length * 0.82, cy: by + uy * length * 0.82, ux, uy, length, width };
+}
+const LEAVES = LIMBS.map((limb) => leafFor(limb));
+
+function inTaperedLimb(x, y, [ax, ay, bx, by, r1, r2]) {
+  const dx = bx - ax, dy = by - ay;
+  const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)));
+  const r = r1 + (r2 - r1) * t;
+  return (x - (ax + t * dx)) ** 2 + (y - (ay + t * dy)) ** 2 <= r * r;
+}
+
+function inLeaf(x, y, { cx, cy, ux, uy, length, width }) {
+  const dx = x - cx, dy = y - cy;
+  const s = (dx * ux + dy * uy) / length;
+  const v = Math.abs(-dx * uy + dy * ux);
+  return s >= -1 && s <= 1 && v <= width * (1 - s * s);
+}
+
+function inGlyphRaw(x, y) {
+  return LIMBS.some((limb) => inTaperedLimb(x, y, limb)) || LEAVES.some((leaf) => inLeaf(x, y, leaf));
+}
+
+// measure the drawing and move it so it sits exactly in the middle of the tile
+const [OFFSET_X, OFFSET_Y] = (() => {
+  let minX = 1024, minY = 1024, maxX = 0, maxY = 0;
+  for (let y = 0; y < 1024; y += 2) for (let x = 0; x < 1024; x += 2) {
+    if (inGlyphRaw(x, y)) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+  }
+  return [Math.round(512 - (minX + maxX) / 2), Math.round(512 - (minY + maxY) / 2)];
+})();
+
+function inGlyph(x, y) {
+  return inGlyphRaw(x - OFFSET_X, y - OFFSET_Y);
 }
 
 // color of one point in the 1024 grid, or null if it's outside the icon
 function sample(x, y) {
   if (!inRoundRect(x, y)) return null;
-  if (inLeaf(x, y) || inCapsule(x, y, 392, 808, 600, 232, 46) || inCapsule(x, y, 488, 540, 700, 420, 38)) return INK;
+  if (inGlyph(x, y)) return INK;
   // a thin grey edge so the white tile still shows up on white backgrounds
   if (!inRoundRectInset(x, y, 12)) return EDGE;
   return PAPER;
@@ -133,4 +175,29 @@ writeFileSync(join(out, "128x128.png"), png(128));
 writeFileSync(join(out, "128x128@2x.png"), png(256));
 writeFileSync(join(out, "icon.png"), png(512));
 writeFileSync(join(out, "icon.ico"), ico([16, 24, 32, 48, 64, 128, 256]));
-console.log(`icons written to ${out}`);
+
+// the same drawing as an svg, used inside the app and the admin panel
+function svg() {
+  const f = (n) => Math.round(n * 10) / 10;
+  const shapes = [];
+  for (const [ax, ay, bx, by, r1, r2] of LIMBS) {
+    const len = Math.hypot(bx - ax, by - ay);
+    const nx = -(by - ay) / len, ny = (bx - ax) / len;
+    shapes.push(`<path d="M${f(ax + nx * r1)} ${f(ay + ny * r1)}L${f(bx + nx * r2)} ${f(by + ny * r2)}L${f(bx - nx * r2)} ${f(by - ny * r2)}L${f(ax - nx * r1)} ${f(ay - ny * r1)}Z"/>`);
+    shapes.push(`<circle cx="${ax}" cy="${ay}" r="${r1}"/>`, `<circle cx="${bx}" cy="${by}" r="${r2}"/>`);
+  }
+  for (const { cx, cy, ux, uy, length, width } of LEAVES) {
+    const nx = -uy, ny = ux;
+    const t1 = [cx - ux * length, cy - uy * length], t2 = [cx + ux * length, cy + uy * length];
+    shapes.push(`<path d="M${f(t1[0])} ${f(t1[1])}Q${f(cx + nx * 2 * width)} ${f(cy + ny * 2 * width)} ${f(t2[0])} ${f(t2[1])}Q${f(cx - nx * 2 * width)} ${f(cy - ny * 2 * width)} ${f(t1[0])} ${f(t1[1])}Z"/>`);
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Branch">
+  <rect x="68" y="68" width="888" height="888" rx="212" fill="#ffffff" stroke="#d9d9de" stroke-width="8"/>
+  <g fill="#111111" transform="translate(${OFFSET_X} ${OFFSET_Y})">
+    ${shapes.join("\n    ")}
+  </g>
+</svg>
+`;
+}
+writeFileSync(join(root, "app", "ui", "shared", "branch-mark.svg"), svg());
+console.log(`icons written to ${out} (glyph moved by ${OFFSET_X}, ${OFFSET_Y} to center it)`);

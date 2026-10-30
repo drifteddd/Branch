@@ -206,8 +206,10 @@ async fn overview(State(state): State<AppState>, Admin(_): Admin) -> ApiResult<J
     .await?;
     let open_reports: i64 = sqlx::query_scalar("select count(*) from reports where status = 'open'").fetch_one(&state.db).await?;
     let open_requests: i64 = sqlx::query_scalar("select count(*) from mod_requests where status = 'open'").fetch_one(&state.db).await?;
+    let open_forum_reports: i64 = sqlx::query_scalar("select count(*) from forum_reports where status = 'open'").fetch_one(&state.db).await?;
     Ok(Json(json!({
         "open_requests": open_requests,
+        "open_forum_reports": open_forum_reports,
         "published": published,
         "drafts": drafts,
         "hidden": hidden,

@@ -212,3 +212,5 @@ dialog.preview { width: min(980px, calc(100vw - 32px)); }
 .warn-text { color: var(--warn); }
 .pill.community { background: rgba(0, 113, 227, 0.12); color: var(--accent-text); }
 .row-actions { white-space: nowrap; text-align: right; }
+
+.forum-excerpt { max-width: 420px; white-space: pre-wrap; overflow-wrap: anywhere; }

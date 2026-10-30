@@ -19,7 +19,8 @@ open it, search or scroll, click a mod, press download. made a mod? upload it in
 - **read about a mod** before you get it: screenshots, install steps, changelog, requirements, license and the file's checksum
 - **view a mod's source code** right in the app, when the author has it on github
 - **download** with a progress bar, a cancel button and "show in folder". Branch only saves the file. it never runs or installs anything and never asks for admin access
-- **check a mod for viruses** with the free AI mod checker (20 checks a day). it looks for stealers, RATs and other malware, not cheats
+- **check a mod for viruses** with the free AI mod checker (20 checks a day). it reads what the mod's code actually does, explains it in plain words, and looks for stealers, RATs and other malware, not cheats
+- **talk in the community forum**: ask for help, show off mods, share ideas. no account: you get a random name you can change in settings
 - **upload your own mod**: all you need is the file, a name and a description. you can stay anonymous. up to 10 uploads a day, and every upload goes through an automatic safety check
 - **save favorites** and see what you looked at recently. this stays on your computer
 - **report** a broken, outdated, misleading or harmful mod, or a copyright problem

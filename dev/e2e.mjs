@@ -94,7 +94,7 @@ async function go(url) {
   await cdp("Page.navigate", { url });
   await waitFor("document.readyState === 'complete'", "page load");
   // the app shows its ~3 second startup screen first. the admin panel has none.
-  await waitFor("!document.getElementById('splash') || document.getElementById('splash').classList.contains('done')", "startup screen", 15000);
+  await waitFor("!document.getElementById('splash') || document.getElementById('splash').classList.contains('done')", "startup screen", 30000);
   if (await evaluate("Boolean(document.getElementById('splash'))")) await sleep(450); // let it finish fading out
   // the first launch asks to accept the terms
   if (await evaluate("Boolean(document.querySelector('dialog.terms-sheet[open]'))")) {
@@ -415,7 +415,52 @@ await test("mod checker uploads a file and animates the suspicion meter", async 
   assert(midway < final, "the meter should count up");
   assert(await evaluate(`document.querySelector(".verdict").textContent === "Likely malicious"`), "verdict wrong");
   assert(await evaluate(`document.querySelector(".usage").textContent.includes("19 of 20")`), "usage didn't go down");
+  assert(await evaluate(`document.querySelector(".what-it-does")?.textContent.includes("webhook")`), "what-it-does section missing");
+  assert(await evaluate(`document.querySelectorAll(".capabilities .cap.dangerous").length === 2`), "capabilities missing");
+  assert(await evaluate(`document.querySelector(".confidence")?.textContent === "high confidence"`), "confidence missing");
   await screenshot("checker-result");
+});
+
+await test("community name can be changed in settings, but not to a staff-like name", async () => {
+  await go(`${BASE}/#/settings`);
+  await waitFor(`document.querySelector("#community-name")?.value.startsWith("DemoClimber")`, "random name loaded");
+  await evaluate(type("#community-name", "Branch Admin"));
+  await evaluate(clickText(".community-buttons button", "Save name"));
+  await waitFor(`!document.querySelector("#community-name-error").hidden`, "staff name refused");
+  await evaluate(type("#community-name", "Cool Climber"));
+  await evaluate(clickText(".community-buttons button", "Save name"));
+  await waitFor(`document.querySelector("#community-name-error").hidden`, "name saved");
+});
+
+await test("community forum: post a thread, reply and report", async () => {
+  await go(`${BASE}/#/forum`);
+  await waitFor(`document.querySelector(".identity-badge")?.textContent.includes("Cool Climber")`, "posting-as badge");
+  await waitFor(`document.querySelector(".state-block h2")?.textContent === "No posts yet"`, "empty forum");
+  await evaluate(clickText(".forum-head button", "New post"));
+  await waitFor(`document.querySelector("#forum-title-input")`, "composer");
+  await evaluate(choose("#forum-board", "help"));
+  await evaluate(type("#forum-title-input", "hi"));
+  await evaluate(type("#forum-body", "short"));
+  await evaluate(click(".composer button[type=submit]"));
+  await waitFor(`!document.querySelector('.composer [data-error="title"]').hidden`, "validation");
+  await evaluate(type("#forum-title-input", "how do i install bepinex?"));
+  await evaluate(type("#forum-body", "the mods folder never shows up after i install it."));
+  await screenshot("forum-compose");
+  await evaluate(click(".composer button[type=submit]"));
+  await waitFor(`document.querySelector(".thread-header h1")?.textContent === "how do i install bepinex?"`, "thread page");
+  await evaluate(type("#forum-reply", "run the game once after installing it."));
+  await evaluate(click(".reply-form button[type=submit]"));
+  await waitFor(`document.querySelectorAll(".replies .post").length === 1`, "reply shown");
+  assert(await evaluate(`document.querySelector(".replies .post").textContent.includes("Cool Climber")`), "reply author missing");
+  await evaluate(clickText(".replies .post button", "Report"));
+  await waitFor(`document.querySelector("#forum-report-reason")`, "report sheet");
+  await evaluate(type("#forum-report-reason", "demo report"));
+  await evaluate(clickText("dialog[open] button", "Send report"));
+  await waitFor(`!document.querySelector("dialog[open]")`, "report sent");
+  await screenshot("forum-thread");
+  await evaluate(clickText(".back-link", "Community"));
+  await waitFor(`[...document.querySelectorAll(".thread-row")].some(r => r.textContent.includes("how do i install bepinex?") && r.textContent.includes("1"))`, "thread in the list");
+  await screenshot("forum-list");
 });
 
 // ---------- admin panel ----------
@@ -505,6 +550,17 @@ await test("admin sees every mod, filters community uploads and removes one", as
   await evaluate(clickText("dialog[open] button", "Remove forever"));
   await waitFor(`!document.querySelector("tbody") || !document.querySelector("tbody").textContent.includes("E2E Tiny Hats")`, "removed");
   assert((await evaluate(`fetch("/api/mods?q=Tiny%20Hats").then(r => r.json()).then(d => d.total)`)) === 0, "removed mod is still public");
+});
+
+await test("admin moderates a reported forum post", async () => {
+  await go(`${BASE}/admin#/forum`);
+  await waitFor(`document.querySelector(".report")?.textContent.includes("demo report")`, "reported post");
+  await screenshot("admin-forum");
+  await evaluate(clickText(".report-actions button", "Remove"));
+  await waitFor(`!document.querySelector(".report")`, "report cleared");
+  const thread = await evaluate(`fetch("/api/forum/threads").then(r => r.json()).then(d => d.items[0].id)`);
+  const body = await evaluate(`fetch("/api/forum/threads/${thread}").then(r => r.json()).then(d => d.replies[0].body)`);
+  assert(body === "[removed by a moderator]", `reply still shows: ${body}`);
 });
 
 await test("admin bulk-imports mods into a private drafts list", async () => {

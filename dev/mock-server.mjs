@@ -103,6 +103,7 @@ for (const m of mods) for (const t of m.tags) tags.set(t, { id: randomUUID(), sl
 
 const reports = [];
 const requests = [];
+const forum = { posters: new Map(), threads: [], reports: [] };
 const checkUsage = new Map();
 const CHECK_LIMIT = 20;
 const audit = [];
@@ -357,6 +358,30 @@ async function adminApi(req, res, path, url) {
     return send(res, 200, { ok: true });
   }
   if (parts[0] === "audit") return send(res, 200, { items: audit.slice(0, 300) });
+  if (parts[0] === "forum") {
+    if (!parts[1]) {
+      const reports = forum.reports.map((r) => {
+        const t = forum.threads.find((x) => x.id === r.thread_id || x.replies.some((y) => y.id === r.reply_id));
+        const reply = t?.replies.find((y) => y.id === r.reply_id);
+        const post = reply || t;
+        return { id: r.id, reason: r.reason, created_at: new Date().toISOString(), kind: reply ? "reply" : "thread", post_id: post.id, thread_id: t.id, thread_title: t.title, body: post.body, removed: post.removed, poster_id: post.poster.id, poster_name: post.poster.name, poster_banned: post.poster.banned };
+      });
+      const posts = forum.threads.flatMap((t) => [
+        { kind: "thread", id: t.id, thread_id: t.id, thread_title: t.title, body: t.body, removed: t.removed, pinned: t.pinned, locked: t.locked, created_at: t.created_at, poster_id: t.poster.id, poster_name: t.poster.name, poster_banned: t.poster.banned },
+        ...t.replies.map((r) => ({ kind: "reply", id: r.id, thread_id: t.id, thread_title: t.title, body: r.body, removed: r.removed, pinned: false, locked: false, created_at: r.created_at, poster_id: r.poster.id, poster_name: r.poster.name, poster_banned: r.poster.banned })),
+      ]);
+      return send(res, 200, { reports, posts });
+    }
+    const body = await json(req);
+    if (parts[1] === "replies") {
+      for (const t of forum.threads) for (const r of t.replies) if (r.id === parts[2]) r.removed = body.removed;
+      forum.reports = forum.reports.filter((r) => r.reply_id !== parts[2]);
+    }
+    if (parts[1] === "threads") Object.assign(forum.threads.find((t) => t.id === parts[2]) || {}, Object.fromEntries(Object.entries(body).filter(([, v]) => v != null)));
+    if (parts[1] === "posters") for (const p of forum.posters.values()) if (p.id === parts[2]) p.banned = body.banned;
+    if (parts[1] === "reports") forum.reports = forum.reports.filter((r) => r.id !== parts[2]);
+    return send(res, 200, { ok: true });
+  }
   if (parts[0] === "import" && method === "POST") {
     // demo only: no zip splitting here, one draft per uploaded file
     const { file } = parseMultipart(req, await readBody(req));
@@ -452,6 +477,65 @@ async function publicApi(req, res, path, url) {
     reports.unshift({ id: randomUUID(), mod_id: m.id, mod_slug: m.slug, mod_name: m.name, reason: body.reason, details: body.details || "", contact: body.contact || "", status: "open", admin_note: "", created_at: new Date().toISOString(), resolved_at: null, resolved_by: null });
     return send(res, 201, { ok: true });
   }
+  // ---- demo community forum ----
+  if (path.startsWith("/api/forum/")) {
+    const parts = path.split("/").slice(3); // after /api/forum
+    if (parts[0] === "me") {
+      const body = await json(req);
+      if (!/^[0-9a-f]{64}$/.test(body.key || "")) return fail(res, 400, "the community key on this computer is broken.");
+      let p = forum.posters.get(body.key);
+      if (!p) { p = { id: randomUUID(), name: `DemoClimber${forum.posters.size + 10}`, tag: body.key.slice(0, 4), banned: false }; forum.posters.set(body.key, p); }
+      if (parts[1] === "random") p.name = `MossyGorilla${Math.floor(Math.random() * 900 + 100)}`;
+      else if (req.method === "PUT") {
+        const name = (body.name || "").trim();
+        if (name.length < 3 || name.length > 24 || !/^[A-Za-z0-9 _-]+$/.test(name)) return fail(res, 422, "names are 3 to 24 characters", { name: "names are 3 to 24 characters" });
+        if (/admin|moderator|drifted/i.test(name)) return fail(res, 422, "that name could be confused with Branch staff. pick another one", { name: "that name could be confused with Branch staff. pick another one" });
+        p.name = name;
+      }
+      return send(res, 200, { name: p.name, tag: p.tag, banned: p.banned });
+    }
+    const author = (p) => ({ name: p.name, tag: p.tag });
+    if (parts[0] === "threads" && !parts[1]) {
+      if (req.method === "POST") {
+        const body = await json(req);
+        const p = forum.posters.get(body.key);
+        if (!p) return fail(res, 400, "open the community page first");
+        const errors = {};
+        if ((body.title || "").trim().length < 3) errors.title = "give your post a title (at least 3 characters)";
+        if ((body.body || "").trim().length < 10) errors.body = "write a little more (at least 10 characters)";
+        if (Object.keys(errors).length) return fail(res, 422, Object.values(errors)[0], errors);
+        const t = { id: randomUUID(), board: body.board, title: body.title.trim(), body: body.body.trim(), poster: p, pinned: false, locked: false, removed: false, replies: [], created_at: new Date().toISOString(), last_post_at: new Date().toISOString() };
+        forum.threads.unshift(t);
+        return send(res, 201, { ok: true, id: t.id });
+      }
+      const board = url.searchParams.get("board");
+      const items = forum.threads.filter((t) => !t.removed && (!board || t.board === board)).map((t) => ({ id: t.id, board: t.board, title: t.title, excerpt: t.body.slice(0, 180), author: author(t.poster), pinned: t.pinned, locked: t.locked, reply_count: t.replies.length, created_at: t.created_at, last_post_at: t.last_post_at }));
+      return send(res, 200, { items, page: 1, has_more: false });
+    }
+    if (parts[0] === "threads" && parts[1]) {
+      const t = forum.threads.find((x) => x.id === parts[1] && !x.removed);
+      if (!t) return fail(res, 404, "that post isn't there anymore");
+      if (parts[2] === "replies") {
+        const body = await json(req);
+        const p = forum.posters.get(body.key);
+        if (!(body.body || "").trim()) return fail(res, 422, "write something first", { body: "write something first" });
+        const r = { id: randomUUID(), body: body.body.trim(), poster: p, removed: false, created_at: new Date().toISOString() };
+        t.replies.push(r);
+        t.last_post_at = r.created_at;
+        return send(res, 201, { ok: true, id: r.id });
+      }
+      return send(res, 200, {
+        thread: { id: t.id, board: t.board, title: t.title, body: t.body, author: author(t.poster), pinned: t.pinned, locked: t.locked, removed: false, reply_count: t.replies.length, created_at: t.created_at, last_post_at: t.last_post_at },
+        replies: t.replies.map((r) => ({ id: r.id, body: r.removed ? "[removed by a moderator]" : r.body, removed: r.removed, author: author(r.poster), created_at: r.created_at })),
+      });
+    }
+    if (parts[0] === "report") {
+      const body = await json(req);
+      if (!(body.reason || "").trim()) return fail(res, 422, "say briefly what's wrong", { reason: "say briefly what's wrong" });
+      forum.reports.push({ id: randomUUID(), ...body });
+      return send(res, 201, { ok: true });
+    }
+  }
   if (path === "/api/submissions" && req.method === "POST") {
     const { file, fields } = parseMultipart(req, await readBody(req));
     if (fields.website) return send(res, 201, { ok: true });
@@ -505,6 +589,12 @@ async function publicApi(req, res, path, url) {
       summary: signs.length ? "demo: this file has several signs of a password stealer." : "demo: nothing unusual was found.",
       reasons: signs.length ? signs.map(([, l]) => l) : ["demo: no webhooks, injection or hidden commands."],
       source: "ai", cached: false, indicators: signs.map(([n, l]) => ({ category: "stealing", label: l, weight: 30, evidence: [n] })), mod_markers: text.includes("bepinex") ? ["BepInEx"] : [],
+      confidence: signs.length ? "high" : "medium",
+      what_it_does: signs.length ? "demo: claims to unlock cosmetics, but mostly reads login data and sends it to a webhook." : "demo: a small cosmetic mod that adds a hat.",
+      capabilities: signs.length
+        ? [{ name: "Sends data to a Discord webhook", level: "dangerous", detail: "demo evidence" }, { name: "Injects into other programs", level: "dangerous", detail: "demo evidence" }]
+        : [{ name: "Patches the game (Harmony)", level: "normal", detail: "demo evidence" }],
+      code: { dotnet: true, types: 12, methods: 80, obfuscated: false },
       used: used + 1, limit: CHECK_LIMIT, remaining: CHECK_LIMIT - used - 1,
     });
   }

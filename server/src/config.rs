@@ -122,10 +122,10 @@ impl Config {
             bootstrap_username: optional("ADMIN_BOOTSTRAP_USERNAME"),
             bootstrap_password: optional("ADMIN_BOOTSTRAP_PASSWORD"),
             ai_api_key: optional("SILICONFLOW_API_KEY"),
-            ai_model: optional("SILICONFLOW_MODEL").unwrap_or_else(|| "Qwen/Qwen2.5-7B-Instruct".into()),
+            ai_model: optional("SILICONFLOW_MODEL").unwrap_or_else(|| "Qwen/Qwen3-30B-A3B-Instruct-2507".into()),
             ai_base_url: optional("SILICONFLOW_BASE_URL").unwrap_or_else(|| "https://api.siliconflow.com/v1".into()).trim_end_matches('/').to_string(),
             ai_daily_per_visitor: number("AI_CHECKS_PER_DAY", 20)?,
-            ai_daily_global: number("AI_GLOBAL_CALLS_PER_DAY", 600)?,
+            ai_daily_global: number("AI_GLOBAL_CALLS_PER_DAY", 500)?,
         })
     }
 }

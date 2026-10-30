@@ -258,6 +258,7 @@ const NAV = [
   ["import", "Import"],
   ["reports", "Reports"],
   ["requests", "Requests"],
+  ["forum", "Forum"],
   ["categories", "Categories & tags"],
   ["activity", "Activity"],
   ["account", "Account"],
@@ -279,7 +280,7 @@ async function start() {
 
 function shell(active, content) {
   const nav = NAV.map(([key, text]) =>
-    h("a", { href: `#/${key}`, "aria-current": active === key ? "page" : null }, text, key === "reports" && overview?.open_reports ? h("span", { class: "count", "aria-label": `${overview.open_reports} open` }, String(overview.open_reports)) : key === "requests" && overview?.open_requests ? h("span", { class: "count", "aria-label": `${overview.open_requests} open` }, String(overview.open_requests)) : null),
+    h("a", { href: `#/${key}`, "aria-current": active === key ? "page" : null }, text, key === "reports" && overview?.open_reports ? h("span", { class: "count", "aria-label": `${overview.open_reports} open` }, String(overview.open_reports)) : key === "requests" && overview?.open_requests ? h("span", { class: "count", "aria-label": `${overview.open_requests} open` }, String(overview.open_requests)) : key === "forum" && overview?.open_forum_reports ? h("span", { class: "count", "aria-label": `${overview.open_forum_reports} reported` }, String(overview.open_forum_reports)) : null),
   );
   app.replaceChildren(
     h(
@@ -310,6 +311,7 @@ async function route() {
     else if (section === "reports") await renderReports();
     else if (section === "requests") await renderRequests();
     else if (section === "import") await renderImport();
+    else if (section === "forum") await renderForum();
     else if (section === "categories") await renderCategories();
     else if (section === "activity") await renderActivity();
     else if (section === "account") renderAccount();
@@ -1238,4 +1240,76 @@ async function renderImport() {
     listArea,
   ]);
   await drawImported();
+}
+// ---------- community forum moderation ----------
+
+async function renderForum() {
+  const { reports, posts } = await api("/api/admin/forum");
+  const reload = async () => { await refreshOverview(); renderForum(); };
+  const removeLabel = (p) => (p.removed ? "Restore" : "Remove");
+  const removePost = async (kind, id, removed) => {
+    const url = kind === "thread" ? `/api/admin/forum/threads/${id}` : `/api/admin/forum/replies/${id}`;
+    await api(url, { method: "POST", body: { removed } });
+    toast(removed ? "Post removed" : "Post restored");
+    reload();
+  };
+  const ban = async (posterId, name, banned) => {
+    if (banned && !(await confirmDialog(`Ban ${name}?`, "they won't be able to post anymore, and neither will anyone else on the same connection. their old posts stay until you remove them.", "Ban"))) return;
+    await api(`/api/admin/forum/posters/${posterId}`, { method: "POST", body: { banned } });
+    toast(banned ? `${name} banned` : `${name} unbanned`);
+    reload();
+  };
+  const excerpt = (text) => (text.length > 280 ? `${text.slice(0, 280)}…` : text);
+
+  const reportCards = reports.map((r) =>
+    h(
+      "article",
+      { class: "card report" },
+      h("div", { class: "report-head" }, h("h2", null, r.kind === "thread" ? "Thread" : "Reply", " in “", r.thread_title, "”"), h("span", { class: "pill open" }, "reported"), h("span", { class: "muted small" }, fmtTime(r.created_at))),
+      h("p", { class: "small" }, h("strong", null, "reason: "), r.reason),
+      h("p", { class: "report-body" }, excerpt(r.body)),
+      h("p", { class: "muted small" }, `posted by ${r.poster_name}${r.poster_banned ? " (banned)" : ""}`),
+      h(
+        "div",
+        { class: "report-actions" },
+        h("button", { class: "btn btn-danger", type: "button", onclick: () => removePost(r.kind, r.post_id, !r.removed) }, removeLabel(r)),
+        h("button", { class: "btn", type: "button", onclick: () => ban(r.poster_id, r.poster_name, !r.poster_banned) }, r.poster_banned ? "Unban" : "Ban poster"),
+        h("button", { class: "btn btn-quiet", type: "button", onclick: async () => { await api(`/api/admin/forum/reports/${r.id}`, { method: "POST", body: {} }); toast("Report closed"); reload(); } }, "Close report (nothing wrong)"),
+      ),
+    ),
+  );
+
+  const rows = posts.map((p) =>
+    h(
+      "tr",
+      null,
+      h("td", null, h("span", { class: `pill ${p.removed ? "dismissed" : p.kind === "thread" ? "published" : ""}` }, p.removed ? "removed" : p.kind), p.pinned ? h("span", { class: "needed" }, "pinned") : null, p.locked ? h("span", { class: "needed" }, "locked") : null),
+      h("td", null, h("strong", null, p.kind === "thread" ? p.thread_title : `re: ${p.thread_title}`), h("div", { class: "muted small forum-excerpt" }, excerpt(p.body))),
+      h("td", null, p.poster_name, p.poster_banned ? h("span", { class: "pill open" }, "banned") : null),
+      h("td", { class: "muted small" }, fmtTime(p.created_at)),
+      h(
+        "td",
+        { class: "row-actions" },
+        p.kind === "thread"
+          ? [
+              h("button", { class: "btn btn-quiet", type: "button", onclick: async () => { await api(`/api/admin/forum/threads/${p.id}`, { method: "POST", body: { pinned: !p.pinned } }); reload(); } }, p.pinned ? "Unpin" : "Pin"),
+              h("button", { class: "btn btn-quiet", type: "button", onclick: async () => { await api(`/api/admin/forum/threads/${p.id}`, { method: "POST", body: { locked: !p.locked } }); reload(); } }, p.locked ? "Unlock" : "Lock"),
+            ]
+          : null,
+        h("button", { class: "btn btn-quiet btn-danger", type: "button", onclick: () => removePost(p.kind, p.id, !p.removed) }, removeLabel(p)),
+        h("button", { class: "btn btn-quiet", type: "button", onclick: () => ban(p.poster_id, p.poster_name, !p.poster_banned) }, p.poster_banned ? "Unban" : "Ban"),
+      ),
+    ),
+  );
+
+  shell("forum", [
+    h("div", { class: "page-head" }, h("h1", null, "Community forum")),
+    h("p", { class: "muted" }, "removed posts show as \"[removed by a moderator]\". banning someone also blocks new names from the same connection."),
+    h("h2", { class: "import-heading" }, `Reported posts (${reports.length})`),
+    h("div", { class: "stack" }, reportCards.length ? reportCards : h("div", { class: "card" }, h("p", { class: "muted" }, "nothing reported."))),
+    h("h2", { class: "import-heading" }, "Recent posts"),
+    posts.length
+      ? h("div", { class: "table-wrap" }, h("table", { class: "table" }, h("thead", null, h("tr", null, ["Type", "Post", "By", "When", ""].map((t) => h("th", { scope: "col" }, t)))), h("tbody", null, rows)))
+      : h("div", { class: "card" }, h("p", { class: "muted" }, "no posts yet.")),
+  ]);
 }

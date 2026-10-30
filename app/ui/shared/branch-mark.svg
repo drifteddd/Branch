@@ -1,6 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Branch">
   <rect x="68" y="68" width="888" height="888" rx="212" fill="#ffffff" stroke="#d9d9de" stroke-width="8"/>
-  <line x1="392" y1="808" x2="600" y2="232" stroke="#111111" stroke-width="92" stroke-linecap="round"/>
-  <line x1="488" y1="540" x2="700" y2="420" stroke="#111111" stroke-width="76" stroke-linecap="round"/>
-  <ellipse cx="780" cy="376" rx="120" ry="62" transform="rotate(-29.5 780 376)" fill="#111111"/>
+  <g fill="#111111" transform="translate(-2 3)">
+    <path d="M503.8 844.1L560.8 264.5L519.2 259.5L436.2 835.9Z"/>
+    <circle cx="470" cy="840" r="34"/>
+    <circle cx="540" cy="262" r="21"/>
+    <path d="M513.5 582.6L340.6 458.9L323.4 481.1L486.5 617.4Z"/>
+    <circle cx="500" cy="600" r="22"/>
+    <circle cx="332" cy="470" r="14"/>
+    <path d="M530.4 475.1L694.7 367.1L681.3 344.9L509.6 440.9Z"/>
+    <circle cx="520" cy="458" r="20"/>
+    <circle cx="688" cy="356" r="13"/>
+    <path d="M498.5 731.7L640.2 666.2L631.8 645.8L485.5 700.3Z"/>
+    <circle cx="492" cy="716" r="17"/>
+    <circle cx="636" cy="656" r="11"/>
+    <path d="M535.5 355L429 299.3L419 316.7L520.5 381Z"/>
+    <circle cx="528" cy="368" r="15"/>
+    <circle cx="424" cy="308" r="10"/>
+    <path d="M538.6 273.8Q602.1 215 554.4 142.8Q490.9 201.5 538.6 273.8Z"/>
+    <path d="M343.4 478.8Q320.5 377.7 216.8 380.9Q239.7 482.1 343.4 478.8Z"/>
+    <path d="M675.7 363.5Q778.3 378.4 812.5 280.4Q709.8 265.5 675.7 363.5Z"/>
+    <path d="M625.4 660.4Q705.2 685.7 743.5 611.2Q663.7 586 625.4 660.4Z"/>
+    <path d="M433 313.2Q406.8 242.7 332.6 255.2Q358.8 325.8 433 313.2Z"/>
+  </g>
 </svg>

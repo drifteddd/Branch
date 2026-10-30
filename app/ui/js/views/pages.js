@@ -4,6 +4,7 @@ import { icon } from "../icons.js";
 import { renderMarkdown } from "../../shared/markdown.js";
 import { appVersion, isDesktop } from "../platform.js";
 import { settings, favorites, recent } from "../store.js";
+import { myIdentity, rename as renameIdentity, randomName as randomIdentityName } from "../forum-identity.js";
 import { confirmDialog, toast, stateBlock } from "../ui.js";
 
 export const REPO_URL = "https://github.com/drifteddd/Branch";
@@ -32,6 +33,11 @@ export function createSettingsView(ctx) {
         row(h("label", { for: "reduce-motion" }, "Reduce motion", h("span", { class: "row-hint" }, "Windows' animation setting is always followed too.")), h("span", { class: "switch" }, motion)),
       ),
       group(
+        "Community name",
+        communityRow(),
+        h("p", { class: "group-text small" }, "this is the name people see on your community posts. there's no account: Branch keeps a secret key on this computer instead, so if you clear it you'll get a new name."),
+      ),
+      group(
         "Downloads",
         h("p", { class: "group-text" }, "Branch asks where to save every download. files are never opened, installed or run for you, and Branch never asks for administrator access."),
       ),
@@ -40,6 +46,40 @@ export function createSettingsView(ctx) {
         row(h("span", null, "Favorites", h("span", { class: "row-hint" }, `${favorites.list().length} saved`)), h("button", { class: "btn btn-danger", type: "button", onclick: clearFavorites }, "Clear favorites")),
         row(h("span", null, "Recently viewed", h("span", { class: "row-hint" }, `${recent.list().length} saved`)), h("button", { class: "btn btn-danger", type: "button", onclick: clearRecent }, "Clear history")),
       ),
+    );
+  }
+
+  function communityRow() {
+    const input = h("input", { class: "input", id: "community-name", maxlength: "24", autocomplete: "off", "aria-describedby": "community-name-error" });
+    const tag = h("span", { class: "post-tag" }, "");
+    const error = h("p", { class: "error", id: "community-name-error", hidden: true });
+    const save = h("button", { class: "btn btn-primary", type: "button" }, "Save name");
+    const random = h("button", { class: "btn", type: "button" }, "Random name");
+    const show = (me) => {
+      input.value = me.name;
+      tag.textContent = `#${me.tag}`;
+    };
+    myIdentity().then(show).catch(() => {
+      error.textContent = "couldn't reach the community right now.";
+      error.hidden = false;
+    });
+    const run = async (task, message) => {
+      error.hidden = true;
+      try {
+        show(await task());
+        toast(message, { tone: "ok" });
+      } catch (err) {
+        error.textContent = err.fields?.name || err.message;
+        error.hidden = false;
+      }
+    };
+    save.addEventListener("click", () => run(() => renameIdentity(input.value.trim()), "Name saved"));
+    random.addEventListener("click", () => run(randomIdentityName, "New random name"));
+    return h(
+      "div",
+      { class: "settings-row community-row" },
+      h("label", { for: "community-name" }, "Your name", h("span", { class: "row-hint" }, "3 to 24 letters, numbers, spaces, - or _")),
+      h("div", { class: "community-controls" }, h("div", { class: "name-input" }, input, tag), h("div", { class: "community-buttons" }, random, save), error),
     );
   }
 

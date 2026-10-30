@@ -102,10 +102,31 @@ export function createCheckerView() {
           h("div", null, h("p", { class: "result-file" }, r.file.name), h("p", { class: "muted small" }, `${formatBytes(r.file.size)} · .${r.file.kind}${r.mod_markers?.length ? ` · uses ${r.mod_markers.join(", ")}` : ""}`)),
           h("div", { class: "score" }, number, h("span", { class: "score-of" }, "/100")),
         ),
-        h("p", { class: "verdict" }, r.verdict),
+        h(
+          "div",
+          { class: "verdict-row" },
+          h("p", { class: "verdict" }, r.verdict),
+          r.confidence ? h("span", { class: `confidence ${r.confidence}`, title: "how sure the check is, based on how much of the code it could read" }, `${r.confidence} confidence`) : null,
+        ),
         meter,
         r.summary ? h("p", { class: "result-summary" }, r.summary) : null,
-        r.reasons?.length ? h("ul", { class: "reasons" }, r.reasons.map((x) => h("li", null, x))) : null,
+        r.what_it_does ? h("div", { class: "what-it-does" }, h("p", { class: "section-label" }, "What this mod seems to do"), h("p", null, r.what_it_does)) : null,
+        r.capabilities?.length
+          ? h(
+              "div",
+              null,
+              h("p", { class: "section-label" }, "What the code can do"),
+              h(
+                "ul",
+                { class: "capabilities" },
+                r.capabilities.map((c) =>
+                  h("li", { class: `cap ${c.level}` }, h("span", { class: "cap-dot", "aria-hidden": "true" }), h("span", { class: "cap-name" }, c.name), h("span", { class: "cap-level" }, c.level), c.detail ? h("span", { class: "cap-detail" }, c.detail) : null),
+                ),
+              ),
+            )
+          : null,
+        r.reasons?.length ? h("div", null, h("p", { class: "section-label" }, "Why this score"), h("ul", { class: "reasons" }, r.reasons.map((x) => h("li", null, x)))) : null,
+        r.code?.obfuscated ? h("p", { class: "muted small" }, "the code's names are scrambled (obfuscated), so the check could see less than usual.") : null,
         r.source === "basic" ? h("p", { class: "muted small" }, "the AI wasn't used for this one, so the score comes from Branch's basic scan.") : null,
         signals,
         h("p", { class: "fine-print" }, "this is an automated guess, not a guarantee. a low score doesn't prove a file is safe, and a high score doesn't prove it's a virus. cheats and game changes aren't counted as suspicious here, but they can still get you banned."),

@@ -24,6 +24,133 @@ pub struct Indicator {
 }
 
 #[derive(Serialize, Clone, Debug)]
+pub struct Capability {
+    pub name: &'static str,
+    /// "normal", "unusual" or "dangerous"
+    pub level: &'static str,
+    pub evidence: Vec<String>,
+}
+
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct CodeSummary {
+    pub dotnet_dlls: usize,
+    pub assemblies: Vec<String>,
+    pub references: Vec<String>,
+    pub notable_calls: Vec<String>,
+    pub windows_calls: Vec<String>,
+    pub defined_types: Vec<String>,
+    pub defined_methods: Vec<String>,
+    pub type_count: usize,
+    pub method_count: usize,
+    pub obfuscated: bool,
+    pub capabilities: Vec<Capability>,
+}
+
+struct CapabilityRule {
+    name: &'static str,
+    level: &'static str,
+    weight: u32,
+    needles: &'static [&'static str],
+}
+
+// matched against lowercased "Namespace.Type::Method" calls and "dll!Function" imports
+const CAPABILITY_RULES: &[CapabilityRule] = &[
+    CapabilityRule { name: "Injects code into other programs", level: "dangerous", weight: 35, needles: &["!createremotethread", "!writeprocessmemory", "!virtualallocex", "!ntunmapviewofsection", "!queueuserapc", "!setthreadcontext", "!ntwritevirtualmemory"] },
+    CapabilityRule { name: "Hooks the keyboard system-wide", level: "dangerous", weight: 25, needles: &["!setwindowshookex"] },
+    CapabilityRule { name: "Takes screenshots", level: "dangerous", weight: 20, needles: &["system.drawing.graphics::copyfromscreen", "!bitblt"] },
+    CapabilityRule { name: "Reads the clipboard", level: "unusual", weight: 10, needles: &["system.windows.forms.clipboard::", "!getclipboarddata"] },
+    CapabilityRule { name: "Starts other programs", level: "unusual", weight: 8, needles: &["system.diagnostics.process::start", "system.diagnostics.processstartinfo::", "!createprocess", "!shellexecute", "!winexec"] },
+    CapabilityRule { name: "Reads personal folders or account info", level: "unusual", weight: 8, needles: &["system.environment::getfolderpath", "system.environment::get_username", "system.environment::getenvironmentvariable", "system.environment::get_machinename"] },
+    CapabilityRule { name: "Changes the Windows registry", level: "unusual", weight: 8, needles: &["microsoft.win32.registry", "!regsetvalue", "!regcreatekey"] },
+    CapabilityRule { name: "Opens raw network connections", level: "unusual", weight: 8, needles: &["system.net.sockets.", "!wsastartup"] },
+    CapabilityRule { name: "Loads code while running", level: "unusual", weight: 5, needles: &["system.reflection.assembly::load", "system.reflection.emit.", "system.activator::createinstance", "!loadlibrary", "!virtualprotect"] },
+    CapabilityRule { name: "Decodes or decrypts data", level: "unusual", weight: 3, needles: &["system.convert::frombase64string", "system.security.cryptography."] },
+    CapabilityRule { name: "Internet access", level: "normal", weight: 0, needles: &["system.net.webclient::", "system.net.http.", "system.net.webrequest::", "system.net.httpwebrequest::", "unityengine.networking.unitywebrequest::", "!internetopen", "!urldownloadtofile", "!winhttpopen"] },
+    CapabilityRule { name: "Reads or writes files", level: "normal", weight: 0, needles: &["system.io.file::", "system.io.directory::", "system.io.filestream::"] },
+    CapabilityRule { name: "Reads key presses (often hotkeys)", level: "normal", weight: 0, needles: &["!getasynckeystate", "!getkeystate", "unityengine.input::getkey", "unityengine.inputsystem."] },
+    CapabilityRule { name: "Patches the game (Harmony)", level: "normal", weight: 0, needles: &["harmonylib.", "monomod."] },
+    CapabilityRule { name: "Multiplayer (Photon)", level: "normal", weight: 0, needles: &["photon."] },
+    CapabilityRule { name: "Draws its own menu or interface", level: "normal", weight: 0, needles: &["unityengine.gui::", "unityengine.guilayout::", "unityengine.ui."] },
+];
+
+// calls every program makes. leaving them out keeps the ai focused on what matters.
+const BORING_OWNERS: &[&str] = &[
+    "system.object", "system.string", "system.collections", "system.linq", "system.text.stringbuilder", "system.math", "system.runtime.compilerservices",
+    "system.diagnostics.debug", "system.int", "system.single", "system.double", "system.boolean", "system.array", "system.enum", "system.type::gettypefromhandle",
+    "system.console", "system.char", "system.byte", "system.nullable", "system.func", "system.action", "system.exception", "system.datetime", "system.timespan",
+    "unityengine.vector", "unityengine.quaternion", "unityengine.mathf", "unityengine.color", "unityengine.transform", "unityengine.gameobject", "unityengine.component",
+    "unityengine.object", "unityengine.monobehaviour", "unityengine.time", "unityengine.debug", "unityengine.rect", "unityengine.material", "unityengine.renderer",
+];
+
+fn matches_rule(call: &str, rule: &CapabilityRule) -> bool {
+    let lower = call.to_lowercase();
+    rule.needles.iter().any(|n| lower.contains(n))
+}
+
+fn summarize_code(infos: &[(String, crate::pe::PeInfo)]) -> CodeSummary {
+    let mut s = CodeSummary::default();
+    let mut refs = BTreeSet::new();
+    let mut calls = BTreeSet::new();
+    let mut windows = BTreeSet::new();
+    for (name, info) in infos {
+        if info.is_dotnet {
+            s.dotnet_dlls += 1;
+        }
+        s.assemblies.push(info.assembly_name.clone().unwrap_or_else(|| name.clone()));
+        refs.extend(info.assembly_refs.iter().cloned());
+        calls.extend(info.api_calls.iter().cloned());
+        windows.extend(info.pinvokes.iter().cloned());
+        windows.extend(info.native_imports.iter().cloned());
+        s.type_count += info.type_count;
+        s.method_count += info.method_count;
+        s.obfuscated |= info.obfuscated_names;
+        for t in &info.defined_types {
+            if s.defined_types.len() < 60 {
+                s.defined_types.push(t.clone());
+            }
+        }
+        for m in &info.defined_methods {
+            if s.defined_methods.len() < 100 {
+                s.defined_methods.push(m.clone());
+            }
+        }
+    }
+
+    for rule in CAPABILITY_RULES {
+        let evidence: Vec<String> = calls.iter().chain(windows.iter()).filter(|c| matches_rule(c.as_str(), rule)).take(4).cloned().collect();
+        if !evidence.is_empty() {
+            s.capabilities.push(Capability { name: rule.name, level: rule.level, evidence });
+        }
+    }
+
+    // calls that match a risky capability go first, then everything else that isn't boring
+    let risky = |c: &str| CAPABILITY_RULES.iter().any(|r| r.weight > 0 && matches_rule(c, r));
+    let mut notable: Vec<String> = calls.iter().filter(|c| risky(c.as_str())).cloned().collect();
+    for c in &calls {
+        if notable.len() >= 150 {
+            break;
+        }
+        let lower = c.to_lowercase();
+        if !risky(c.as_str()) && !BORING_OWNERS.iter().any(|b| lower.starts_with(b)) {
+            notable.push(c.clone());
+        }
+    }
+    s.notable_calls = notable;
+    s.windows_calls = windows.into_iter().take(80).collect();
+    s.references = refs.into_iter().take(60).collect();
+    s
+}
+
+/// the extra score from what the code really calls
+fn capability_weight(code: &CodeSummary) -> u32 {
+    code.capabilities
+        .iter()
+        .filter_map(|cap| CAPABILITY_RULES.iter().find(|r| r.name == cap.name))
+        .map(|r| r.weight)
+        .sum()
+}
+
+#[derive(Serialize, Clone, Debug)]
 pub struct ZipEntry {
     pub name: String,
     pub size: u64,
@@ -43,6 +170,8 @@ pub struct ScanReport {
     pub mod_markers: Vec<&'static str>,
     pub encoded_blobs: usize,
     pub heuristic_score: u8,
+    /// what the code itself references, read from the dll structure (see pe.rs)
+    pub code: CodeSummary,
 }
 
 struct Rule {
@@ -185,9 +314,13 @@ pub fn scan(original_name: &str, data: &[u8]) -> Result<ScanReport, String> {
     let mut entry_count = 0;
     let mut risky_entries = Vec::new();
     let mut nested_archives = Vec::new();
+    let mut dlls: Vec<(String, crate::pe::PeInfo)> = Vec::new();
 
     let kind = if data.starts_with(b"MZ") {
         extract_strings(data, &mut strings);
+        if let Some(info) = crate::pe::inspect(data) {
+            dlls.push((file_name.clone(), info));
+        }
         "dll"
     } else if data.starts_with(b"PK\x03\x04") || data.starts_with(b"PK\x05\x06") {
         let mut archive = zip::ZipArchive::new(Cursor::new(data)).map_err(|_| "this zip file is broken".to_string())?;
@@ -218,6 +351,11 @@ pub fn scan(original_name: &str, data: &[u8]) -> Result<ScanReport, String> {
             if (&mut entry).take(budget).read_to_end(&mut buf).is_ok() {
                 unzipped += buf.len() as u64;
                 extract_strings(&buf, &mut strings);
+                if dlls.len() < 8 && lower.ends_with(".dll") {
+                    if let Some(info) = crate::pe::inspect(&buf) {
+                        dlls.push((name.clone(), info));
+                    }
+                }
             }
         }
         "zip"
@@ -271,7 +409,14 @@ pub fn scan(original_name: &str, data: &[u8]) -> Result<ScanReport, String> {
         found
     };
 
-    let heuristic_score = indicators.iter().map(|i| i.weight).sum::<u32>().min(100) as u8;
+    let code = summarize_code(&dlls);
+    // the same danger is often found both as text and as a real call, so the two scores
+    // aren't simply added: the bigger one counts fully and the other only partly
+    let text_weight: u32 = indicators.iter().map(|i| i.weight).sum();
+    let call_weight = capability_weight(&code);
+    let combined = text_weight.max(call_weight) + text_weight.min(call_weight) / 3;
+    let heuristic_score = combined.min(100) as u8;
+    let dotnet = dotnet || code.dotnet_dlls > 0;
 
     Ok(ScanReport {
         file_name,
@@ -286,6 +431,7 @@ pub fn scan(original_name: &str, data: &[u8]) -> Result<ScanReport, String> {
         mod_markers,
         encoded_blobs,
         heuristic_score,
+        code,
     })
 }
 

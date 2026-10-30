@@ -10,6 +10,7 @@ import { createBrowseView } from "./views/browse.js";
 import { createDetailView } from "./views/detail.js";
 import { createSettingsView, createAboutView, createLegalView } from "./views/pages.js";
 import { createUploadView } from "./views/upload.js";
+import { createForumView } from "./views/forum.js";
 import { createCheckerView } from "./views/checker.js";
 
 const root = document.documentElement;
@@ -68,6 +69,7 @@ const views = {
   about: createAboutView(ctx),
   legal: createLegalView(ctx),
   upload: createUploadView(ctx),
+  forum: createForumView(ctx),
   check: createCheckerView(ctx),
 };
 
@@ -86,6 +88,7 @@ function parseRoute() {
   if (first === "settings") return { name: "settings", path };
   if (first === "about") return { name: "about", path };
   if (first === "upload") return { name: "upload", path };
+  if (first === "forum") return { name: "forum", path, thread: parts[1] ? decodeURIComponent(parts[1]) : null, board: params.get("board") || "" };
   if (first === "check") return { name: "check", path };
   if (first === "legal" && parts[1]) return { name: "legal", path, doc: parts[1] };
   return { name: "browse", path: "/browse", mode: "all", category: "" };
@@ -127,7 +130,7 @@ function markSidebar() {
   if (route.name === "browse") {
     if (route.mode === "all" && ctx.browse.category) active = categoryNav.querySelector(`[data-category="${CSS.escape(ctx.browse.category)}"]`);
     else active = sidebar.querySelector(`[data-nav="${route.mode}"]`);
-  } else if (["settings", "about", "upload", "check"].includes(route.name)) {
+  } else if (["settings", "about", "upload", "check", "forum"].includes(route.name)) {
     active = sidebar.querySelector(`[data-nav="${route.name}"]`);
   } else if (route.name === "legal") {
     active = sidebar.querySelector('[data-nav="about"]');

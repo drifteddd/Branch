@@ -475,6 +475,8 @@ pub async fn create_request(State(state): State<AppState>, visitor: Visitor, Jso
 // ---------- mod checker ----------
 
 const AI_CALLS_KEY: &str = "__ai_calls__";
+/// bump when the model or prompt changes, so old cached answers aren't shown
+const CACHE_VERSION: &str = "v2";
 
 async fn usage_today(state: &AppState, visitor: &str) -> Result<i32, sqlx::Error> {
     let used: Option<i32> = sqlx::query_scalar("select count from ai_usage where visitor = $1 and day = current_date")
@@ -545,8 +547,10 @@ pub async fn check_mod(State(state): State<AppState>, visitor: Visitor, mut mult
 
     let used = bump_usage(&state, &visitor.id).await?;
 
+    // the cache key includes a version, so results from an older model or prompt aren't reused
+    let cache_key = format!("{CACHE_VERSION}:{}", report.sha256);
     let cached: Option<Value> = sqlx::query_scalar("select result from ai_results where sha256 = $1 and created_at > now() - interval '30 days'")
-        .bind(&report.sha256)
+        .bind(&cache_key)
         .fetch_optional(&state.db)
         .await?;
 
@@ -556,7 +560,7 @@ pub async fn check_mod(State(state): State<AppState>, visitor: Visitor, mut mult
             let ai_allowed = state.config.ai_api_key.is_some() && usage_today(&state, AI_CALLS_KEY).await? < state.config.ai_daily_global;
             let ai = if ai_allowed {
                 bump_usage(&state, AI_CALLS_KEY).await?;
-                match crate::ai::ask(&state.http, &state.config, &report).await {
+                match crate::ai::ask(&state.http, &state.config, &report, None).await {
                     Ok(v) => Some(v),
                     Err(err) => {
                         tracing::warn!(error = %err, "ai check failed, using the basic scan");
@@ -570,20 +574,41 @@ pub async fn check_mod(State(state): State<AppState>, visitor: Visitor, mut mult
                 Some(v) => {
                     // the model has the final say, but it can't wave away strong warning signs completely
                     let score = v.score.max((report.heuristic_score as f32 * 0.6).round() as u8);
-                    json!({ "score": score, "summary": v.summary, "reasons": v.reasons, "source": "ai" })
+                    json!({
+                        "score": score,
+                        "confidence": v.confidence,
+                        "what_it_does": v.what_it_does,
+                        "summary": v.summary,
+                        "reasons": v.reasons,
+                        "capabilities": v.capabilities,
+                        "source": "ai",
+                    })
                 }
                 None => {
-                    let (summary, reasons): (String, Vec<String>) = if report.indicators.is_empty() {
+                    let dangerous = report.code.capabilities.iter().filter(|c| c.level != "normal").count();
+                    let (summary, reasons): (String, Vec<String>) = if report.indicators.is_empty() && dangerous == 0 {
                         ("Branch's basic scan didn't find any of the usual malware signs.".into(), vec!["no webhooks, code injection, hidden commands, miners or packed programs were found.".into()])
                     } else {
-                        ("the AI check isn't available right now, so this score comes from Branch's basic scan only.".into(), report.indicators.iter().map(|i| i.label.to_string()).collect())
+                        (
+                            "the AI check isn't available right now, so this score comes from Branch's basic scan only.".into(),
+                            report.indicators.iter().map(|i| i.label.to_string()).chain(report.code.capabilities.iter().filter(|c| c.level != "normal").map(|c| c.name.to_string())).collect(),
+                        )
                     };
-                    json!({ "score": report.heuristic_score, "summary": summary, "reasons": reasons, "source": "basic" })
+                    let capabilities: Vec<Value> = report.code.capabilities.iter().map(|c| json!({ "name": c.name, "level": c.level, "detail": c.evidence.first().cloned().unwrap_or_default() })).collect();
+                    json!({
+                        "score": report.heuristic_score,
+                        "confidence": if report.code.dotnet_dlls > 0 { "medium" } else { "low" },
+                        "what_it_does": "",
+                        "summary": summary,
+                        "reasons": reasons,
+                        "capabilities": capabilities,
+                        "source": "basic",
+                    })
                 }
             };
             if value["source"] == "ai" {
                 sqlx::query("insert into ai_results (sha256, result) values ($1, $2) on conflict (sha256) do update set result = excluded.result, created_at = now()")
-                    .bind(&report.sha256)
+                    .bind(&cache_key)
                     .bind(&value)
                     .execute(&state.db)
                     .await?;
@@ -599,10 +624,19 @@ pub async fn check_mod(State(state): State<AppState>, visitor: Visitor, mut mult
         "verdict": verdict_label(score),
         "summary": verdict["summary"],
         "reasons": verdict["reasons"],
+        "confidence": verdict["confidence"],
+        "what_it_does": verdict["what_it_does"],
+        "capabilities": verdict["capabilities"],
         "source": verdict["source"],
         "cached": from_cache,
         "indicators": report.indicators,
         "mod_markers": report.mod_markers,
+        "code": {
+            "dotnet": report.code.dotnet_dlls > 0,
+            "types": report.code.type_count,
+            "methods": report.code.method_count,
+            "obfuscated": report.code.obfuscated,
+        },
         "used": used,
         "limit": limit,
         "remaining": (limit - used).max(0),
@@ -710,7 +744,9 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
     let mut ai_used = false;
     if state.config.ai_api_key.is_some() && usage_today(&state, AI_CALLS_KEY).await? < state.config.ai_daily_global {
         bump_usage(&state, AI_CALLS_KEY).await?;
-        match crate::ai::ask(&state.http, &state.config, &report).await {
+        // the ai also sees what the uploader claims, so it can spot a "hat mod" that steals passwords
+        let claim = crate::ai::Claim { name: &name, description: &description };
+        match crate::ai::ask(&state.http, &state.config, &report, Some(&claim)).await {
             Ok(v) => {
                 score = v.score.max((report.heuristic_score as f32 * 0.6).round() as u8);
                 ai_used = true;

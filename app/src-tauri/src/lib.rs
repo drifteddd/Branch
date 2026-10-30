@@ -98,6 +98,7 @@ async fn api_request(
     let request = match method.as_str() {
         "GET" => http.api.get(&url),
         "POST" => http.api.post(&url).json(&body.unwrap_or(serde_json::Value::Null)),
+        "PUT" => http.api.put(&url).json(&body.unwrap_or(serde_json::Value::Null)),
         _ => return Err(CmdError::new("app", "unsupported request")),
     };
     read_json(request.send().await?).await

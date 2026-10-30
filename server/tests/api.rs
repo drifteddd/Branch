@@ -438,6 +438,57 @@ async fn full_flow() {
     let r = c.form("/api/submissions", &[("name", "One Too Many"), ("description", description), ("confirm", "true")], Some(("pack.dll", &b"MZ BepInEx"[..]))).await;
     assert_eq!(r.status, StatusCode::TOO_MANY_REQUESTS, "10 uploads a day");
 
+    // ---- community forum ----
+    let key = "ab12".repeat(16);
+    let r = c.json("POST", "/api/forum/me", json!({ "key": key })).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    assert!(r.json["name"].as_str().unwrap().len() >= 3, "a random name is made");
+    assert_eq!(r.json["tag"].as_str().unwrap().len(), 4);
+    let r = c.json("POST", "/api/forum/me", json!({ "key": "not-a-key" })).await;
+    assert_eq!(r.status, StatusCode::BAD_REQUEST);
+    let r = c.json("PUT", "/api/forum/me", json!({ "key": key, "name": "Branch Admin" })).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "staff-like names are blocked");
+    let r = c.json("PUT", "/api/forum/me", json!({ "key": key, "name": "Cool Climber" })).await;
+    assert_eq!(r.json["name"], "Cool Climber");
+
+    let r = c.json("POST", "/api/forum/threads", json!({ "key": key, "board": "nope", "title": "hi", "body": "short" })).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
+    let r = c.json("POST", "/api/forum/threads", json!({ "key": key, "board": "help", "title": "how do i install bepinex?", "body": "i tried but the mods folder never shows up." })).await;
+    assert_eq!(r.status, StatusCode::CREATED, "{}", r.json);
+    let thread_id = r.json["id"].as_str().unwrap().to_string();
+    let r = c.get("/api/forum/threads?board=help").await;
+    assert_eq!(r.json["items"].as_array().unwrap().len(), 1);
+    assert_eq!(r.json["items"][0]["author"]["name"], "Cool Climber");
+
+    let reply = json!({ "key": key, "body": "run the game once after installing it." });
+    let r = c.json("POST", &format!("/api/forum/threads/{thread_id}/replies"), reply.clone()).await;
+    assert_eq!(r.status, StatusCode::CREATED, "{}", r.json);
+    let reply_id = r.json["id"].as_str().unwrap().to_string();
+    let r = c.json("POST", &format!("/api/forum/threads/{thread_id}/replies"), reply).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "double posts are blocked");
+    let r = c.get(&format!("/api/forum/threads/{thread_id}")).await;
+    assert_eq!(r.json["thread"]["reply_count"], 1);
+    assert_eq!(r.json["replies"].as_array().unwrap().len(), 1);
+
+    let r = c.json("POST", "/api/forum/report", json!({ "reply_id": reply_id, "reason": "spam" })).await;
+    assert_eq!(r.status, StatusCode::CREATED);
+    let r = c.get("/api/admin/forum").await;
+    assert_eq!(r.json["reports"].as_array().unwrap().len(), 1, "{}", r.json);
+    let poster_id = r.json["reports"][0]["poster_id"].as_str().unwrap().to_string();
+    let r = c.json("POST", &format!("/api/admin/forum/replies/{reply_id}"), json!({ "removed": true })).await;
+    assert_eq!(r.status, StatusCode::OK);
+    let r = c.get(&format!("/api/forum/threads/{thread_id}")).await;
+    assert_eq!(r.json["replies"][0]["body"], "[removed by a moderator]");
+    assert_eq!(c.get("/api/admin/forum").await.json["reports"].as_array().unwrap().len(), 0, "removing closes the report");
+
+    let r = c.json("POST", &format!("/api/admin/forum/posters/{poster_id}"), json!({ "banned": true })).await;
+    assert_eq!(r.status, StatusCode::OK);
+    let r = c.json("POST", &format!("/api/forum/threads/{thread_id}/replies"), json!({ "key": key, "body": "am i banned?" })).await;
+    assert_eq!(r.status, StatusCode::FORBIDDEN, "banned posters can't post");
+    let other = "cd34".repeat(16);
+    let r = c.json("POST", "/api/forum/threads", json!({ "key": other, "board": "general", "title": "new name, same person", "body": "trying to get around the ban" })).await;
+    assert_eq!(r.status, StatusCode::FORBIDDEN, "a new key on the same connection is blocked too");
+
     // ---- activity log and logout ----
     let actions: Vec<String> = c.get("/api/admin/audit").await.json["items"].as_array().unwrap().iter().map(|a| a["action"].as_str().unwrap().to_string()).collect();
     for action in ["login", "change_password", "create_mod", "set_status", "upload_file", "disable_download", "delete_mod", "accept_request"] {
