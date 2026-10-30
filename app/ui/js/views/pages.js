@@ -98,10 +98,10 @@ export function createAboutView(ctx) {
     ),
     group(
       "More",
-      linkRow("#/legal/privacy", "Privacy notice"),
-      linkRow("#/legal/terms", "Terms of use"),
-      linkRow("#/legal/takedown", "Copyright and takedown requests"),
-      linkRow("#/legal/licenses", "Licenses and credits"),
+      linkRow("#/legal/privacy", "Privacy Notice"),
+      linkRow("#/legal/terms", "Terms of Use"),
+      linkRow("#/legal/takedown", "Copyright and Takedown Policy"),
+      linkRow("#/legal/licenses", "Licenses and Credits"),
       h("div", { class: "settings-row" }, h("span", null, "Contact"), h("span", { class: "muted contact-email" }, CONTACT_EMAIL)),
       h("div", { class: "settings-row" }, h("span", null, "Source code"), h("a", { href: REPO_URL, "data-external": true }, "GitHub", icon("external", "inline-icon"))),
     ),
@@ -111,10 +111,10 @@ export function createAboutView(ctx) {
 }
 
 const LEGAL_DOCS = {
-  privacy: "Privacy notice",
-  terms: "Terms of use",
-  takedown: "Copyright and takedown requests",
-  licenses: "Licenses and credits",
+  privacy: "Privacy Notice",
+  terms: "Terms of Use",
+  takedown: "Copyright and Takedown Policy",
+  licenses: "Licenses and Credits",
 };
 
 export function createLegalView(ctx) {

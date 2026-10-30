@@ -2,7 +2,7 @@
 // cheats and game changes don't count as suspicious here, on purpose.
 import { h, clear, formatBytes } from "../dom.js";
 import { icon } from "../icons.js";
-import { api, checkModFile, isDesktop } from "../platform.js";
+import { api, uploadForm } from "../platform.js";
 import { settings } from "../store.js";
 
 const STEPS = ["Reading the file", "Looking inside", "Checking for warning signs", "Asking the AI"];
@@ -27,11 +27,13 @@ export function createCheckerView() {
   }
 
   function renderPicker(message) {
-    // in the browser preview there's no rust file picker, so use a normal file input
-    const input = isDesktop ? null : h("input", { type: "file", accept: ".dll,.zip", class: "visually-hidden", id: "checker-file", tabindex: "-1" });
-    const choose = h("button", { class: "btn btn-primary btn-large", type: "button" }, icon("upload"), "Choose a mod file");
-    choose.addEventListener("click", () => (isDesktop ? run(null) : input.click()));
-    input?.addEventListener("change", () => input.files[0] && run(input.files[0]));
+    // the page's own file picker. nothing happens until a file is actually chosen.
+    const input = h("input", { type: "file", accept: ".dll,.zip", class: "visually-hidden", id: "checker-file", tabindex: "-1" });
+    const choose = h("button", { class: "btn btn-primary btn-large", type: "button", onclick: () => input.click() }, icon("upload"), "Choose a mod file");
+    input.addEventListener("change", () => {
+      const file = input.files && input.files[0];
+      if (file) run(file);
+    });
     clear(body).append(
       h(
         "div",
@@ -46,21 +48,20 @@ export function createCheckerView() {
     );
   }
 
-  async function run(browserFile) {
-    if (busy) return;
+  async function run(file) {
+    if (busy || !file) return;
+    if (file.size === 0) return renderPicker("that file is empty.");
+    if (file.size > 50 * 1024 * 1024) return renderPicker("files can be up to 50 MB.");
     busy = true;
     const step = h("p", { class: "scan-step" }, STEPS[0]);
     const progress = h("div", { class: "progress" }, h("div", { class: "progress-fill indeterminate" }));
     let i = 0;
     const timer = setInterval(() => { i = Math.min(i + 1, STEPS.length - 1); step.textContent = STEPS[i]; }, 900);
-    const showScanning = () => clear(body).append(h("div", { class: "drop-card scanning", "aria-busy": "true" }, h("div", { class: "drop-icon pulse" }, icon("shield")), h("p", { class: "drop-title" }, "Checking…"), progress, step));
-    if (!isDesktop) showScanning();
+    clear(body).append(h("div", { class: "drop-card scanning", "aria-busy": "true" }, h("div", { class: "drop-icon pulse" }, icon("shield")), h("p", { class: "drop-title" }, `Checking ${file.name}…`), progress, step));
     try {
-      // on desktop the picker opens first, so only show "checking" once a file was picked
-      const resultPromise = checkModFile(browserFile);
-      if (isDesktop) setTimeout(() => { if (busy) showScanning(); }, 400);
-      const result = await resultPromise;
-      if (result.cancelled) return renderPicker();
+      const form = new FormData();
+      form.append("file", file, file.name);
+      const result = await uploadForm("/api/check", form);
       setUsage(result.remaining, result.limit);
       renderResult(result);
     } catch (err) {
@@ -70,7 +71,6 @@ export function createCheckerView() {
       busy = false;
     }
   }
-
   function renderResult(r) {
     const tone = r.score <= 20 ? "clean" : r.score <= 45 ? "odd" : r.score <= 70 ? "suspicious" : "danger";
     const number = h("span", { class: "meter-number" }, "0");

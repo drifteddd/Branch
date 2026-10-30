@@ -340,8 +340,8 @@ await test("dark mode setting applies and persists", async () => {
 await test("about and legal pages open", async () => {
   await go(`${BASE}/#/about`);
   await waitFor(`document.querySelector('.made-by')?.textContent === 'made by Drifted'`, "about page");
-  await evaluate(clickText(".link-row", "Privacy notice"));
-  await waitFor(`document.querySelector('.legal-doc h3')?.textContent === 'Privacy notice'`, "privacy page");
+  await evaluate(clickText(".link-row", "Privacy Notice"));
+  await waitFor(`document.querySelector('.legal-doc h3')?.textContent === 'Privacy Notice'`, "privacy page");
 });
 
 await test("narrow window collapses the sidebar", async () => {
@@ -371,17 +371,32 @@ await test("keyboard: ctrl+f focuses search and arrows move through rows", async
   assert(await evaluate(`document.activeElement === ${rows}[1].querySelector('.row-link')`), "arrow down didn't move focus");
 });
 
-await test("mod request form validates and sends", async () => {
-  await go(`${BASE}/#/request`);
-  await waitFor(`document.querySelector("#req-mod_name")`, "request form");
+await test("community upload needs a file, name, description and rights confirmation", async () => {
+  const modFile = join(profile, "TinyHats.dll");
+  writeFileSync(modFile, Buffer.from("MZ demo tiny hats BepInEx"));
+  await go(`${BASE}/#/upload`);
+  await waitFor(`document.querySelector("#up-name")`, "upload form");
   await evaluate(click(".form-card button[type=submit]"));
-  await waitFor(`!document.querySelector("#req-mod_name-error").hidden`, "name required");
-  await evaluate(type("#req-mod_name", "E2E Requested Mod"));
-  await evaluate(type("#req-url", "https://github.com/someone/e2e-mod"));
-  await evaluate(type("#req-details", "it adds e2e hats"));
-  await screenshot("request");
+  await waitFor(`!document.querySelector("#up-file-error").hidden && !document.querySelector("#up-description-error").hidden && !document.querySelector("#up-confirm-error").hidden`, "required field errors");
+  await setFile("#up-file", modFile);
+  await waitFor(`document.querySelector(".file-chosen").textContent.includes("TinyHats.dll")`, "chosen file shown");
+  await evaluate(type("#up-name", "E2E Tiny Hats"));
+  await evaluate(type("#up-description", "too short"));
+  await evaluate(click("#up-confirm"));
   await evaluate(click(".form-card button[type=submit]"));
-  await waitFor(`document.querySelector(".state-block h2")?.textContent === "Request sent"`, "request sent");
+  await waitFor(`!document.querySelector("#up-description-error").hidden`, "description too short");
+  await evaluate(type("#up-description", "adds tiny hats to every player in private lobbies. demo upload."));
+  await evaluate(click("#up-anonymous"));
+  assert(await evaluate(`document.querySelector("#up-author").disabled`), "author field should lock when anonymous");
+  await screenshot("upload");
+  await evaluate(click(".form-card button[type=submit]"));
+  await waitFor(`document.querySelector(".state-block h2")?.textContent === "Your mod is live"`, "upload done", 8000);
+  await evaluate(clickText(".state-block a", "View your mod"));
+  await waitFor(`document.querySelector(".detail-title")?.textContent === "E2E Tiny Hats"`, "uploaded mod page");
+  assert(await evaluate(`document.querySelector(".byline").textContent.includes("Anonymous")`), "author should be Anonymous");
+  assert(await evaluate(`document.querySelector(".detail-warnings").textContent.includes("Community upload")`), "community note missing");
+  await go(`${BASE}/#/browse`);
+  await waitFor(`[...document.querySelectorAll(".mod-row")].some(r => r.textContent.includes("E2E Tiny Hats") && r.textContent.includes("Community"))`, "community badge in the list");
 });
 
 await test("mod checker uploads a file and animates the suspicion meter", async () => {
@@ -427,7 +442,7 @@ await test("admin must change the starting password", async () => {
   await evaluate(type("#pw-new", "a much better demo passphrase"));
   await evaluate(type("#pw-again", "a much better demo passphrase"));
   await evaluate(click("form button[type=submit]"));
-  await waitFor(`document.querySelector('.page-head h1')?.textContent === 'Mods'`, "mods list");
+  await waitFor(`document.querySelector('.page-head h1')?.textContent === 'All mods'`, "mods list");
   await screenshot("admin-mods");
 });
 
@@ -460,7 +475,7 @@ await test("admin creates, publishes, unpublishes and deletes a mod", async () =
   await evaluate(clickText(".editor-bar button", "Publish"));
   await waitFor(`document.querySelector('.editor-bar .pill')?.textContent === 'published'`, "published");
   await screenshot("admin-editor");
-  const listed = await evaluate(`fetch('/api/mods?q=E2E').then(r => r.json()).then(d => d.items.length)`);
+  const listed = await evaluate(`fetch('/api/mods?q=E2E%20Test%20Mod').then(r => r.json()).then(d => d.items.length)`);
   assert(listed === 1, "published mod not in the public list");
 
   await evaluate(clickText(".editor-bar button", "Preview"));
@@ -469,24 +484,27 @@ await test("admin creates, publishes, unpublishes and deletes a mod", async () =
 
   await evaluate(clickText(".editor-bar button", "Unpublish"));
   await waitFor(`document.querySelector('.editor-bar .pill')?.textContent === 'unpublished'`, "unpublished");
-  const hidden = await evaluate(`fetch('/api/mods?q=E2E').then(r => r.json()).then(d => d.items.length)`);
+  const hidden = await evaluate(`fetch('/api/mods?q=E2E%20Test%20Mod').then(r => r.json()).then(d => d.items.length)`);
   assert(hidden === 0, "unpublished mod still public");
 
   await evaluate(clickText(".editor-bar button", "Delete"));
   await waitFor(`document.querySelector('dialog[open]')`, "confirm dialog");
   await evaluate(clickText("dialog[open] button", "Delete forever"));
-  await waitFor(`document.querySelector('.page-head h1')?.textContent === 'Mods'`, "back on list");
+  await waitFor(`document.querySelector('.page-head h1')?.textContent === 'All mods'`, "back on list");
   assert(!(await evaluate(`document.body.textContent.includes('E2E Test Mod')`)), "deleted mod still listed");
 });
 
-await test("admin accepts a mod request into a draft", async () => {
-  await go(`${BASE}/admin#/requests`);
-  await waitFor(`document.querySelector(".report h2")?.textContent === "E2E Requested Mod"`, "request card");
-  assert(await evaluate(`[...document.querySelectorAll(".report-actions button")].some(b => b.textContent === "View source code")`), "no view source button for a github link");
-  await screenshot("admin-requests");
-  await evaluate(clickText(".report-actions button", "Accept and create draft"));
-  await waitFor(`/#\\/mods\\/[0-9a-f-]{36}/.test(location.hash) && document.querySelector("#name")?.value === "E2E Requested Mod"`, "draft editor");
-  assert(await evaluate(`document.querySelector("#source_url").value === "https://github.com/someone/e2e-mod"`), "source link not carried over");
+await test("admin sees every mod, filters community uploads and removes one", async () => {
+  await go(`${BASE}/admin#/mods`);
+  await waitFor(`document.querySelector(".page-head h1")?.textContent === "All mods"`, "all mods list");
+  await evaluate(choose(".toolbar-row select:nth-of-type(2)", "community"));
+  await waitFor(`document.querySelectorAll("tbody tr").length === 1 && document.querySelector("tbody").textContent.includes("E2E Tiny Hats")`, "only the community upload");
+  await screenshot("admin-all-mods");
+  await evaluate(clickText("tbody .row-actions button", "Remove"));
+  await waitFor(`document.querySelector("dialog[open]")`, "confirm");
+  await evaluate(clickText("dialog[open] button", "Remove forever"));
+  await waitFor(`!document.querySelector("tbody") || !document.querySelector("tbody").textContent.includes("E2E Tiny Hats")`, "removed");
+  assert((await evaluate(`fetch("/api/mods?q=Tiny%20Hats").then(r => r.json()).then(d => d.total)`)) === 0, "removed mod is still public");
 });
 
 await test("admin bulk-imports mods into a private drafts list", async () => {

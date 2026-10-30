@@ -68,6 +68,26 @@ impl Client {
         self.send(request).await
     }
 
+    async fn form(&mut self, path: &str, fields: &[(&str, &str)], file: Option<(&str, &[u8])>) -> Reply {
+        let boundary = "branchformboundary";
+        let mut body = Vec::new();
+        for (name, value) in fields {
+            body.extend_from_slice(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"{name}\"\r\n\r\n{value}\r\n").as_bytes());
+        }
+        if let Some((file_name, data)) = file {
+            body.extend_from_slice(format!("--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{file_name}\"\r\nContent-Type: application/octet-stream\r\n\r\n").as_bytes());
+            body.extend_from_slice(data);
+            body.extend_from_slice(b"\r\n");
+        }
+        body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+        let request = self
+            .build("POST", path, false)
+            .header(header::CONTENT_TYPE, format!("multipart/form-data; boundary={boundary}"))
+            .body(Body::from(body))
+            .unwrap();
+        self.send(request).await
+    }
+
     async fn upload(&mut self, path: &str, file_name: &str, data: &[u8]) -> Reply {
         let boundary = "branchtestboundary";
         let mut body = Vec::new();
@@ -389,6 +409,34 @@ async fn full_flow() {
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
     assert!(r.json["fields"]["redistribution"].is_string(), "{}", r.json);
     assert!(r.json["fields"]["releases"].is_string(), "{}", r.json);
+
+    // ---- community uploads ----
+    let description = "adds tiny hats to every player. works in private lobbies.";
+    let r = c.form("/api/submissions", &[("name", "Tiny Hats"), ("description", "too short")], Some(("TinyHats.dll", &b"MZ BepInEx hats"[..]))).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(r.json["fields"]["description"].is_string(), "{}", r.json);
+    assert!(r.json["fields"]["confirm"].is_string(), "the rights confirmation is required");
+    let r = c.form("/api/submissions", &[("name", "Free Robux"), ("description", description), ("confirm", "true")], Some(("x.dll", &b"MZ https://discord.com/api/webhooks/1/x \\Local Storage\\leveldb CreateRemoteThread"[..]))).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "harmful files are refused: {}", r.json);
+    assert!(r.json["fields"]["file"].as_str().unwrap().contains("safety check"));
+    let r = c.form("/api/submissions", &[("name", "Tiny Hats"), ("description", description), ("anonymous", "true"), ("author", "should be hidden"), ("confirm", "true")], Some(("TinyHats_v2.1.dll", &b"MZ BepInEx hats"[..]))).await;
+    assert_eq!(r.status, StatusCode::CREATED, "{}", r.json);
+    let slug = r.json["slug"].as_str().unwrap().to_string();
+    let r = c.get(&format!("/api/mods/{slug}")).await;
+    assert_eq!(r.status, StatusCode::OK, "community uploads go live right away");
+    assert_eq!(r.json["author"]["name"], "Anonymous");
+    assert_eq!(r.json["community"], true);
+    assert_eq!(r.json["releases"][0]["version"], "2.1");
+    let release_id = r.json["releases"][0]["id"].as_str().unwrap().to_string();
+    assert_eq!(c.get(&format!("/api/releases/{release_id}/download")).await.bytes, b"MZ BepInEx hats");
+    assert_eq!(c.get("/api/admin/mods?source=community").await.json["items"].as_array().unwrap().len(), 1);
+    for n in 2..=10 {
+        let name = format!("Hat Pack {n}");
+        let r = c.form("/api/submissions", &[("name", name.as_str()), ("description", description), ("confirm", "true")], Some(("pack.dll", &b"MZ BepInEx"[..]))).await;
+        assert_eq!(r.status, StatusCode::CREATED, "upload {n}: {}", r.json);
+    }
+    let r = c.form("/api/submissions", &[("name", "One Too Many"), ("description", description), ("confirm", "true")], Some(("pack.dll", &b"MZ BepInEx"[..]))).await;
+    assert_eq!(r.status, StatusCode::TOO_MANY_REQUESTS, "10 uploads a day");
 
     // ---- activity log and logout ----
     let actions: Vec<String> = c.get("/api/admin/audit").await.json["items"].as_array().unwrap().iter().map(|a| a["action"].as_str().unwrap().to_string()).collect();

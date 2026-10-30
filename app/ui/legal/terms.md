@@ -1,71 +1,93 @@
-# Terms of use
+# Terms of Use
 
-version 2 · last updated: october 29, 2026
+**Version 3** · Effective October 29, 2026
 
-these terms are an agreement between you and Drifted, who runs Branch. by pressing "agree" in the app or using Branch, you accept them. if you don't agree, don't use Branch.
+These Terms of Use (the "**Terms**") form a binding agreement between you and Drifted (the "**Operator**," "**we**," "**us**"), the operator of the Branch application, its server and related services (together, "**Branch**" or the "**Service**"). By selecting "Agree and continue," or by accessing or using the Service, you confirm that you have read, understood and agree to be bound by these Terms and by the Privacy Notice, which is incorporated by reference. If you do not agree, you must not access or use the Service.
 
-## 1. who can use Branch
+## 1. Eligibility
 
-you must be at least 13 years old. if you're under 18 (or the age of adulthood where you live), a parent or guardian must agree to these terms for you.
+1.1 You must be at least thirteen (13) years of age to use the Service.
 
-## 2. what Branch is
+1.2 If you are under the age of majority in your jurisdiction, you represent that your parent or legal guardian has reviewed and agreed to these Terms on your behalf, and that they accept responsibility for your use of the Service.
 
-Branch is a free list of Gorilla Tag mods made by other people, plus a few tools (a mod checker and a way to request mods). Branch didn't make the listed mods, doesn't own them, and doesn't control them. each mod belongs to its author and has its own license.
+## 2. Description of the Service
 
-Branch is an independent project. it isn't made by, endorsed by, sponsored by, or connected to Another Axiom or the Gorilla Tag team. "Gorilla Tag" is only used to describe what the mods are for. all trademarks belong to their owners.
+2.1 Branch is a free directory and distribution platform for user-generated modifications ("**Mods**") for the video game Gorilla Tag. The Service also provides an automated malware-analysis tool (the "**Mod Checker**") and the ability for users to upload Mods ("**User Submissions**").
 
-## 3. using mods is at your own risk
+2.2 Branch is an independent project. It is not affiliated with, endorsed by, sponsored by or otherwise connected to Another Axiom Inc. or the developers of Gorilla Tag. All trademarks, names and logos are the property of their respective owners and are used solely for identification.
 
-- mods can break your game, damage your files, or stop working after an update.
-- mods can break the game's rules. using them, especially in public lobbies, can get you kicked or banned. following the game's rules and terms is your job.
-- Branch does not scan every file and does not promise that any mod is safe, legal where you live, working, or what it says it is.
-- compatibility labels are a best guess at one point in time and can be wrong.
-- you choose what to download, install and run. back up your game before installing anything.
+2.3 The Operator may modify, suspend or discontinue all or any part of the Service at any time, with or without notice, and without liability to you.
 
-## 4. the mod checker
+## 3. Third-Party Content and Use of Mods
 
-the mod checker is an automated guess made by software and an AI model. it can be wrong in both directions: a low score does not mean a file is safe, and a high score does not mean it's malware. don't rely on it as your only protection. you must only upload files you're allowed to share. by uploading, you allow Branch to process the file and send text taken from it to its AI provider, as explained in the privacy notice.
+3.1 Mods are created by third parties, including other users. The Operator does not create, control, endorse or guarantee any Mod, and does not review every Mod before it is made available.
 
-## 5. reports and mod requests
+3.2 You acknowledge that downloading, installing or using any Mod is done entirely at your own risk. Mods may contain defects or harmful code, may damage your device, software or data, may cease to function after game updates, and may violate the terms of service of Gorilla Tag or other platforms, which can result in suspension or termination of your game account. You are solely responsible for complying with all third-party terms that apply to you.
 
-only send true information. don't send spam, insults, personal information about other people, or anything illegal. Branch can ignore, delete or act on any report or request at its own choice. sending a request doesn't mean the mod will be added.
+3.3 Compatibility labels, descriptions, download counts and other information displayed on the Service are provided for convenience only and may be inaccurate or out of date.
 
-## 6. things you must not do
+## 4. User Submissions
 
-don't use Branch to break the law or anyone's rights; try to hack, overload, scrape or disrupt the Branch app or server; get around limits (like the daily check limit); upload malware on purpose; or pretend to be someone else.
+4.1 **Content you provide.** User Submissions include any Mod file, name, description, author name, link or other material you upload to the Service. You may choose to publish a User Submission anonymously.
 
-## 7. Branch's own software
+4.2 **Your representations and warranties.** By uploading a User Submission, you represent and warrant that: (a) you created the Mod or otherwise hold all rights, licenses and permissions necessary to distribute it through the Service; (b) the User Submission does not infringe, misappropriate or violate any copyright, trademark, privacy, publicity or other right of any person; (c) the file contains no virus, malware, spyware, remote-access tool, credential stealer, cryptocurrency miner or other code intended to harm or gain unauthorized access to any device, account or data; (d) the name and description are accurate and not misleading; and (e) the User Submission complies with all applicable laws.
 
-Branch's source code is open source under the MIT license. that license only covers Branch itself. it does not give you any rights to the mods listed in it or to anything from Gorilla Tag.
+4.3 **License to the Operator.** You retain ownership of your User Submissions. By uploading a User Submission, you grant the Operator a worldwide, non-exclusive, royalty-free, transferable and sublicensable license to host, store, reproduce, analyze (including by automated and artificial-intelligence systems), display and distribute the User Submission, and to make it available for download to users of the Service, for the purposes of operating, improving and promoting the Service. This license continues until the User Submission is removed from the Service, except for copies retained in backups for a reasonable period or as required by law.
 
-## 8. no warranty
+4.4 **Moderation.** The Operator has the right, but not the obligation, to review, refuse, edit, unpublish or remove any User Submission at any time and for any reason, including where it is reported, fails an automated safety check, or is reasonably believed to violate these Terms. Automated checks are not a review or endorsement by the Operator.
 
-Branch, its tools and everything listed in it are provided **"as is" and "as available"**, without warranties of any kind, express or implied, including merchantability, fitness for a particular purpose, accuracy and non-infringement. Branch can change, pause or shut down at any time without notice.
+4.5 **Limits.** The Operator may limit the number, size or type of User Submissions, including a limit of ten (10) uploads per user per day.
 
-## 9. limitation of liability
+## 5. Prohibited Conduct
 
-to the fullest extent the law allows, Drifted is **not liable** for any indirect, incidental, special, consequential or punitive damages, or for any loss of data, accounts, game progress, items, devices or money, that come from using or not being able to use Branch, any mod, any download, any mod checker result, or any third-party website. Branch is free, so where liability can't be excluded, Drifted's total liability is limited to zero dollars (US $0), or the lowest amount the law allows.
+You agree that you will not: (a) upload or distribute malicious code of any kind; (b) upload content that you do not have the right to distribute, or that infringes the rights of others; (c) upload content that is unlawful, defamatory, obscene, hateful, harassing or that exploits minors; (d) impersonate any person or misrepresent your affiliation with any person; (e) submit false or misleading reports, requests or descriptions; (f) attempt to probe, scan, disrupt, overload or gain unauthorized access to the Service or its infrastructure; (g) circumvent rate limits, usage limits or security measures; (h) scrape or harvest data from the Service by automated means; or (i) use the Service in violation of any applicable law.
 
-## 10. you cover your own actions
+## 6. The Mod Checker
 
-to the extent the law allows, you agree to cover (indemnify) Drifted against claims, damages and costs that come from your use of mods, your breaking of these terms, the game's terms, or the law, or anything you send through Branch.
+6.1 The Mod Checker provides an automated estimate generated by software and a third-party artificial-intelligence model. Results may be incorrect. A low score does not mean that a file is safe, and a high score does not mean that a file is malicious. The Mod Checker does not evaluate whether a Mod complies with any game's rules.
 
-## 11. copyright and takedowns
+6.2 You must only submit files that you are entitled to share. By using the Mod Checker, you authorize the processing described in the Privacy Notice, including transmission of information extracted from the file to the Operator's artificial-intelligence provider.
 
-if you own something listed on Branch and want it changed or removed, see the copyright and takedown page or email drifted1000@outlook.com. Branch removes or turns off content when a valid request is received.
+6.3 You must not rely on the Mod Checker as your sole means of protection.
 
-## 12. ending
+## 7. Intellectual Property and Copyright Complaints
 
-you can stop using Branch at any time by uninstalling it. Branch can stop you from using it if you break these terms.
+7.1 The Branch software source code is licensed under the MIT License. That license applies only to Branch itself and grants no rights in any Mod, User Submission or Gorilla Tag material.
 
-## 13. other
+7.2 The Operator respects the intellectual property rights of others and responds to notices of alleged infringement that comply with applicable law. The procedure for submitting a notice and counter-notice is described in the Copyright and Takedown Policy. The Operator may, in appropriate circumstances and at its discretion, restrict or block the ability of users who repeatedly infringe the rights of others to upload content.
 
-if part of these terms can't be enforced, the rest still applies. these terms, together with the privacy notice, are the whole agreement about Branch. not enforcing a rule right away doesn't mean giving it up. nothing in these terms takes away rights you have by law that can't be waived.
+## 8. Disclaimer of Warranties
 
-## 14. changes
+TO THE FULLEST EXTENT PERMITTED BY APPLICABLE LAW, THE SERVICE, ALL MODS, USER SUBMISSIONS, MOD CHECKER RESULTS AND ALL OTHER CONTENT ARE PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY OR SECURITY. THE OPERATOR DOES NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE OR FREE OF HARMFUL COMPONENTS.
 
-these terms can change. when they change in an important way, Branch will ask you to accept them again before you keep using it.
+## 9. Limitation of Liability
 
-## 15. contact
+TO THE FULLEST EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL THE OPERATOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY OR PUNITIVE DAMAGES, OR FOR ANY LOSS OF DATA, PROFITS, GOODWILL, GAME ACCOUNTS, VIRTUAL ITEMS OR DEVICES, ARISING OUT OF OR RELATING TO THE SERVICE, ANY MOD, ANY USER SUBMISSION, ANY MOD CHECKER RESULT OR ANY THIRD-PARTY WEBSITE, WHETHER BASED IN CONTRACT, TORT (INCLUDING NEGLIGENCE), STRICT LIABILITY OR ANY OTHER THEORY, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES. BECAUSE THE SERVICE IS PROVIDED FREE OF CHARGE, THE OPERATOR'S TOTAL AGGREGATE LIABILITY FOR ALL CLAIMS SHALL NOT EXCEED ZERO U.S. DOLLARS (US $0.00) OR, WHERE SUCH A LIMITATION IS NOT PERMITTED, THE MINIMUM AMOUNT PERMITTED BY APPLICABLE LAW.
 
-drifted1000@outlook.com
+## 10. Indemnification
+
+To the fullest extent permitted by applicable law, you agree to defend, indemnify and hold harmless the Operator from and against any claims, liabilities, damages, losses, costs and expenses, including reasonable legal fees, arising out of or relating to: (a) your use of the Service or any Mod; (b) your User Submissions; (c) your violation of these Terms; or (d) your violation of any law or the rights of any third party.
+
+## 11. Termination
+
+You may stop using the Service at any time by uninstalling the application. The Operator may suspend or terminate your access to the Service, and remove your User Submissions, at any time and for any reason. Sections 3, 4.3, 7 through 10 and 12 survive any termination.
+
+## 12. General
+
+12.1 **Severability.** If any provision of these Terms is held invalid or unenforceable, that provision shall be enforced to the maximum extent permissible and the remaining provisions shall remain in full force and effect.
+
+12.2 **Entire agreement.** These Terms, together with the Privacy Notice and the Copyright and Takedown Policy, constitute the entire agreement between you and the Operator regarding the Service.
+
+12.3 **No waiver.** The Operator's failure to enforce any right or provision of these Terms shall not constitute a waiver of that right or provision.
+
+12.4 **Assignment.** You may not assign or transfer these Terms. The Operator may assign these Terms without restriction.
+
+12.5 **Statutory rights.** Nothing in these Terms limits any rights you may have under applicable law that cannot be waived or limited by contract.
+
+## 13. Changes to These Terms
+
+The Operator may revise these Terms from time to time. Material changes will be presented in the application, and you will be required to accept the revised Terms before continuing to use the Service. Continued use of the Service after accepting revised Terms constitutes acceptance of those Terms.
+
+## 14. Contact
+
+Questions about these Terms may be sent to **drifted1000@outlook.com**.

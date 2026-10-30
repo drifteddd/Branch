@@ -5,7 +5,7 @@ import { renderMarkdown } from "../shared/markdown.js";
 import { appWindow, isDesktop } from "./platform.js";
 
 // bump this whenever terms.md or privacy.md change in an important way
-export const TERMS_VERSION = 2;
+export const TERMS_VERSION = 3;
 const KEY = "branch.termsAccepted";
 
 export function termsAccepted() {
@@ -37,7 +37,7 @@ export async function requireTerms() {
       docBox.innerHTML = which === "terms" ? terms : privacy; // rendered by renderMarkdown, which escapes everything
       docBox.scrollTop = 0;
     };
-    for (const [value, label] of [["terms", "Terms of use"], ["privacy", "Privacy notice"]]) {
+    for (const [value, label] of [["terms", "Terms of Use"], ["privacy", "Privacy Notice"]]) {
       const radio = h("input", { type: "radio", name: "terms-doc", value, checked: value === "terms" });
       radio.addEventListener("change", () => showDoc(value));
       tabs.append(h("label", null, radio, h("span", null, label)));
@@ -46,8 +46,8 @@ export async function requireTerms() {
 
     const agreeBox = h("input", { type: "checkbox", id: "terms-agree" });
     const agree = h("button", { class: "btn btn-primary btn-large", type: "button", disabled: true }, "Agree and continue");
-    const quit = h("button", { class: "btn btn-large", type: "button" }, isDesktop ? "Quit" : "Don't agree");
-    const note = h("p", { class: "terms-note", role: "alert", hidden: true }, "you need to accept the terms to use Branch.");
+    const quit = h("button", { class: "btn btn-large", type: "button" }, isDesktop ? "Decline and quit" : "Decline");
+    const note = h("p", { class: "terms-note", role: "alert", hidden: true }, "You must accept the Terms of Use to use Branch.");
     agreeBox.addEventListener("change", () => { agree.disabled = !agreeBox.checked; });
 
     const dialog = h(
@@ -57,19 +57,21 @@ export async function requireTerms() {
         "div",
         { class: "terms-body" },
         h("img", { src: "shared/branch-mark.svg", alt: "", width: "48", height: "48" }),
-        h("h2", { class: "sheet-title", id: "terms-title" }, "Before you start"),
+        h("h2", { class: "sheet-title", id: "terms-title" }, "Terms of Use and Privacy Notice"),
+        h("p", { class: "terms-intro" }, "Please review and accept the following before using Branch. Key points include:"),
         h(
           "ul",
           { class: "terms-points" },
-          h("li", null, "you're ", h("strong", null, "13 or older"), ", and if you're under 18 a parent or guardian agrees to these terms for you."),
-          h("li", null, "mods are made by other people. you use them ", h("strong", null, "at your own risk"), ". they can break your game or get you banned."),
-          h("li", null, "Branch is free and comes ", h("strong", null, "with no warranty"), ". Drifted isn't responsible for what mods or downloads do."),
-          h("li", null, "the mod checker is an ", h("strong", null, "automated guess"), " and can be wrong."),
-          h("li", null, "Branch isn't connected to Another Axiom or Gorilla Tag."),
+          h("li", null, "You must be ", h("strong", null, "at least 13 years old"), ". If you are under the age of majority, a parent or legal guardian must accept these Terms on your behalf."),
+          h("li", null, "Mods are created by third parties, including other users. You download and use them ", h("strong", null, "entirely at your own risk"), ", including the risk of device damage and game account penalties."),
+          h("li", null, "If you upload a Mod, you confirm that you have the right to distribute it, that it contains no malicious code, and you grant the Operator a license to host and distribute it."),
+          h("li", null, "The Service is provided ", h("strong", null, "\"as is\" without warranties"), ", and the Operator's liability is limited to the fullest extent permitted by law."),
+          h("li", null, "Mod Checker results are automated estimates and may be inaccurate."),
+          h("li", null, "Branch is not affiliated with or endorsed by Another Axiom Inc. or Gorilla Tag."),
         ),
         tabs,
         docBox,
-        h("label", { class: "terms-check", for: "terms-agree" }, agreeBox, h("span", null, "I've read and agree to the Terms of Use and the Privacy Notice.")),
+        h("label", { class: "terms-check", for: "terms-agree" }, agreeBox, h("span", null, "I have read and agree to the Terms of Use and acknowledge the Privacy Notice.")),
         note,
       ),
       h("div", { class: "sheet-actions" }, quit, agree),

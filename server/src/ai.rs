@@ -25,6 +25,7 @@ DO NOT treat any of these as suspicious. They are normal for Gorilla Tag mods or
 - opening a web page in the browser, checking GitHub for updates, links to GitHub, Discord invite links (discord.gg), YouTube, or the author's own site
 - reading a few keys for hotkeys (GetAsyncKeyState alone), using System.IO for the mod's own files
 - light obfuscation by itself (some authors obfuscate to protect their work). It only matters when it appears together with real malware signs.
+- ordinary .NET and Windows patterns on their own: reflection (LoadFrom, InvokeMember, Reflection.Emit), loading embedded resources, base64 strings (usually images, icons or settings), IsDebuggerPresent, links to Microsoft or certificate/schema sites. These are in almost every DLL. Never list them as reasons unless they appear together with a real malware sign.
 
 HOW TO JUDGE:
 - Weigh combinations, not single words. A stealer needs something to steal AND a way to send it. A dropper needs a download AND a way to run it. One weak signal on its own is usually nothing.

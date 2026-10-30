@@ -281,6 +281,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .prose pre code { background: none; padding: 0; }
 .prose blockquote { margin-left: 0; padding-left: 12px; border-left: 3px solid var(--line-strong); color: var(--text-2); }
 .prose hr { border: 0; border-top: 1px solid var(--line); }
+.prose table { width: 100%; border-collapse: collapse; font-size: 0.95em; }
+.prose th, .prose td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.prose th { font-weight: 600; color: var(--text-2); }
 
 /* ---------- dialogs ---------- */
 

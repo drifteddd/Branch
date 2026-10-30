@@ -9,7 +9,7 @@ import { toast } from "./ui.js";
 import { createBrowseView } from "./views/browse.js";
 import { createDetailView } from "./views/detail.js";
 import { createSettingsView, createAboutView, createLegalView } from "./views/pages.js";
-import { createRequestView } from "./views/request.js";
+import { createUploadView } from "./views/upload.js";
 import { createCheckerView } from "./views/checker.js";
 
 const root = document.documentElement;
@@ -29,6 +29,11 @@ const ctx = {
   browse: { mode: "all", q: "", category: "", compat: "", sort: "updated" },
   link(href, label) {
     return h("a", { class: "btn btn-primary", href }, label);
+  },
+  // after someone uploads a mod, the lists reload the next time they're opened
+  refreshLists() {
+    views.browse.invalidate();
+    loadMeta();
   },
   setTitle(text) {
     document.title = text ? `${text} · Branch` : "Branch";
@@ -62,7 +67,7 @@ const views = {
   settings: createSettingsView(ctx),
   about: createAboutView(ctx),
   legal: createLegalView(ctx),
-  request: createRequestView(ctx),
+  upload: createUploadView(ctx),
   check: createCheckerView(ctx),
 };
 
@@ -80,7 +85,7 @@ function parseRoute() {
   if (first === "mod" && parts[1]) return { name: "detail", path, slug: decodeURIComponent(parts[1]) };
   if (first === "settings") return { name: "settings", path };
   if (first === "about") return { name: "about", path };
-  if (first === "request") return { name: "request", path };
+  if (first === "upload") return { name: "upload", path };
   if (first === "check") return { name: "check", path };
   if (first === "legal" && parts[1]) return { name: "legal", path, doc: parts[1] };
   return { name: "browse", path: "/browse", mode: "all", category: "" };
@@ -122,7 +127,7 @@ function markSidebar() {
   if (route.name === "browse") {
     if (route.mode === "all" && ctx.browse.category) active = categoryNav.querySelector(`[data-category="${CSS.escape(ctx.browse.category)}"]`);
     else active = sidebar.querySelector(`[data-nav="${route.mode}"]`);
-  } else if (["settings", "about", "request", "check"].includes(route.name)) {
+  } else if (["settings", "about", "upload", "check"].includes(route.name)) {
     active = sidebar.querySelector(`[data-nav="${route.name}"]`);
   } else if (route.name === "legal") {
     active = sidebar.querySelector('[data-nav="about"]');
@@ -255,6 +260,20 @@ function setupWindow() {
   document.getElementById("wc-close").addEventListener("click", () => appWindow.close());
   document.getElementById("wc-min").addEventListener("click", () => appWindow.minimize());
   document.getElementById("wc-max").addEventListener("click", () => appWindow.toggleMaximize());
+  // swap the maximize icon for the restore icon, like windows does
+  const syncMaximized = async () => {
+    try {
+      const maximized = await appWindow.isMaximized();
+      const button = document.getElementById("wc-max");
+      root.classList.toggle("is-maximized", maximized);
+      button.setAttribute("aria-label", maximized ? "Restore" : "Maximize");
+      button.title = maximized ? "Restore" : "Maximize";
+    } catch {
+      // not important enough to show an error
+    }
+  };
+  window.addEventListener("resize", syncMaximized);
+  syncMaximized();
   window.addEventListener("blur", () => root.classList.add("window-inactive"));
   window.addEventListener("focus", () => root.classList.remove("window-inactive"));
 }

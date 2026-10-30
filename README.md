@@ -4,11 +4,11 @@
 
 <h1 align="center">Branch</h1>
 
-<p align="center">a free windows app for finding gorilla tag mods. made by Drifted.</p>
+<p align="center">a free, community-run windows app for finding and sharing gorilla tag mods. made by Drifted.</p>
 
 ---
 
-open it, search or scroll, click a mod, press download. no account, no ads, no tracking.
+open it, search or scroll, click a mod, press download. made a mod? upload it in a minute. no account, no ads, no tracking.
 
 > Branch is an independent project. it isn't made by, endorsed by, or connected to Another Axiom or the Gorilla Tag team.
 
@@ -20,7 +20,7 @@ open it, search or scroll, click a mod, press download. no account, no ads, no t
 - **view a mod's source code** right in the app, when the author has it on github
 - **download** with a progress bar, a cancel button and "show in folder". Branch only saves the file. it never runs or installs anything and never asks for admin access
 - **check a mod for viruses** with the free AI mod checker (20 checks a day). it looks for stealers, RATs and other malware, not cheats
-- **request a mod** you think should be on Branch
+- **upload your own mod**: all you need is the file, a name and a description. you can stay anonymous. up to 10 uploads a day, and every upload goes through an automatic safety check
 - **save favorites** and see what you looked at recently. this stays on your computer
 - **report** a broken, outdated, misleading or harmful mod, or a copyright problem
 - **light or dark mode**, keyboard shortcuts (ctrl+f to search, alt+left to go back) and reduced motion
@@ -33,7 +33,8 @@ the installer isn't code-signed yet, so windows might say "windows protected you
 
 ## staying safe with mods
 
-- mods are made by other people. Branch doesn't make them and can't promise any of them are safe.
+- mods are made by other people, including other users. Branch doesn't make them and can't promise any of them are safe.
+- community uploads are marked "Community" and are only checked automatically.
 - back up your game folder before installing anything.
 - the mod checker is a helpful extra, not a guarantee. a low score doesn't prove a file is safe.
 - using mods in public lobbies can break the game's rules and get you banned. that's on whoever uses the mod.

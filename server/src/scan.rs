@@ -69,9 +69,11 @@ const RULES: &[Rule] = &[
     Rule { category: "download and run", label: "starts other programs", weight: 8, needles: &["processstartinfo", "shellexecute", "winexec", "createprocess"] },
     Rule { category: "download and run", label: "fetches text from paste sites", weight: 20, needles: &["pastebin.com/raw", "hastebin", "paste.ee/r", "rentry.co/"] },
     Rule { category: "staying hidden", label: "sets itself to start with windows", weight: 25, needles: &["currentversion\\run", "schtasks", "start menu\\programs\\startup", "\\winlogon"] },
-    Rule { category: "staying hidden", label: "tries to avoid antivirus or analysis tools", weight: 25, needles: &["isdebuggerpresent", "checkremotedebuggerpresent", "add-mppreference", "exclusionpath", "disableantispyware", "vboxservice", "vmwaretray", "sbiedll", "processhacker"] },
+    Rule { category: "staying hidden", label: "tries to avoid antivirus or analysis tools", weight: 25, needles: &["add-mppreference", "exclusionpath", "disableantispyware", "vboxservice", "vmwaretray", "sbiedll", "processhacker"] },
+    // lots of normal programs check for a debugger, so this one only counts a little
+    Rule { category: "staying hidden", label: "checks if a debugger is attached (common in normal programs too)", weight: 5, needles: &["checkremotedebuggerpresent", "isdebuggerpresent"] },
     Rule { category: "hiding code", label: "was run through an obfuscator", weight: 10, needles: &["confuserex", "confused by", ".net reactor", "babelobfuscator", "smartassembly", "eazfuscator"] },
-    Rule { category: "hiding code", label: "loads extra code while running", weight: 8, needles: &["assembly.load", "loadfrom", "virtualprotect", "reflection.emit", "invokemember"] },
+    Rule { category: "hiding code", label: "loads extra code while running (common in .net, mods use it too)", weight: 4, needles: &["assembly.load", "loadfrom", "virtualprotect", "reflection.emit", "invokemember"] },
     Rule { category: "mining", label: "has crypto miner settings", weight: 35, needles: &["stratum+tcp", "xmrig", "nicehash", "cryptonight", "--donate-level"] },
 ];
 
@@ -253,8 +255,8 @@ pub fn scan(original_name: &str, data: &[u8]) -> Result<ScanReport, String> {
     if encoded_blobs > 0 {
         indicators.push(Indicator {
             category: "hiding code",
-            label: "has large encoded blobs of data",
-            weight: 10,
+            label: "has large encoded blobs of data (often just images or settings)",
+            weight: 4,
             evidence: vec![format!("{encoded_blobs} long base64 string(s)")],
         });
     }

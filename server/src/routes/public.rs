@@ -84,6 +84,7 @@ struct ListRow {
     latest_version: Option<String>,
     latest_released_on: Option<NaiveDate>,
     updated_at: DateTime<Utc>,
+    source: String,
     total_count: i64,
 }
 
@@ -106,6 +107,7 @@ struct ModSummary {
     featured: bool,
     downloads: i64,
     latest_version: Option<String>,
+    community: bool,
     /// the newest release date, or the last edit if there are no releases yet
     last_updated: NaiveDate,
 }
@@ -117,7 +119,7 @@ pub async fn list_mods(State(state): State<AppState>, Query(query): Query<ListQu
     let mut qb: QueryBuilder<Postgres> = QueryBuilder::new(
         "select m.id, m.slug, m.name, m.summary, m.author_name, c.slug as category_slug, c.name as category_name,
                 m.thumbnail_key, m.compatibility, m.featured, m.download_count,
-                lr.version as latest_version, lr.released_on as latest_released_on, m.updated_at,
+                lr.version as latest_version, lr.released_on as latest_released_on, m.updated_at, m.source,
                 count(*) over () as total_count
          from mods m
          left join categories c on c.id = m.category_id
@@ -188,6 +190,7 @@ pub async fn list_mods(State(state): State<AppState>, Query(query): Query<ListQu
             featured: r.featured,
             downloads: r.download_count,
             latest_version: r.latest_version,
+            community: r.source == "community",
             last_updated: r.latest_released_on.unwrap_or_else(|| r.updated_at.date_naive()),
         })
         .collect();
@@ -604,6 +607,190 @@ pub async fn check_mod(State(state): State<AppState>, visitor: Visitor, mut mult
         "limit": limit,
         "remaining": (limit - used).max(0),
     })))
+}
+// ---------- community uploads ----------
+
+const UPLOADS_PER_DAY: i64 = 10;
+
+/// the start of a description, used as the short summary in the list
+fn first_sentence(text: &str) -> String {
+    let line = text.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
+    let end = line.find(". ").map(|i| i + 1).unwrap_or(line.len());
+    let sentence: String = line[..end].chars().take(200).collect();
+    sentence.trim().to_string()
+}
+
+/// anyone can upload their own mod. it needs a real mod file, a name and a description.
+/// every file goes through the automatic safety check, and likely-harmful files are refused.
+pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, mut multipart: Multipart) -> ApiResult<(StatusCode, Json<Value>)> {
+    if !state.limiter.check(&format!("submit:{}", visitor.id), 20, Duration::from_secs(3600)) {
+        return Err(AppError::too_many("slow down a little. try again in a few minutes."));
+    }
+    let today: i64 = sqlx::query_scalar("select count(*) from mods where uploader = $1 and created_at > now() - interval '1 day'")
+        .bind(&visitor.id)
+        .fetch_one(&state.db)
+        .await?;
+    if today >= UPLOADS_PER_DAY {
+        return Err(AppError::too_many(format!("you can upload up to {UPLOADS_PER_DAY} mods a day. try again tomorrow.")));
+    }
+
+    let mut file: Option<(String, bytes::Bytes)> = None;
+    let mut fields: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    loop {
+        let field = match multipart.next_field().await {
+            Ok(Some(field)) => field,
+            Ok(None) => break,
+            Err(_) => return Err(AppError::new(StatusCode::PAYLOAD_TOO_LARGE, "too_large", "the upload was cut off or is bigger than 50 MB")),
+        };
+        let name = field.name().unwrap_or("").to_string();
+        if name == "file" {
+            let file_name = field.file_name().unwrap_or("mod.dll").to_string();
+            let data = field
+                .bytes()
+                .await
+                .map_err(|_| AppError::new(StatusCode::PAYLOAD_TOO_LARGE, "too_large", "the upload was cut off or is bigger than 50 MB"))?;
+            file = Some((file_name, data));
+        } else if !name.is_empty() {
+            let text = field.text().await.map_err(|_| AppError::bad_request("couldn't read the form"))?;
+            fields.insert(name, text.chars().take(6000).collect());
+        }
+    }
+    let get = |key: &str| fields.get(key).map(|v| v.trim().to_string()).unwrap_or_default();
+
+    // bots fill in the hidden field. pretend it worked.
+    if !get("website").is_empty() {
+        return Ok((StatusCode::CREATED, Json(json!({ "ok": true }))));
+    }
+
+    let name = get("name");
+    let description = get("description");
+    let anonymous = get("anonymous") == "true";
+    let author = if anonymous { String::new() } else { get("author") };
+    let version = get("version");
+    let category = get("category");
+
+    let mut errors = FieldErrors::default();
+    errors.check(name.chars().count() >= 2, "name", "give your mod a name");
+    errors.check(!too_long(&name, 80), "name", "keep the name under 80 characters");
+    errors.check(description.chars().count() >= 30, "description", "describe what your mod does (at least 30 characters)");
+    errors.check(!too_long(&description, 5000), "description", "keep the description under 5000 characters");
+    errors.check(!too_long(&author, 80), "author", "keep the author name under 80 characters");
+    errors.check(!too_long(&version, 40), "version", "keep the version under 40 characters");
+    errors.check(get("confirm") == "true", "confirm", "you have to confirm that you have the right to share this mod");
+    errors.check(file.is_some(), "file", "attach your mod file (.dll or .zip)");
+    let source_url = match crate::util::clean_url(&get("source_url")) {
+        Ok(url) => url,
+        Err(message) => {
+            errors.add("source_url", message);
+            None
+        }
+    };
+    let category_id: Option<Uuid> = if category.is_empty() {
+        None
+    } else {
+        let id = sqlx::query_scalar("select id from categories where slug = $1").bind(&category).fetch_optional(&state.db).await?;
+        errors.check(id.is_some(), "category", "that category doesn't exist");
+        id
+    };
+    errors.finish()?;
+
+    let (original_name, data) = file.expect("checked above");
+    let data = data.to_vec();
+    let (checked, report, data) = tokio::task::spawn_blocking(move || {
+        let checked = crate::uploads::check_mod_file(&original_name, &data)?;
+        let report = crate::scan::scan(&original_name, &data)?;
+        Ok::<_, String>((checked, report, data))
+    })
+    .await
+    .map_err(AppError::internal)?
+    .map_err(|message| AppError::field("file", &message))?;
+
+    // the same safety check as the mod checker, with the ai when it's available
+    let mut score = report.heuristic_score;
+    let mut ai_used = false;
+    if state.config.ai_api_key.is_some() && usage_today(&state, AI_CALLS_KEY).await? < state.config.ai_daily_global {
+        bump_usage(&state, AI_CALLS_KEY).await?;
+        match crate::ai::ask(&state.http, &state.config, &report).await {
+            Ok(v) => {
+                score = v.score.max((report.heuristic_score as f32 * 0.6).round() as u8);
+                ai_used = true;
+            }
+            Err(err) => tracing::warn!(error = %err, "ai check failed during an upload, using the basic scan"),
+        }
+    }
+    if score >= 71 {
+        tracing::warn!(score, "community upload refused by the safety check");
+        return Err(AppError::field(
+            "file",
+            "Branch's automatic safety check flagged this file as likely harmful, so it wasn't published. if you think this is a mistake, email drifted1000@outlook.com.",
+        ));
+    }
+
+    let display_author = if author.is_empty() { "Anonymous".to_string() } else { author };
+    let version = if !version.is_empty() {
+        version
+    } else {
+        crate::routes::admin::version_from_file(&checked.name).unwrap_or_else(|| "unversioned".into())
+    };
+    let mod_id = crate::routes::admin::insert_draft(&state.db, &name, &display_author, source_url, None).await?;
+    let info = json!({
+        "file_name": checked.name,
+        "scan_score": score,
+        "ai_used": ai_used,
+        "signals": report.indicators.iter().map(|i| i.label).collect::<Vec<_>>(),
+        "mod_markers": report.mod_markers,
+    });
+    let key = format!("files/{}/{}", Uuid::new_v4(), checked.name);
+    if let Err(err) = crate::storage::put(state.store.as_ref(), &key, data).await {
+        let _ = sqlx::query("delete from mods where id = $1").bind(mod_id).execute(&state.db).await;
+        return Err(err.into());
+    }
+
+    let saved: Result<String, sqlx::Error> = async {
+        let slug: String = sqlx::query_scalar(
+            "update mods set summary = $1, description = $2, category_id = $3, status = 'published', published_at = now(),
+                source = 'community', uploader = $4, redistribution = 'allowed',
+                redistribution_note = 'the uploader confirmed that they made this mod or have permission to share it.',
+                import_info = $5
+             where id = $6 returning slug",
+        )
+        .bind(first_sentence(&description))
+        .bind(&description)
+        .bind(category_id)
+        .bind(&visitor.id)
+        .bind(&info)
+        .bind(mod_id)
+        .fetch_one(&state.db)
+        .await?;
+        sqlx::query(
+            "insert into releases (id, mod_id, version, released_on, download_kind, file_key, file_name, file_size, file_sha256, file_type)
+             values ($1, $2, $3, current_date, 'hosted', $4, $5, $6, $7, $8)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(mod_id)
+        .bind(&version)
+        .bind(&key)
+        .bind(&checked.name)
+        .bind(checked.size)
+        .bind(&checked.sha256)
+        .bind(checked.kind)
+        .execute(&state.db)
+        .await?;
+        Ok(slug)
+    }
+    .await;
+
+    match saved {
+        Ok(slug) => {
+            tracing::info!("new community upload");
+            Ok((StatusCode::CREATED, Json(json!({ "ok": true, "slug": slug }))))
+        }
+        Err(err) => {
+            crate::storage::delete_quietly(state.store.as_ref(), &key).await;
+            let _ = sqlx::query("delete from mods where id = $1").bind(mod_id).execute(&state.db).await;
+            Err(err.into())
+        }
+    }
 }
 #[cfg(test)]
 mod tests {

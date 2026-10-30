@@ -226,6 +226,7 @@ struct AdminListQuery {
     q: Option<String>,
     status: Option<String>,
     imported: Option<bool>,
+    source: Option<String>,
 }
 
 #[derive(FromRow, Serialize)]
@@ -243,6 +244,7 @@ struct AdminModRow {
     updated_at: DateTime<Utc>,
     imported_at: Option<DateTime<Utc>>,
     import_info: Option<Value>,
+    source: String,
 }
 
 async fn list_mods(State(state): State<AppState>, Admin(_): Admin, Query(query): Query<AdminListQuery>) -> ApiResult<Json<Value>> {
@@ -252,17 +254,19 @@ async fn list_mods(State(state): State<AppState>, Admin(_): Admin, Query(query):
         "select m.id, m.slug, m.name, m.author_name, m.status, m.featured, m.compatibility, c.name as category_name,
                 (select count(*) from releases r where r.mod_id = m.id) as release_count,
                 (select count(*) from reports p where p.mod_id = m.id and p.status = 'open') as open_reports,
-                m.updated_at, m.imported_at, m.import_info
+                m.updated_at, m.imported_at, m.import_info, m.source
          from mods m left join categories c on c.id = m.category_id
          where ($1::text is null or m.name ilike $1 or m.author_name ilike $1 or m.slug ilike $1)
            and ($2::text is null or m.status = $2)
            and ($3::bool is null or (m.imported_at is not null) = $3)
+           and ($4::text is null or m.source = $4)
          order by m.updated_at desc
          limit 500",
     )
     .bind(q)
     .bind(status)
     .bind(query.imported)
+    .bind(query.source.filter(|s| s == "admin" || s == "community"))
     .fetch_all(&state.db)
     .await?;
     Ok(Json(json!({ "items": rows })))
@@ -1385,7 +1389,7 @@ async fn request_to_draft(State(state): State<AppState>, Admin(admin): Admin, Pa
     Ok(Json(json!({ "mod_id": mod_id })))
 }
 /// makes a new draft with a free link name based on the mod's name
-async fn insert_draft(db: &PgPool, name: &str, author: &str, source_url: Option<String>, project_url: Option<String>) -> ApiResult<Uuid> {
+pub(crate) async fn insert_draft(db: &PgPool, name: &str, author: &str, source_url: Option<String>, project_url: Option<String>) -> ApiResult<Uuid> {
     let name: String = name.chars().take(80).collect();
     let base = {
         let s = slugify(&name);
@@ -1440,7 +1444,7 @@ fn name_from_file(file_name: &str) -> String {
 }
 
 /// finds a version number like 1.2 or v2.0.1 in a file name
-fn version_from_file(name: &str) -> Option<String> {
+pub(crate) fn version_from_file(name: &str) -> Option<String> {
     let chars: Vec<char> = name.chars().collect();
     let mut i = 0;
     while i < chars.len() {

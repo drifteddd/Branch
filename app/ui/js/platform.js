@@ -163,29 +163,30 @@ export async function windowMaterial() {
   try { return await tauri.core.invoke("window_material"); } catch { return "none"; }
 }
 
-// ---------- mod checker ----------
+// ---------- file uploads (mod checker and community uploads) ----------
 
-// opens a file picker and sends the file to the checker. returns the result,
-// or { cancelled: true } if the person closed the picker.
-export async function checkModFile(browserFile) {
+// sends a form that includes a file the person picked on the page.
+// path is "/api/check" or "/api/submissions".
+export async function uploadForm(path, form) {
   if (isDesktop) {
+    // turn the form into the exact bytes a browser would send, then let rust pass them on
+    const packed = new Response(form);
+    const contentType = packed.headers.get("content-type");
+    const body = new Uint8Array(await packed.arrayBuffer());
     try {
-      return await tauri.core.invoke("check_mod_file");
+      return await tauri.core.invoke("api_upload", body, { headers: { "x-branch-path": path, "x-branch-content-type": contentType } });
     } catch (err) {
-      throw toApiError(err, "the check failed");
+      throw toApiError(err, "the upload failed");
     }
   }
-  if (!browserFile) return { cancelled: true };
-  const form = new FormData();
-  form.append("file", browserFile);
   let res;
   try {
-    res = await fetch("/api/check", { method: "POST", body: form });
+    res = await fetch(path, { method: "POST", body: form });
   } catch {
     throw new ApiError("couldn't reach the Branch server. check your internet connection.", { kind: "network" });
   }
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(data?.error || `the check failed (${res.status})`, { status: res.status, fields: data?.fields || null });
+  if (!res.ok) throw new ApiError(data?.error || `the upload failed (${res.status})`, { status: res.status, fields: data?.fields || null });
   return data;
 }
 

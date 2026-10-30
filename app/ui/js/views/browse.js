@@ -9,6 +9,12 @@ import { compatBadge, errorBlock, skeletonRows, stateBlock, thumbnail, showCompa
 
 const PAGE_SIZE = 20;
 
+// "1.2" -> "v1.2", but words like "unversioned" stay as they are
+export function versionLabel(version) {
+  const v = String(version || "").replace(/^v(?=\d)/i, "");
+  return /^\d/.test(v) ? `v${v}` : v;
+}
+
 const MODES = {
   all: { title: "All mods" },
   featured: { title: "Featured" },
@@ -265,8 +271,9 @@ export function createBrowseView(ctx) {
           "div",
           { class: "row-title" },
           h("a", { class: "row-link", href: `#/mod/${encodeURIComponent(mod.slug)}` }, mod.name),
-          mod.latest_version ? h("span", { class: "version" }, `v${mod.latest_version.replace(/^v/i, "")}`) : null,
+          mod.latest_version ? h("span", { class: "version" }, versionLabel(mod.latest_version)) : null,
           mod.featured ? h("span", { class: "badge plain featured-badge" }, "Featured") : null,
+          mod.community ? h("span", { class: "badge plain community-badge", title: "uploaded by someone in the community" }, "Community") : null,
         ),
         h("p", { class: "row-summary" }, mod.summary || "no description yet."),
         h("p", { class: "row-meta" }, meta.join("  ·  ")),
@@ -329,5 +336,8 @@ export function createBrowseView(ctx) {
     },
     refresh,
     metaChanged: fillFilterOptions,
+    invalidate() {
+      loadedKey = null;
+    },
   };
 }

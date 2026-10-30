@@ -35,3 +35,10 @@ test("empty input gives empty output", () => {
   assert.equal(renderMarkdown(""), "");
   assert.equal(renderMarkdown(null), "");
 });
+
+test("tables render with escaped cells", () => {
+  const html = renderMarkdown("| a | b |\n| --- | --- |\n| <i>x</i> | **y** |");
+  assert.ok(html.startsWith("<table><thead><tr><th>a</th><th>b</th></tr></thead>"));
+  assert.ok(html.includes("<td>&lt;i&gt;x&lt;/i&gt;</td>"));
+  assert.ok(html.includes("<td><strong>y</strong></td>"));
+});

@@ -326,12 +326,13 @@ async function refreshOverview() {
 
 // ---------- mods list ----------
 
-let modsFilter = { q: "", status: "" };
+let modsFilter = { q: "", status: "", source: "" };
 
 async function renderMods() {
   const params = new URLSearchParams();
   if (modsFilter.q) params.set("q", modsFilter.q);
   if (modsFilter.status) params.set("status", modsFilter.status);
+  if (modsFilter.source) params.set("source", modsFilter.source);
   const { items } = await api(`/api/admin/mods?${params}`);
 
   const search = h("input", { class: "input", type: "search", placeholder: "Search by name or author", value: modsFilter.q, "aria-label": "Search mods" });
@@ -340,33 +341,51 @@ async function renderMods() {
   const status = h("select", { class: "select", "aria-label": "Filter by status" }, [["", "All statuses"], ["published", "Published"], ["draft", "Drafts"], ["unpublished", "Unpublished"], ["archived", "Archived"]].map(([v, t]) => h("option", { value: v }, t)));
   status.value = modsFilter.status;
   status.addEventListener("change", () => { modsFilter.status = status.value; renderMods(); });
+  const source = h("select", { class: "select", "aria-label": "Filter by who added it" }, [["", "Everyone"], ["community", "Community uploads"], ["admin", "Added by you"]].map(([v, t]) => h("option", { value: v }, t)));
+  source.value = modsFilter.source;
+  source.addEventListener("change", () => { modsFilter.source = source.value; renderMods(); });
+
+  const quick = (label, cls, handler) => h("button", { class: `btn btn-quiet ${cls}`, type: "button", onclick: (e) => { e.stopPropagation(); handler(); } }, label);
 
   const rows = items.map((m) =>
     h(
       "tr",
-      { class: "clickable", onclick: (e) => { if (!e.target.closest("a")) location.hash = `#/mods/${m.id}`; } },
+      { class: "clickable", onclick: (e) => { if (!e.target.closest("a, button")) location.hash = `#/mods/${m.id}`; } },
       h("td", null, h("a", { href: `#/mods/${m.id}` }, m.name), m.featured ? h("span", { class: "needed" }, "featured") : null, h("div", { class: "muted small" }, m.author_name || "no author yet")),
       h("td", null, h("span", { class: `pill ${m.status}` }, m.status)),
+      h("td", null, m.source === "community" ? h("span", { class: "pill community" }, "community") : h("span", { class: "muted small" }, "you")),
       h("td", null, m.category_name || h("span", { class: "muted" }, "none")),
-      h("td", null, String(m.release_count)),
       h("td", null, m.open_reports ? h("span", { class: "pill open" }, `${m.open_reports} open`) : h("span", { class: "muted" }, "0")),
       h("td", { class: "muted small" }, fmtDate(m.updated_at)),
+      h(
+        "td",
+        { class: "row-actions" },
+        m.status === "published"
+          ? quick("Unpublish", "", async () => { await api(`/api/admin/mods/${m.id}/status`, { method: "POST", body: { status: "unpublished" } }); toast(`${m.name} unpublished`); await refreshOverview(); renderMods(); })
+          : null,
+        quick("Remove", "btn-danger", async () => {
+          if (!(await confirmDialog(`Remove ${m.name} for good?`, "this deletes the listing, its releases, pictures and hosted files. it can't be undone. use Unpublish instead if you might want it back.", "Remove forever"))) return;
+          await api(`/api/admin/mods/${m.id}`, { method: "DELETE" });
+          toast(`${m.name} removed`);
+          await refreshOverview();
+          renderMods();
+        }),
+      ),
     ),
   );
 
   shell(
     "mods",
     [
-      h("div", { class: "page-head" }, h("h1", null, "Mods"), h("a", { class: "btn btn-primary", href: "#/mods/new" }, "New mod")),
-      h("p", { class: "muted", style: null }, `${overview.published} published · ${overview.drafts} drafts · ${overview.hidden} hidden`),
-      h("div", { class: "toolbar-row" }, search, status),
+      h("div", { class: "page-head" }, h("h1", null, "All mods"), h("a", { class: "btn btn-primary", href: "#/mods/new" }, "New mod")),
+      h("p", { class: "muted" }, `${overview.published} published · ${overview.drafts} drafts · ${overview.hidden} hidden`),
+      h("div", { class: "toolbar-row" }, search, status, source),
       items.length
-        ? h("div", { class: "table-wrap" }, h("table", { class: "table" }, h("thead", null, h("tr", null, ["Mod", "Status", "Category", "Releases", "Reports", "Updated"].map((t) => h("th", { scope: "col" }, t)))), h("tbody", null, rows)))
-        : h("div", { class: "card" }, h("p", null, modsFilter.q || modsFilter.status ? "no mods match this search." : "no mods yet. press \"New mod\" to add the first one.")),
+        ? h("div", { class: "table-wrap" }, h("table", { class: "table" }, h("thead", null, h("tr", null, ["Mod", "Status", "Added by", "Category", "Reports", "Updated", ""].map((t) => h("th", { scope: "col" }, t)))), h("tbody", null, rows)))
+        : h("div", { class: "card" }, h("p", null, modsFilter.q || modsFilter.status || modsFilter.source ? "no mods match this search." : "no mods yet.")),
     ],
   );
 }
-
 // ---------- mod editor ----------
 
 const EMPTY_MOD = {
@@ -834,9 +853,9 @@ async function renderEditor(id) {
       ? h(
           "div",
           { class: "notice-box" },
-          `imported from ${mod.import_info.file_name}. basic malware scan: ${mod.import_info.scan_score}/100`,
+          mod.community ? `community upload (${mod.import_info.file_name}). safety check score: ${mod.import_info.scan_score}/100` : `imported from ${mod.import_info.file_name}. basic malware scan: ${mod.import_info.scan_score}/100`,
           mod.import_info.signals?.length ? ` (${mod.import_info.signals.join("; ")})` : " (nothing suspicious found)",
-          ". fill in the details below, check the license, then publish.",
+          mod.community ? ". it went live automatically. remove or unpublish it if anything looks wrong." : ". fill in the details below, check the license, then publish.",
         )
       : null,
     basics,

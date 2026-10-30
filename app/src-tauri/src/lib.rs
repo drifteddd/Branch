@@ -143,42 +143,41 @@ async fn github_api(http: State<'_, Http>, path: String) -> Result<serde_json::V
     }
 }
 
-const MAX_CHECK_BYTES: u64 = 50 * 1024 * 1024;
+const MAX_UPLOAD_BYTES: usize = 60 * 1024 * 1024;
 
-/// lets someone pick a mod file and sends it to the mod checker.
-/// the file is only read, never opened or run.
+/// sends a file the person picked on the page (mod checker or community upload) to the server.
+/// the page builds the form and passes the raw bytes, so rust never chooses files on its own.
+/// only these two server paths can be used.
 #[tauri::command]
-async fn check_mod_file(app: AppHandle, http: State<'_, Http>) -> Result<serde_json::Value, CmdError> {
-    let (tx, rx) = tokio::sync::oneshot::channel();
-    app.dialog()
-        .file()
-        .set_title("Choose a mod to check")
-        .add_filter("Mod files", &["dll", "zip"])
-        .pick_file(move |picked| {
-            let _ = tx.send(picked);
-        });
-    let picked = rx.await.map_err(|_| CmdError::new("app", "the file picker closed unexpectedly"))?;
-    let Some(picked) = picked else {
-        return Ok(serde_json::json!({ "cancelled": true }));
+async fn api_upload(request: tauri::ipc::Request<'_>, http: State<'_, Http>) -> Result<serde_json::Value, CmdError> {
+    let header = |name: &str| request.headers().get(name).and_then(|v| v.to_str().ok()).map(str::to_owned);
+    let path = header("x-branch-path").unwrap_or_default();
+    if path != "/api/check" && path != "/api/submissions" {
+        return Err(CmdError::new("app", "bad upload path"));
+    }
+    let content_type = header("x-branch-content-type").filter(|t| t.starts_with("multipart/form-data; boundary="));
+    let Some(content_type) = content_type else {
+        return Err(CmdError::new("app", "bad upload"));
     };
-    let path = picked.into_path().map_err(|_| CmdError::new("app", "that file can't be used"))?;
-    let size = tokio::fs::metadata(&path).await.map_err(|e| CmdError::new("disk", format!("couldn't read that file ({e})")))?.len();
-    if size > MAX_CHECK_BYTES {
+    let tauri::ipc::InvokeBody::Raw(body) = request.body() else {
+        return Err(CmdError::new("app", "no file was attached"));
+    };
+    if body.is_empty() {
+        return Err(CmdError::new("app", "no file was attached"));
+    }
+    if body.len() > MAX_UPLOAD_BYTES {
         return Err(CmdError::new("app", "files can be up to 50 MB"));
     }
-    let data = tokio::fs::read(&path).await.map_err(|e| CmdError::new("disk", format!("couldn't read that file ({e})")))?;
-    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("mod.dll").to_string();
-    let form = reqwest::multipart::Form::new().part("file", reqwest::multipart::Part::bytes(data).file_name(name));
     let response = http
         .files
-        .post(format!("{}/api/check", base_url()))
-        .multipart(form)
-        .timeout(Duration::from_secs(120))
+        .post(format!("{}{}", base_url(), path))
+        .header(reqwest::header::CONTENT_TYPE, content_type)
+        .body(body.clone())
+        .timeout(Duration::from_secs(180))
         .send()
         .await?;
     read_json(response).await
 }
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DownloadArgs {
@@ -442,7 +441,7 @@ pub fn run() {
             api_base,
             window_material,
             api_request,
-            check_mod_file,
+            api_upload,
             github_api,
             download_release,
             cancel_download,

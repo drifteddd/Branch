@@ -7,6 +7,7 @@ import { openSourceViewer, parseGithub } from "../../shared/source-viewer.js";
 import { favorites, recent, changes } from "../store.js";
 import { compatBadge, errorBlock, stateBlock, thumbnail, toast, showCompatHelp } from "../ui.js";
 import { openReportDialog } from "./report.js";
+import { versionLabel } from "./browse.js";
 
 const PLATFORM_LABELS = { steam: "Steam (PC VR)", oculus_pc: "Meta / Oculus PC (PC VR)", quest: "Quest standalone" };
 const REDISTRIBUTION_TEXT = {
@@ -117,7 +118,19 @@ export function createDetailView(ctx) {
       ),
     );
 
-    const warnings = h("div", { class: "detail-warnings" }, compatWarning(mod, compatInfo));
+    const warnings = h(
+      "div",
+      { class: "detail-warnings" },
+      mod.community
+        ? h(
+            "div",
+            { class: "banner info" },
+            icon("info"),
+            h("div", null, h("strong", null, "Community upload"), h("p", null, "someone in the community uploaded this mod. Branch only checked it automatically, so be extra careful and use the mod checker or the source code if you're unsure.")),
+          )
+        : null,
+      compatWarning(mod, compatInfo),
+    );
 
     const main = h(
       "div",
@@ -181,7 +194,7 @@ export function createDetailView(ctx) {
       return area;
     }
     const status = h("div", { class: "download-status", "aria-live": "polite" });
-    const button = h("button", { class: "btn btn-primary btn-large", type: "button" }, icon("download"), `Download v${release.version.replace(/^v/i, "")}`);
+    const button = h("button", { class: "btn btn-primary btn-large", type: "button" }, icon("download"), /^\d/.test(versionLabel(release.version).replace(/^v/, "")) ? `Download ${versionLabel(release.version)}` : "Download");
     const fileBits = [release.file?.type ? `.${release.file.type} file` : null, release.file ? formatBytes(release.file.size) : null].filter(Boolean).join(", ");
     area.append(button, h("p", { class: "download-note" }, `direct download from Branch${fileBits ? ` (${fileBits})` : ""}. you pick where it's saved.`), status);
     // the page can be rebuilt while a download runs, so progress always paints

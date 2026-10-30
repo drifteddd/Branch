@@ -132,7 +132,7 @@ async function json(req) {
 
 function summary(m) {
   const latest = m.releases[0];
-  return { id: m.id, slug: m.slug, name: m.name, summary: m.summary, author: m.author.name, category: m.category ? { slug: m.category.slug, name: m.category.name } : null, thumbnail_url: m.thumbnail_url, compatibility: m.compatibility.status, featured: m.featured, downloads: m.downloads, latest_version: latest?.version || null, last_updated: latest?.released_on || m.updated_at.slice(0, 10) };
+  return { id: m.id, slug: m.slug, name: m.name, summary: m.summary, author: m.author.name, category: m.category ? { slug: m.category.slug, name: m.category.name } : null, thumbnail_url: m.thumbnail_url, compatibility: m.compatibility.status, featured: m.featured, community: Boolean(m.community), downloads: m.downloads, latest_version: latest?.version || null, last_updated: latest?.released_on || m.updated_at.slice(0, 10) };
 }
 
 // a tiny multipart reader, good enough for the demo admin uploads
@@ -242,7 +242,7 @@ async function adminApi(req, res, path, url) {
     const q = url.searchParams.get("q")?.toLowerCase() || "";
     const status = url.searchParams.get("status") || "";
     const imported = url.searchParams.get("imported");
-    const items = mods.filter((m) => (!q || m.name.toLowerCase().includes(q)) && (!status || m.status === status) && (imported == null || Boolean(m.imported_at) === (imported === "true"))).map((m) => ({ id: m.id, slug: m.slug, name: m.name, author_name: m.author.name, status: m.status, featured: m.featured, compatibility: m.compatibility.status, category_name: m.category?.name || null, release_count: m.releases.length, open_reports: reports.filter((r) => r.mod_id === m.id && r.status === "open").length, updated_at: m.updated_at, imported_at: m.imported_at || null, import_info: m.import_info || null }));
+    const items = mods.filter((m) => (!q || m.name.toLowerCase().includes(q)) && (!status || m.status === status) && (imported == null || Boolean(m.imported_at) === (imported === "true")) && (!url.searchParams.get("source") || (m.community ? "community" : "admin") === url.searchParams.get("source"))).map((m) => ({ id: m.id, slug: m.slug, name: m.name, author_name: m.author.name, status: m.status, featured: m.featured, compatibility: m.compatibility.status, category_name: m.category?.name || null, release_count: m.releases.length, open_reports: reports.filter((r) => r.mod_id === m.id && r.status === "open").length, updated_at: m.updated_at, imported_at: m.imported_at || null, import_info: m.import_info || null, source: m.community ? "community" : "admin" }));
     return send(res, 200, { items });
   }
   if (parts[0] === "mods" && parts[1]) {
@@ -451,6 +451,29 @@ async function publicApi(req, res, path, url) {
     if (!m) return fail(res, 404, "that mod isn't listed anymore");
     reports.unshift({ id: randomUUID(), mod_id: m.id, mod_slug: m.slug, mod_name: m.name, reason: body.reason, details: body.details || "", contact: body.contact || "", status: "open", admin_note: "", created_at: new Date().toISOString(), resolved_at: null, resolved_by: null });
     return send(res, 201, { ok: true });
+  }
+  if (path === "/api/submissions" && req.method === "POST") {
+    const { file, fields } = parseMultipart(req, await readBody(req));
+    if (fields.website) return send(res, 201, { ok: true });
+    const errors = {};
+    const name = (fields.name || "").trim();
+    const description = (fields.description || "").trim();
+    if (name.length < 2) errors.name = "give your mod a name";
+    if (description.length < 30) errors.description = "describe what your mod does (at least 30 characters)";
+    if (fields.confirm !== "true") errors.confirm = "you have to confirm that you have the right to share this mod";
+    if (!file) errors.file = "attach your mod file (.dll or .zip)";
+    else if (!["MZ", "PK"].includes(file.data.subarray(0, 2).toString("latin1"))) errors.file = "this .dll doesn't look like a real windows dll";
+    if (Object.keys(errors).length) return fail(res, 422, Object.values(errors)[0], errors);
+    if (mods.filter((m) => m.community).length >= 10) return fail(res, 429, "you can upload up to 10 mods a day. try again tomorrow.");
+    const m = { id: randomUUID(), status: "draft", featured: false, releases: [], screenshots: [], thumbnail_url: null, downloads: 0, created_at: new Date().toISOString(), published_at: new Date().toISOString(), open_reports: 0, community: true };
+    const author = fields.anonymous === "true" ? "Anonymous" : (fields.author || "").trim() || "Anonymous";
+    modPayloadToMod(m, { name, slug: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${mods.length}`, author_name: author, description, summary: description.split(". ")[0].slice(0, 200), redistribution: "allowed" });
+    m.status = "published";
+    files.set(m.id, file.data);
+    m.releases.push(refreshRelease({ id: randomUUID(), version: fields.version || "unversioned", released_on: new Date().toISOString().slice(0, 10), changelog: "", game_version: "", kind: "hosted", external_url: null, file: { name: file.name, size: file.data.length, sha256: createHash("sha256").update(file.data).digest("hex"), type: "dll" }, disabled: false, disabled_reason: "", created_at: new Date().toISOString() }));
+    files.set(m.releases[0].id, file.data);
+    mods.unshift(m);
+    return send(res, 201, { ok: true, slug: m.slug });
   }
   if (path === "/api/requests" && req.method === "POST") {
     const body = await json(req);
