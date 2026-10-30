@@ -432,6 +432,9 @@ export function createTreeView() {
       ...tree.categories.map((c) => h("section", null, h("h3", null, `${c.name} (${c.mods.length})`), h("ul", null, c.mods.map((m) => h("li", null, h("a", { href: `#/mod/${encodeURIComponent(m.slug)}` }, m.name)))))),
       tree.loose ? h("section", null, h("h3", null, "No category"), h("ul", null, mods.filter((m) => !m.category_slug).map((m) => h("li", null, h("a", { href: `#/mod/${encodeURIComponent(m.slug)}` }, m.name))))) : null,
     );
+    stage.querySelector(".tree-hint").textContent = mods.length < 5
+      ? "the tree is just a sapling for now. it grows a new node for every mod added to Branch"
+      : "scroll to zoom · drag to move · click a node to open the mod";
     resize();
     fitAll(false);
     grow();
