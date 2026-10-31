@@ -624,7 +624,7 @@ export function createTreeView() {
         { class: "tree-controls" },
         h("button", { class: "icon-btn", type: "button", "aria-label": "Zoom in", title: "Zoom in (+)", onclick: () => zoomAt(1.35, canvas.clientWidth / 2, canvas.clientHeight / 2) }, h("span", { class: "tree-sym" }, "+")),
         h("button", { class: "icon-btn", type: "button", "aria-label": "Zoom out", title: "Zoom out (-)", onclick: () => zoomAt(0.74, canvas.clientWidth / 2, canvas.clientHeight / 2) }, h("span", { class: "tree-sym" }, "−")),
-        h("button", { class: "icon-btn", type: "button", "aria-label": "Show the whole tree", title: "Show the whole tree (0)", onclick: () => fitAll() }, icon("grid")),
+        h("button", { class: "icon-btn", type: "button", "aria-label": "Show the whole tree", title: "Show the whole tree (0)", onclick: () => fitAll() }, icon("fit")),
       ),
       h("p", { class: "tree-hint" }, "scroll to zoom · drag to move · click a node to open the mod"),
     );

@@ -1,6 +1,6 @@
 import { h, clear } from "./dom.js";
 import { icon } from "./icons.js";
-import { api, assetUrl } from "./platform.js";
+import { api, assetUrl, aiOff } from "./platform.js";
 import { settings, favorites } from "./store.js";
 import { myIdentity, rename, randomName } from "./forum-identity.js";
 import { AMBIENT_STYLES } from "./ambient.js";
@@ -22,8 +22,8 @@ const USES = [
   ["upload", "Uploading my mods", "upload"],
   ["tracker", "The player tracker", "radar"],
   ["community", "Community and chat", "chat"],
-  ["checker", "Checking mods for viruses", "shield"],
-  ["assistant", "Asking the AI", "sparkle"],
+  ["checker", "Checking mods for viruses", "scan"],
+  ["assistant", "Asking the AI", "ask"],
   ["rewards", "Earning rewards", "gift"],
 ];
 
@@ -255,7 +255,7 @@ export function runOnboarding(ctx) {
         render() {
           return [
             h("h2", { class: "sheet-title", id: "ob-title" }, "what kind of mods do you like?"),
-            h("p", { class: "ob-lead" }, "pick a few and Branch's AI will find some mods for you to start with."),
+            h("p", { class: "ob-lead" }, aiOff() ? "pick a few and we'll match some mods to start with." : "pick a few and Branch's AI will find some mods for you to start with."),
             h(
               "div",
               { class: "ob-chips ob-interests" },
@@ -273,7 +273,7 @@ export function runOnboarding(ctx) {
       {
         kind: "picks",
         render() {
-          const list = h("div", { class: "ob-picks" }, h("div", { class: "ob-thinking" }, h("span", { class: "as-typing" }, h("span"), h("span"), h("span")), "Branch's AI is picking mods for you…"));
+          const list = h("div", { class: "ob-picks" }, h("div", { class: "ob-thinking" }, h("span", { class: "as-typing" }, h("span"), h("span"), h("span")), aiOff() ? "finding mods for you…" : "Branch's AI is picking mods for you…"));
           api("/api/onboarding/picks", { method: "POST", body: { interests: answers.interests, uses: answers.uses } })
             .then((data) => {
               if (!data.picks?.length) {

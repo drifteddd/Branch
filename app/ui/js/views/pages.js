@@ -65,8 +65,15 @@ export function createSettingsView(ctx) {
       ),
       updatesGroup(current),
       group(
+        "Privacy",
+        row(
+          h("label", { for: "use-ai" }, "Use Branch AI", h("span", { class: "row-hint" }, "powers Ask Branch, AI mod checks, easy upload and mod suggestions. turn it off and nothing you do is sent to or read by Branch's AI. you get the basic versions instead.")),
+          h("span", { class: "switch" }, h("input", { type: "checkbox", id: "use-ai", checked: !current.noAi, onchange: (e) => { settings.set({ noAi: !e.target.checked }); toast(e.target.checked ? "Branch AI is on" : "Branch AI is off. nothing you do is sent to the AI.", { tone: "ok" }); } })),
+        ),
+      ),
+      group(
         "Setup",
-        row(h("span", null, "Run setup again", h("span", { class: "row-hint" }, "pick a name and background, get mod suggestions and take the tour again.")), h("button", { class: "btn", type: "button", onclick: async () => { await runOnboarding(ctx); render(); } }, icon("sparkle"), "Start setup")),
+        row(h("span", null, "Run setup again", h("span", { class: "row-hint" }, "pick a name and background, get mod suggestions and take the tour again.")), h("button", { class: "btn", type: "button", onclick: async () => { await runOnboarding(ctx); render(); } }, icon("compass"), "Start setup")),
       ),
       group(
         "Community name",

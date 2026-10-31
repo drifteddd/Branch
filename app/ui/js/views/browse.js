@@ -274,7 +274,7 @@ export function createBrowseView(ctx) {
     }
     const empty = {
       all: { iconName: "box", title: "No mods yet", message: "nothing has been published on Branch yet. check back soon." },
-      featured: { iconName: "sparkle", title: "Nothing featured yet", message: "featured mods are the 10 best-rated mods on Branch. open a mod and give it stars to help pick them.", actions: [ctx.link("#/browse", "Browse all mods")] },
+      featured: { iconName: "award", title: "Nothing featured yet", message: "featured mods are the 10 best-rated mods on Branch. open a mod and give it stars to help pick them.", actions: [ctx.link("#/browse", "Browse all mods")] },
       favorites: { iconName: "star", title: "No favorites yet", message: "tap the star on any mod to keep it here. favorites are saved on this computer only.", actions: [ctx.link("#/browse", "Browse mods")] },
       recent: { iconName: "clock", title: "Nothing viewed yet", message: "mods you open will show up here so you can find them again.", actions: [ctx.link("#/browse", "Browse mods")] },
     }[state.mode];

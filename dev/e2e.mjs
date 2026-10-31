@@ -999,6 +999,29 @@ await test("onboarding: name, look, questions, ai picks and a tour", async () =>
   await evaluate(click("input[name=ambient][value=off]"));
 });
 
+await test("turning off Branch AI turns off every AI feature", async () => {
+  await go(`${BASE}/#/settings`);
+  await waitFor(`document.querySelector("#use-ai")?.checked`, "AI on by default");
+  await evaluate(click("#use-ai"));
+  assert(await evaluate(`JSON.parse(localStorage.getItem("branch.settings")).noAi === true`), "opt-out not saved");
+  await evaluate(`location.hash = "#/ask"`);
+  await waitFor(`document.querySelector(".ai-off-card")?.textContent.includes("turned off")`, "ask branch off");
+  const status = await evaluate(`fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json", "x-branch-no-ai": "1" }, body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }) }).then(r => r.status)`);
+  assert(status === 403, "server should refuse ai when opted out");
+  await evaluate(`location.hash = "#/upload"`);
+  await waitFor(`document.querySelector("input[name=upload-mode][value=easy]")`, "upload modes");
+  await evaluate(click("input[name=upload-mode][value=easy]"));
+  await waitFor(`document.querySelector(".ai-off-card")?.textContent.includes("easy upload")`, "easy upload off");
+  await screenshot("ai-off-upload");
+  await evaluate(`location.hash = "#/check"`);
+  await waitFor(`!document.querySelector(".ai-off-note").hidden`, "checker basic-scan note");
+  await evaluate(`location.hash = "#/settings"`);
+  await waitFor(`document.querySelector("#use-ai")`, "settings");
+  await evaluate(click("#use-ai"));
+  await evaluate(`location.hash = "#/ask"`);
+  await waitFor(`document.querySelector(".as-input")`, "ask branch back on");
+});
+
 ws.close();
 browser.kill();
 server.close();

@@ -209,6 +209,7 @@ impl Bot {
                 thumbnail: None,
                 poster_id: None,
                 via: "discord",
+                allow_ai: true,
             },
         )
         .await

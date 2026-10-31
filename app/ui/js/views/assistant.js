@@ -1,6 +1,6 @@
 import { h, clear } from "../dom.js";
 import { icon } from "../icons.js";
-import { api } from "../platform.js";
+import { api, aiOff } from "../platform.js";
 import { renderMarkdown } from "../../shared/markdown.js";
 
 const SUGGESTIONS = [
@@ -184,6 +184,21 @@ export function createAssistantView() {
     el,
     title: () => "Ask Branch",
     show() {
+      if (aiOff()) {
+        thread = null;
+        clear(el).append(
+          h("header", { class: "as-head" }, h("div", null, h("h1", { class: "view-title", id: "assistant-title" }, "Ask Branch"))),
+          h(
+            "div",
+            { class: "form-card ai-off-card" },
+            h("span", { class: "ai-off-icon", "aria-hidden": "true" }, icon("ask")),
+            h("h2", null, "Branch AI is turned off"),
+            h("p", { class: "muted" }, "you turned off Branch AI in Settings, so nothing you do is sent to or read by the AI, and Ask Branch is off. you can turn it back on any time."),
+            h("div", { class: "ai-off-actions" }, h("a", { class: "btn btn-primary", href: "#/settings" }, "Open Settings")),
+          ),
+        );
+        return 0;
+      }
       if (!thread) render();
       loadUsage();
       setTimeout(() => input.focus(), 50);

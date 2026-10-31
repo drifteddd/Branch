@@ -301,7 +301,10 @@ fn strip_thinking(text: &str) -> String {
     out.trim().to_string()
 }
 
-async fn ask(State(state): State<AppState>, visitor: Visitor, Json(input): Json<AskInput>) -> ApiResult<Json<Value>> {
+async fn ask(State(state): State<AppState>, visitor: Visitor, headers: axum::http::HeaderMap, Json(input): Json<AskInput>) -> ApiResult<Json<Value>> {
+    if crate::util::ai_opted_out(&headers) {
+        return Err(AppError::new(StatusCode::FORBIDDEN, "ai_opted_out", "you turned off Branch AI in Settings, so Ask Branch is off. turn it back on in Settings to use it."));
+    }
     let mut messages: Vec<(String, String)> = Vec::new();
     for m in input.messages.into_iter().rev().take(14) {
         let role = match m.role.as_str() {

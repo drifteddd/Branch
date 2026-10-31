@@ -36,6 +36,10 @@ pub fn valid_slug(slug: &str) -> bool {
         && slug.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
+pub fn ai_opted_out(headers: &axum::http::HeaderMap) -> bool {
+    headers.get("x-branch-no-ai").and_then(|v| v.to_str().ok()) == Some("1")
+}
+
 pub fn too_long(text: &str, max_chars: usize) -> bool {
     text.chars().count() > max_chars
 }

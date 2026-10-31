@@ -179,9 +179,16 @@ impl ScanReport {
     }
 
     pub fn final_score(&self, ai_score: u8) -> u8 {
-        let floor = (self.heuristic_score as f32 * 0.6).round() as u8;
-        let score = ai_score.max(floor);
-        if self.has_strong_signals() { score } else { score.min(40) }
+        if self.has_strong_signals() {
+            let floor = (self.heuristic_score as f32 * 0.6).round() as u8;
+            ai_score.max(floor)
+        } else {
+            ai_score.min(30)
+        }
+    }
+
+    pub fn basic_score(&self) -> u8 {
+        if self.has_strong_signals() { self.heuristic_score } else { (self.heuristic_score / 3).min(20) }
     }
 }
 
@@ -518,7 +525,7 @@ mod tests {
     fn the_ai_needs_real_evidence_for_a_high_score() {
         let clean = scan("library.dll", &fake_dll("HarmonyLib\0UnityEngine\0System.Reflection.Emit")).unwrap();
         assert!(!clean.has_strong_signals());
-        assert_eq!(clean.final_score(90), 40, "no concrete sign means at most 'a few odd things'");
+        assert_eq!(clean.final_score(90), 30, "no concrete sign keeps the score low");
         assert_eq!(clean.final_score(10), 10);
         let stealer = scan("x.dll", &fake_dll("https://discord.com/api/webhooks/1/x\0\\Local Storage\\leveldb")).unwrap();
         assert!(stealer.has_strong_signals());

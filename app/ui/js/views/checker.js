@@ -1,6 +1,6 @@
 import { h, clear, formatBytes } from "../dom.js";
 import { icon } from "../icons.js";
-import { api, uploadForm } from "../platform.js";
+import { api, uploadForm, aiOff } from "../platform.js";
 import { settings } from "../store.js";
 
 const STEPS = ["Reading the file", "Looking inside", "Checking for warning signs", "Asking the AI"];
@@ -151,6 +151,7 @@ export function createCheckerView() {
     requestAnimationFrame(frame);
   }
 
+  const aiNote = h("p", { class: "banner info compact ai-off-note", hidden: true }, icon("info"), h("span", null, "Branch AI is off, so files get the basic scan only. it still catches the most obvious malware."));
   el.append(
     h(
       "header",
@@ -158,6 +159,7 @@ export function createCheckerView() {
       h("h1", { class: "view-title", id: "checker-title" }, "Mod checker"),
       h("p", null, "upload a mod and Branch's AI looks for signs of viruses, password stealers and remote-access tools (RATs). it's free."),
       usage,
+      aiNote,
     ),
     body,
   );
@@ -166,6 +168,7 @@ export function createCheckerView() {
     el,
     title: () => "Mod checker",
     show() {
+      aiNote.hidden = !aiOff();
       if (!busy && !body.querySelector(".result-card")) renderPicker();
       loadUsage();
       return 0;

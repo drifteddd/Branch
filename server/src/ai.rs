@@ -42,12 +42,14 @@ HOW TO REASON:
 - Large libraries and frameworks normally use Reflection.Emit, dynamic code generation, embedded base64 resources, system event handlers, file access and HTTP. Treat runtime code loading as suspicious ONLY when it is combined with downloading or decoding a payload and running it, or with other malware signs.
 
 CALIBRATION (follow strictly):
-- If there is no evidence of stealing data, sending data out to webhooks/bots/unknown servers, downloading-and-running files, process injection, keylogging or screen capture, persistence, Defender tampering, crypto mining, or executables/scripts packed in the zip, the score MUST be 25 or lower, no matter how many "unusual" capabilities there are.
+- Most files are ordinary mods or libraries. An ordinary mod with no malware signs should score between 0 and 10. Use the low end (0-5) when the code clearly matches a normal mod.
+- If there are a few unusual-but-probably-legitimate things (for example it opens links, reads its own config, checks for updates, or uses reflection) and still no malware evidence, score 6-20.
+- If there is no evidence of stealing data, sending data out to webhooks/bots/unknown servers, downloading-and-running files, process injection, keylogging or screen capture, persistence, Defender tampering, crypto mining, or executables/scripts packed in the zip, the score must stay at 20 or lower, no matter how many "unusual" capabilities there are. Do not default to the top of a range: pick the number that fits.
 - Use 41 or higher only when you can name at least one concrete malware behavior from the evidence.
 
 SCORE (0-100), about malware only:
-- 0-15: no malware signs; normal mod behavior
-- 16-40: a few unusual things that are probably legitimate
+- 0-10: no malware signs; normal mod behavior
+- 11-40: a few unusual things that are probably legitimate
 - 41-70: suspicious; the user should be careful
 - 71-100: very likely malware
 
@@ -336,7 +338,8 @@ Rules:
 - Same mod: most of the distinctive class/method names match (overlap above about 0.6), or the purpose and code names are essentially identical even if the name, author or description changed. A newer version of a mod that is already listed also counts as the same mod.
 - Different mod: a different purpose, even if both use common frameworks (BepInEx, Harmony, Utilla, UnityEngine) or share a few generic names (Plugin, Menu, Toggle, Settings).
 - Matching names alone (e.g. two different mods both called "Fly") are not enough. Judge the code overlap and descriptions.
-- If unsure, say not a duplicate with low confidence.
+- Many different Gorilla Tag mods are built from the same templates and menu frameworks, so they share a lot of code names. That alone does NOT make them duplicates. Only say "duplicate" when the purpose and the distinctive code are clearly the same mod.
+- If unsure, say not a duplicate with low confidence. Be generous: when in doubt, let the upload through.
 
 Respond with one JSON object only:
 {"duplicate": true | false, "duplicate_of_id": "<id of the matching existing mod or null>", "confidence": "low" | "medium" | "high", "reason": "<one short plain sentence>"}"#;
@@ -445,7 +448,7 @@ pub async fn ask_duplicate(http: &reqwest::Client, config: &Config, payload: &Va
     Ok(DuplicateVerdict {
         duplicate: v.get("duplicate").and_then(|d| d.as_bool()).unwrap_or(false),
         duplicate_of: v.get("duplicate_of_id").and_then(|d| d.as_str()).map(str::to_owned),
-        confident: v.get("confidence").and_then(|c| c.as_str()).map(|c| c != "low").unwrap_or(false),
+        confident: v.get("confidence").and_then(|c| c.as_str()) == Some("high"),
         reason: clean(v.get("reason").and_then(|r| r.as_str()).unwrap_or(""), 240),
     })
 }

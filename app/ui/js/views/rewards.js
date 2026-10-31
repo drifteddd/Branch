@@ -39,7 +39,7 @@ export function createRewardsView(ctx) {
       h(
         "div",
         { class: "rw-hero-text" },
-        h("span", { class: "rw-pill" }, icon("sparkle"), enabled ? "Limited-time offer" : "Paused"),
+        h("span", { class: "rw-pill" }, icon("clock"), enabled ? "Limited-time offer" : "Paused"),
         h("h1", { id: "rewards-title" }, "Earn Robux for sharing mods"),
         h("p", null, `get ${limits.per_mod} R$ for every unique mod you upload after your first ${10}. earn up to ${limits.total} R$.`),
       ),

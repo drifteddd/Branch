@@ -565,7 +565,7 @@ pub async fn create_request(State(state): State<AppState>, visitor: Visitor, Jso
 }
 
 pub(crate) const AI_CALLS_KEY: &str = "__ai_calls__";
-const CACHE_VERSION: &str = "v3";
+const CACHE_VERSION: &str = "v4";
 
 pub(crate) async fn usage_today(state: &AppState, visitor: &str) -> Result<i32, sqlx::Error> {
     let used: Option<i32> = sqlx::query_scalar("select count from ai_usage where visitor = $1 and day = current_date")
@@ -609,7 +609,8 @@ pub fn verdict_label(score: u8) -> &'static str {
     }
 }
 
-pub async fn check_mod(State(state): State<AppState>, visitor: Visitor, mut multipart: Multipart) -> ApiResult<Json<Value>> {
+pub async fn check_mod(State(state): State<AppState>, visitor: Visitor, headers: axum::http::HeaderMap, mut multipart: Multipart) -> ApiResult<Json<Value>> {
+    let allow_ai = !crate::util::ai_opted_out(&headers);
     if !state.limiter.check(&format!("check:{}", visitor.id), 30, Duration::from_secs(3600)) {
         return Err(AppError::too_many("slow down a little. try again in a few minutes."));
     }
@@ -644,15 +645,19 @@ pub async fn check_mod(State(state): State<AppState>, visitor: Visitor, mut mult
     let used = bump_usage(&state, &visitor.id).await?;
 
     let cache_key = format!("{CACHE_VERSION}:{}", report.sha256);
-    let cached: Option<Value> = sqlx::query_scalar("select result from ai_results where sha256 = $1 and created_at > now() - interval '30 days'")
-        .bind(&cache_key)
-        .fetch_optional(&state.db)
-        .await?;
+    let cached: Option<Value> = if allow_ai {
+        sqlx::query_scalar("select result from ai_results where sha256 = $1 and created_at > now() - interval '30 days'")
+            .bind(&cache_key)
+            .fetch_optional(&state.db)
+            .await?
+    } else {
+        None
+    };
 
     let (verdict, from_cache) = match cached {
         Some(value) => (value, true),
         None => {
-            let ai_allowed = state.config.ai_api_key.is_some() && usage_today(&state, AI_CALLS_KEY).await? < state.config.ai_daily_global;
+            let ai_allowed = allow_ai && state.config.ai_api_key.is_some() && usage_today(&state, AI_CALLS_KEY).await? < state.config.ai_daily_global;
             let ai = if ai_allowed {
                 bump_usage(&state, AI_CALLS_KEY).await?;
                 match crate::ai::ask(&state.http, &state.config, &report, None).await {
@@ -690,7 +695,7 @@ pub async fn check_mod(State(state): State<AppState>, visitor: Visitor, mut mult
                     };
                     let capabilities: Vec<Value> = report.code.capabilities.iter().map(|c| json!({ "name": c.name, "level": c.level, "detail": c.evidence.first().cloned().unwrap_or_default() })).collect();
                     json!({
-                        "score": report.heuristic_score,
+                        "score": report.basic_score(),
                         "confidence": if report.code.dotnet_dlls > 0 { "medium" } else { "low" },
                         "what_it_does": "",
                         "summary": summary,
@@ -807,6 +812,7 @@ pub(crate) struct NewUpload {
     pub thumbnail: Option<crate::uploads::ProcessedImage>,
     pub poster_id: Option<Uuid>,
     pub via: &'static str,
+    pub allow_ai: bool,
 }
 
 pub(crate) struct Published {
@@ -860,7 +866,7 @@ fn name_from_file(file_name: &str) -> String {
 }
 
 pub(crate) async fn publish_upload(state: &AppState, upload: NewUpload) -> ApiResult<Published> {
-    let NewUpload { uploader, file_name, data, mut name, mut description, author, version, category_id, tags: user_tags, source_url, thumbnail, poster_id, via } = upload;
+    let NewUpload { uploader, file_name, data, mut name, mut description, author, version, category_id, tags: user_tags, source_url, thumbnail, poster_id, via, allow_ai } = upload;
     let (checked, report, data) = tokio::task::spawn_blocking(move || {
         let checked = crate::uploads::check_mod_file(&file_name, &data)?;
         let report = crate::scan::scan(&file_name, &data)?;
@@ -871,10 +877,13 @@ pub(crate) async fn publish_upload(state: &AppState, upload: NewUpload) -> ApiRe
     .map_err(|message| AppError::field("file", &message))?;
 
     let write_listing = name.trim().is_empty() || description.trim().chars().count() < 30;
-    let mut score = report.heuristic_score;
+    if write_listing && !allow_ai {
+        return Err(AppError::field("file", "you turned off Branch AI in Settings, so it can't write the name and description for you. use the advanced upload and write them yourself."));
+    }
+    let mut score = report.basic_score();
     let mut ai_used = false;
     let mut verdict: Option<crate::ai::AiVerdict> = None;
-    if state.config.ai_api_key.is_some() && usage_today(state, AI_CALLS_KEY).await? < state.config.ai_daily_global {
+    if allow_ai && state.config.ai_api_key.is_some() && usage_today(state, AI_CALLS_KEY).await? < state.config.ai_daily_global {
         bump_usage(state, AI_CALLS_KEY).await?;
         let existing_tags: Vec<String> = sqlx::query_scalar("select name from tags order by name limit 200").fetch_all(&state.db).await?;
         let categories: Vec<String> = sqlx::query_scalar("select slug from categories order by sort_order, name").fetch_all(&state.db).await?;
@@ -888,7 +897,7 @@ pub(crate) async fn publish_upload(state: &AppState, upload: NewUpload) -> ApiRe
             Err(err) => tracing::warn!(error = %err, "ai check failed during an upload, using the basic scan"),
         }
     }
-    if score >= 71 {
+    if score >= 85 && report.has_strong_signals() {
         tracing::warn!(score, via, "community upload refused by the safety check");
         return Err(AppError::field(
             "file",
@@ -924,7 +933,7 @@ pub(crate) async fn publish_upload(state: &AppState, upload: NewUpload) -> ApiRe
     }
 
     let fingerprint = report.fingerprint();
-    let uniqueness = crate::routes::rewards::check_upload_unique(state, &checked.sha256, &name, &description, &fingerprint).await?;
+    let uniqueness = crate::routes::rewards::check_upload_unique(state, &checked.sha256, &name, &description, &fingerprint, allow_ai).await?;
     if !uniqueness.unique {
         return Err(AppError::field("file", &uniqueness.message));
     }
@@ -1063,7 +1072,8 @@ pub(crate) async fn publish_upload(state: &AppState, upload: NewUpload) -> ApiRe
     }
 }
 
-pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, mut multipart: Multipart) -> ApiResult<(StatusCode, Json<Value>)> {
+pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, headers: axum::http::HeaderMap, mut multipart: Multipart) -> ApiResult<(StatusCode, Json<Value>)> {
+    let allow_ai = !crate::util::ai_opted_out(&headers);
     if !state.limiter.check(&format!("submit:{}", visitor.id), 20, Duration::from_secs(3600)) {
         return Err(AppError::too_many("slow down a little. try again in a few minutes."));
     }
@@ -1177,6 +1187,7 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
             thumbnail,
             poster_id,
             via: if easy { "app-easy" } else { "app" },
+            allow_ai,
         },
     )
     .await?;

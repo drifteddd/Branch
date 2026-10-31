@@ -1,6 +1,6 @@
 import { h, clear, formatBytes } from "../dom.js";
 import { icon } from "../icons.js";
-import { uploadForm } from "../platform.js";
+import { uploadForm, aiOff } from "../platform.js";
 import { forumKey } from "../forum-identity.js";
 import { stateBlock } from "../ui.js";
 import { renderMarkdown } from "../../shared/markdown.js";
@@ -351,6 +351,16 @@ export function createUploadView(ctx) {
   }
 
   function renderEasy() {
+    if (aiOff()) {
+      return h(
+        "div",
+        { class: "form-card ai-off-card" },
+        h("span", { class: "ai-off-icon", "aria-hidden": "true" }, icon("ask")),
+        h("h2", null, "Branch AI is turned off"),
+        h("p", { class: "muted" }, "easy upload uses Branch's AI to write the listing for you, and you've turned AI off in Settings. you can still share your mod with the advanced upload."),
+        h("div", { class: "ai-off-actions" }, h("button", { class: "btn btn-primary", type: "button", onclick: () => document.querySelector('input[name=upload-mode][value=advanced]')?.click() }, "Use the advanced upload"), h("a", { class: "btn", href: "#/settings" }, "Settings")),
+      );
+    }
     let chosen = null;
     const fileInput = h("input", { type: "file", accept: ".dll,.zip", class: "visually-hidden", id: "easy-file", tabindex: "-1" });
     const fileName = h("span", { class: "easy-file-name", hidden: true });
@@ -393,7 +403,7 @@ export function createUploadView(ctx) {
     const formError = h("div", { class: "banner danger compact", role: "alert", hidden: true });
     const steps = ["Uploading the file", "Checking that it's safe", "Writing the name and description", "Publishing it"];
     const stepList = h("ol", { class: "easy-steps", hidden: true }, steps.map((s) => h("li", null, h("span", { class: "easy-step-dot" }), s)));
-    const submit = h("button", { class: "btn btn-primary btn-large", type: "submit" }, icon("sparkle"), "Upload with AI");
+    const submit = h("button", { class: "btn btn-primary btn-large", type: "submit" }, icon("sparkle"), "Upload");
 
     const form = h(
       "form",
@@ -462,7 +472,7 @@ export function createUploadView(ctx) {
         formError.replaceChildren(icon("alert"), h("p", null, err.fields ? Object.values(err.fields)[0] : err.message));
         formError.hidden = false;
         submit.disabled = false;
-        submit.lastChild.textContent = "Upload with AI";
+        submit.lastChild.textContent = "Upload";
       }
     });
     return form;

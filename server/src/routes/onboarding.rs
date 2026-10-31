@@ -115,7 +115,8 @@ fn fallback_score(m: &CatalogRow, interests: &[String]) -> f64 {
     score + rating + (m.download_count as f64 + 1.0).ln() * 0.5
 }
 
-async fn picks(State(state): State<AppState>, visitor: Visitor, Json(input): Json<PicksInput>) -> ApiResult<Json<Value>> {
+async fn picks(State(state): State<AppState>, visitor: Visitor, headers: axum::http::HeaderMap, Json(input): Json<PicksInput>) -> ApiResult<Json<Value>> {
+    let allow_ai = !crate::util::ai_opted_out(&headers);
     if !state.limiter.check(&format!("picks:{}", visitor.id), 6, Duration::from_secs(3600)) {
         return Err(AppError::too_many("slow down a little. try again in a few minutes."));
     }
@@ -138,7 +139,7 @@ async fn picks(State(state): State<AppState>, visitor: Visitor, Json(input): Jso
 
     let mut chosen: Vec<(String, String)> = Vec::new();
     let mut source = "basic";
-    if state.config.ai_api_key.is_some() && usage_today(&state, AI_CALLS_KEY).await? < state.config.ai_daily_global {
+    if allow_ai && state.config.ai_api_key.is_some() && usage_today(&state, AI_CALLS_KEY).await? < state.config.ai_daily_global {
         bump_usage(&state, AI_CALLS_KEY).await?;
         let payload = json!({
             "interests": interests,

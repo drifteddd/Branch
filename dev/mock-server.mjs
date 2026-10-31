@@ -489,6 +489,7 @@ async function publicApi(req, res, path, url) {
   }
   if (path === "/api/assistant/usage") return send(res, 200, { ...assistantUsage(), available: true });
   if (path === "/api/assistant" && req.method === "POST") {
+    if (req.headers["x-branch-no-ai"] === "1") return fail(res, 403, "you turned off Branch AI in Settings, so Ask Branch is off.");
     const body = await json(req);
     const question = body.messages?.at(-1)?.content || "";
     if (!question.trim()) return fail(res, 400, "type a message first");

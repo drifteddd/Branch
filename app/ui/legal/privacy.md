@@ -1,6 +1,6 @@
 # Privacy Notice
 
-**Version 11** · Effective October 31, 2026
+**Version 12** · Effective October 31, 2026
 
 This Privacy Notice explains how Drifted (the "**Operator**," "**we**," "**us**") collects, uses, stores and shares information in connection with the Branch application and its related services (the "**Service**"). Contact: **drifted1000@outlook.com**.
 
@@ -49,6 +49,8 @@ If you apply for the Rewards Program, we store your Roblox username, the link to
 ## 7. Reports and Mod Requests
 
 If you submit a report or a mod request, we store the related Mod, the reason or details you provide, your contact information if you choose to provide it, the Hashed Identifier and the time of submission. This information is visible only to the Operator and is deleted one hundred eighty (180) days after the report or request is closed.
+
+**Turning off AI.** You can turn off Branch AI at any time in Settings → Privacy. While it is off, the app tells our server not to use artificial intelligence for anything you do: your files are checked with the basic scan only, your uploads, rewards applications and mod suggestions are not sent to SiliconFlow, Ask Branch and easy upload are unavailable, and previously cached AI results are not shown to you.
 
 **Setup questions.** The optional setup shown when you first open the app may ask where you heard about Branch and what you want to use it for. If you answer, we only add one to an anonymous total for each answer; your answers are not linked to you, your device or your Hashed Identifier. If you pick mod interests, they are sent together with the list of Mods to our artificial-intelligence provider, SiliconFlow, to suggest a few Mods, and are not stored by Branch. Your choices are also saved on your computer so the app remembers that setup is finished.
 

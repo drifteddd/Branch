@@ -85,6 +85,7 @@ async fn api_request(
     method: String,
     path: String,
     body: Option<serde_json::Value>,
+    no_ai: Option<bool>,
 ) -> Result<serde_json::Value, CmdError> {
     let url = api_url(&path)?;
     let request = match method.as_str() {
@@ -94,6 +95,7 @@ async fn api_request(
         _ => return Err(CmdError::new("app", "unsupported request")),
     };
     let request = if path.starts_with("/api/assistant") { request.timeout(Duration::from_secs(170)) } else { request };
+    let request = if no_ai == Some(true) { request.header("x-branch-no-ai", "1") } else { request };
     read_json(request.send().await?).await
 }
 
@@ -156,9 +158,12 @@ async fn api_upload(request: tauri::ipc::Request<'_>, http: State<'_, Http>) -> 
     if body.len() > MAX_UPLOAD_BYTES {
         return Err(CmdError::new("app", "files can be up to 50 MB"));
     }
-    let response = http
-        .files
-        .post(format!("{}{}", base_url(), path))
+    let no_ai = header("x-branch-no-ai").as_deref() == Some("1");
+    let mut builder = http.files.post(format!("{}{}", base_url(), path));
+    if no_ai {
+        builder = builder.header("x-branch-no-ai", "1");
+    }
+    let response = builder
         .header(reqwest::header::CONTENT_TYPE, content_type)
         .body(body.clone())
         .timeout(Duration::from_secs(180))

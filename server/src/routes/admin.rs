@@ -1485,7 +1485,7 @@ async fn import_one(state: &AppState, admin: &AdminUser, file_name: String, data
 
     let info = json!({
         "file_name": checked.name,
-        "scan_score": report.heuristic_score,
+        "scan_score": report.basic_score(),
         "signals": report.indicators.iter().map(|i| i.label).collect::<Vec<_>>(),
         "mod_markers": report.mod_markers,
     });
@@ -1524,7 +1524,7 @@ async fn import_one(state: &AppState, admin: &AdminUser, file_name: String, data
     }
 
     audit(&state.db, admin, "import_mod", &name, &checked.name).await;
-    Ok(json!({ "mod_id": mod_id, "name": name, "file_name": checked.name, "version": version, "scan_score": report.heuristic_score }))
+    Ok(json!({ "mod_id": mod_id, "name": name, "file_name": checked.name, "version": version, "scan_score": report.basic_score() }))
 }
 
 async fn import_mods(State(state): State<AppState>, Admin(admin): Admin, multipart: Multipart) -> ApiResult<Json<Value>> {

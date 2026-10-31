@@ -31,10 +31,18 @@ export function assetUrl(path) {
   return apiBase + path;
 }
 
+export function aiOff() {
+  try {
+    return JSON.parse(localStorage.getItem("branch.settings") || "{}").noAi === true;
+  } catch {
+    return false;
+  }
+}
+
 export async function api(path, { method = "GET", body } = {}) {
   if (isDesktop) {
     try {
-      return await tauri.core.invoke("api_request", { method, path, body: body ?? null });
+      return await tauri.core.invoke("api_request", { method, path, body: body ?? null, noAi: aiOff() });
     } catch (err) {
       throw toApiError(err, "couldn't reach the Branch server");
     }
@@ -44,7 +52,7 @@ export async function api(path, { method = "GET", body } = {}) {
   try {
     res = await fetch(path, {
       method,
-      headers: body ? { "content-type": "application/json" } : {},
+      headers: { ...(body ? { "content-type": "application/json" } : {}), ...(aiOff() ? { "x-branch-no-ai": "1" } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch {
@@ -191,14 +199,14 @@ export async function uploadForm(path, form) {
     const contentType = packed.headers.get("content-type");
     const body = new Uint8Array(await packed.arrayBuffer());
     try {
-      return await tauri.core.invoke("api_upload", body, { headers: { "x-branch-path": path, "x-branch-content-type": contentType } });
+      return await tauri.core.invoke("api_upload", body, { headers: { "x-branch-path": path, "x-branch-content-type": contentType, ...(aiOff() ? { "x-branch-no-ai": "1" } : {}) } });
     } catch (err) {
       throw toApiError(err, "the upload failed");
     }
   }
   let res;
   try {
-    res = await fetch(path, { method: "POST", body: form });
+    res = await fetch(path, { method: "POST", body: form, headers: aiOff() ? { "x-branch-no-ai": "1" } : {} });
   } catch {
     throw new ApiError("couldn't reach the Branch server. check your internet connection.", { kind: "network" });
   }

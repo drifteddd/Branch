@@ -50,7 +50,7 @@ struct FingerprintRow {
     code_fingerprint: Vec<String>,
 }
 
-pub async fn check_upload_unique(state: &AppState, sha256: &str, name: &str, description: &str, fingerprint: &[String]) -> ApiResult<UniqueCheck> {
+pub async fn check_upload_unique(state: &AppState, sha256: &str, name: &str, description: &str, fingerprint: &[String], allow_ai: bool) -> ApiResult<UniqueCheck> {
     let exact: Option<String> = sqlx::query_scalar(
         "select m.name from releases r join mods m on m.id = r.mod_id where r.file_sha256 = $1 and m.status <> 'archived' limit 1",
     )
@@ -69,15 +69,18 @@ pub async fn check_upload_unique(state: &AppState, sha256: &str, name: &str, des
     let mut candidates: Vec<(f32, &FingerprintRow)> = rows
         .iter()
         .map(|r| (similarity(fingerprint, &r.code_fingerprint), r))
-        .filter(|(sim, r)| *sim >= 0.45 || r.name.trim().eq_ignore_ascii_case(name.trim()))
+        .filter(|(sim, _)| *sim >= 0.8)
         .collect();
     candidates.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
     candidates.truncate(3);
-    if candidates.is_empty() {
+    if candidates.is_empty() || fingerprint.len() < 15 {
         return Ok(UniqueCheck { unique: true, message: String::new() });
     }
+    if candidates[0].0 >= 0.97 {
+        return Ok(UniqueCheck { unique: false, message: format!("this is almost the same code as \"{}\", which is already on Branch. only new, unique mods can be uploaded.", candidates[0].1.name) });
+    }
 
-    if take_ai_budget(state).await? {
+    if allow_ai && candidates[0].0 >= 0.88 && take_ai_budget(state).await? {
         let payload = json!({
             "new_mod": { "name": name, "description": description.chars().take(800).collect::<String>(), "fingerprint": fingerprint.iter().take(120).collect::<Vec<_>>() },
             "existing_similar_mods": candidates.iter().map(|(sim, r)| {
@@ -99,10 +102,6 @@ pub async fn check_upload_unique(state: &AppState, sha256: &str, name: &str, des
             Ok(_) => return Ok(UniqueCheck { unique: true, message: String::new() }),
             Err(err) => tracing::warn!(error = %err, "duplicate check ai failed, using code overlap only"),
         }
-    }
-    let (best, row) = candidates[0];
-    if best >= 0.85 {
-        return Ok(UniqueCheck { unique: false, message: format!("this looks like a copy of \"{}\", which is already on Branch. only new, unique mods can be uploaded.", row.name) });
     }
     Ok(UniqueCheck { unique: true, message: String::new() })
 }
@@ -254,7 +253,8 @@ struct OwnMod {
     file_size: Option<i64>,
 }
 
-async fn apply(State(state): State<AppState>, visitor: Visitor, Json(input): Json<ApplyInput>) -> ApiResult<(StatusCode, Json<Value>)> {
+async fn apply(State(state): State<AppState>, visitor: Visitor, headers: axum::http::HeaderMap, Json(input): Json<ApplyInput>) -> ApiResult<(StatusCode, Json<Value>)> {
+    let allow_ai = !crate::util::ai_opted_out(&headers);
     if !rewards_enabled(&state).await? {
         return Err(AppError::forbidden("rewards_off", "the rewards program isn't running right now."));
     }
@@ -324,7 +324,7 @@ async fn apply(State(state): State<AppState>, visitor: Visitor, Json(input): Jso
         })
         .collect();
 
-    let review = if take_ai_budget(&state).await? {
+    let review = if allow_ai && take_ai_budget(&state).await? {
         match crate::ai::ask_rewards_review(&state.http, &state.config, &json!({ "uploads": listing })).await {
             Ok(r) => Some(r),
             Err(err) => {
@@ -338,7 +338,7 @@ async fn apply(State(state): State<AppState>, visitor: Visitor, Json(input): Jso
     let (status, review_json) = match &review {
         Some(r) if !r.approve => ("rejected", json!({ "approve": false, "summary": r.summary, "reasons": r.reasons, "flagged": r.flagged, "by": "ai" })),
         Some(r) => ("pending", json!({ "approve": true, "summary": r.summary, "reasons": r.reasons, "flagged": r.flagged, "by": "ai" })),
-        None => ("pending", json!({ "approve": null, "summary": "the ai review wasn't available, so this needs a manual look.", "reasons": [], "flagged": [], "by": "none" })),
+        None => ("pending", json!({ "approve": null, "summary": if allow_ai { "the ai review wasn't available, so this needs a manual look." } else { "the applicant turned off Branch AI, so this needs a manual look." }, "reasons": [], "flagged": [], "by": "none" })),
     };
     sqlx::query(
         "insert into reward_members (id, poster_id, roblox_username, payout_item_url, status, ai_review, applied_at, decided_at)
