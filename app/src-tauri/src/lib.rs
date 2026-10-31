@@ -10,6 +10,7 @@ use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
+use tauri_plugin_updater::UpdaterExt;
 use tokio::io::AsyncWriteExt;
 
 fn base_url() -> &'static str {
@@ -377,6 +378,66 @@ fn open_external(app: AppHandle, url: String) -> Result<(), CmdError> {
         .map_err(|_| CmdError::new("app", "couldn't open your browser"))
 }
 
+#[derive(Serialize)]
+struct UpdateInfo {
+    version: String,
+    current: String,
+    notes: Option<String>,
+    date: Option<String>,
+}
+
+#[derive(Serialize, Clone)]
+struct UpdateProgress {
+    received: u64,
+    total: Option<u64>,
+}
+
+fn update_error(message: impl Into<String>) -> CmdError {
+    CmdError::new("update", message)
+}
+
+#[tauri::command]
+async fn update_check(app: AppHandle) -> Result<Option<UpdateInfo>, CmdError> {
+    let updater = app.updater().map_err(|e| update_error(format!("updates aren't available: {e}")))?;
+    match updater.check().await {
+        Ok(Some(update)) => Ok(Some(UpdateInfo {
+            version: update.version.clone(),
+            current: update.current_version.clone(),
+            notes: update.body.clone(),
+            date: update.date.map(|d| d.to_string()),
+        })),
+        Ok(None) => Ok(None),
+        Err(e) => Err(update_error(format!("couldn't check for updates: {e}"))),
+    }
+}
+
+#[tauri::command]
+async fn update_install(app: AppHandle) -> Result<(), CmdError> {
+    let updater = app.updater().map_err(|e| update_error(format!("updates aren't available: {e}")))?;
+    let update = updater
+        .check()
+        .await
+        .map_err(|e| update_error(format!("couldn't check for updates: {e}")))?
+        .ok_or_else(|| update_error("you're already on the newest version"))?;
+    let handle = app.clone();
+    let mut received: u64 = 0;
+    let mut last_emit: Option<Instant> = None;
+    update
+        .download_and_install(
+            move |chunk, total| {
+                received += chunk as u64;
+                if last_emit.map_or(true, |t| t.elapsed() >= Duration::from_millis(100)) {
+                    let _ = handle.emit("update-progress", UpdateProgress { received, total });
+                    last_emit = Some(Instant::now());
+                }
+            },
+            || {},
+        )
+        .await
+        .map_err(|e| update_error(format!("the update couldn't be installed: {e}")))?;
+    app.restart();
+}
+
 #[cfg(windows)]
 fn apply_window_material(app: &tauri::App) -> &'static str {
     match app.get_webview_window("main") {
@@ -407,6 +468,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Http { api, files })
         .manage(Downloads::default())
         .setup(|app| {
@@ -423,7 +485,9 @@ pub fn run() {
             download_release,
             cancel_download,
             reveal_download,
-            open_external
+            open_external,
+            update_check,
+            update_install
         ])
         .run(tauri::generate_context!())
         .expect("error while running branch");

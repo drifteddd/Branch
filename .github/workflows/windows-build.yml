@@ -2,9 +2,18 @@ name: windows build
 
 on:
   workflow_dispatch:
+    inputs:
+      notes:
+        description: "What's new in this version"
+        required: false
+        default: "Bug fixes and improvements."
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: windows-build
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -27,10 +36,21 @@ jobs:
         with:
           workspaces: app/src-tauri
 
+      - name: pick the version
+        id: version
+        shell: bash
+        run: |
+          VERSION="1.0.${{ github.run_number }}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          node -e "const fs=require('fs');const f='app/src-tauri/tauri.conf.json';const c=JSON.parse(fs.readFileSync(f,'utf8'));c.version=process.argv[1];fs.writeFileSync(f,JSON.stringify(c,null,2));" "$VERSION"
+          echo "building Branch $VERSION"
+
       - name: build the installer
         working-directory: app
         env:
           BRANCH_API_URL: ${{ vars.BRANCH_API_URL }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: npx --yes @tauri-apps/cli@2 build --bundles nsis
 
       - uses: actions/upload-artifact@v4
@@ -38,3 +58,44 @@ jobs:
           name: branch-windows-installer
           path: app/src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error
+
+      - name: publish the release
+        shell: bash
+        working-directory: app/src-tauri/target/release/bundle/nsis
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          EXE=$(ls *-setup.exe | head -n 1)
+          if [ ! -f "$EXE.sig" ]; then
+            echo "::error::the installer wasn't signed for updates"
+            exit 1
+          fi
+          ASSET="Branch_${VERSION}_x64-setup.exe"
+          if [ "$EXE" != "$ASSET" ]; then
+            mv "$EXE" "$ASSET"
+            mv "$EXE.sig" "$ASSET.sig"
+          fi
+          node -e "
+            const fs = require('fs');
+            const [version, asset, notes, repo] = process.argv.slice(1);
+            const manifest = {
+              version,
+              notes: notes || 'Bug fixes and improvements.',
+              pub_date: new Date().toISOString(),
+              platforms: {
+                'windows-x86_64': {
+                  signature: fs.readFileSync(asset + '.sig', 'utf8').trim(),
+                  url: 'https://github.com/' + repo + '/releases/download/v' + version + '/' + asset,
+                },
+              },
+            };
+            fs.writeFileSync('latest.json', JSON.stringify(manifest, null, 2));
+          " "$VERSION" "$ASSET" "$NOTES" "${{ github.repository }}"
+          printf '%s\n\nDownload **%s** below to install Branch. If you already have Branch, it updates itself.\n' "${NOTES:-Bug fixes and improvements.}" "$ASSET" > release-notes.md
+          gh release create "v$VERSION" "$ASSET" "$ASSET.sig" latest.json \
+            --repo "${{ github.repository }}" \
+            --title "Branch $VERSION" \
+            --notes-file release-notes.md \
+            --latest

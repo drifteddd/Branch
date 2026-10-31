@@ -6,6 +6,7 @@ import { runSplash } from "./splash.js";
 import { requireTerms } from "./terms.js";
 import { showStoryOnce } from "./story.js";
 import { setAmbient, refreshAmbient } from "./ambient.js";
+import { startUpdater } from "./updater.js";
 import { toast } from "./ui.js";
 import { createBrowseView } from "./views/browse.js";
 import { createDetailView } from "./views/detail.js";
@@ -347,6 +348,7 @@ async function start() {
 
   await requireTerms();
   await showStoryOnce();
+  startUpdater();
 
   if (!currentRoute) route();
   if (!ctx.meta) loadMeta();

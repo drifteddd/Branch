@@ -147,6 +147,39 @@ export async function appVersion() {
   return "preview";
 }
 
+export const canUpdate = isDesktop;
+
+export async function checkForUpdate() {
+  if (isDesktop) {
+    try {
+      return await tauri.core.invoke("update_check");
+    } catch (err) {
+      throw toApiError(err, "couldn't check for updates");
+    }
+  }
+  return window.__branchFakeUpdate || null;
+}
+
+export async function installUpdate(onProgress) {
+  if (isDesktop) {
+    const unlisten = await tauri.event.listen("update-progress", (event) => onProgress(event.payload.received, event.payload.total));
+    try {
+      await tauri.core.invoke("update_install");
+    } catch (err) {
+      throw toApiError(err, "the update couldn't be installed");
+    } finally {
+      unlisten();
+    }
+    return;
+  }
+  const total = 12_000_000;
+  for (let received = 0; received <= total; received += 1_500_000) {
+    onProgress(received, total);
+    await new Promise((r) => setTimeout(r, 120));
+  }
+  if (window.__branchFakeUpdate?.fail) throw new ApiError("the update couldn't be installed: demo failure", { kind: "update" });
+}
+
 export async function windowMaterial() {
   if (!isDesktop) return "none";
   try { return await tauri.core.invoke("window_material"); } catch { return "none"; }

@@ -3,6 +3,7 @@ target/
 app/src-tauri/gen/
 
 PRIVATE-NOTES.md
+PRIVATE-*
 .env
 .env.*
 

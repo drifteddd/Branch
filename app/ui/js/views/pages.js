@@ -4,6 +4,7 @@ import { renderMarkdown } from "../../shared/markdown.js";
 import { appVersion, assetUrl, isDesktop, openExternal } from "../platform.js";
 import { showStory } from "../story.js";
 import { AMBIENT_STYLES } from "../ambient.js";
+import { checkNow, updatesSupported } from "../updater.js";
 
 function adminDoor() {
   const img = h("img", { src: "shared/branch-mark.svg", alt: "", width: "88", height: "88", class: "about-icon" });
@@ -27,6 +28,7 @@ import { confirmDialog, toast, stateBlock } from "../ui.js";
 
 export const REPO_URL = "https://github.com/drifteddd/Branch";
 export const CONTACT_EMAIL = "drifted1000@outlook.com";
+export const DISCORD_URL = "https://discord.gg/ycCMckZ2N";
 
 export function createSettingsView(ctx) {
   const el = h("section", { class: "view page", "aria-labelledby": "settings-title" });
@@ -58,6 +60,7 @@ export function createSettingsView(ctx) {
         row(h("span", { id: "ambient-label" }, "Animated background", h("span", { class: "row-hint" }, "a moving background behind the app. it pauses when Branch is minimized.")), ambientGroup),
         row(h("label", { for: "reduce-motion" }, "Reduce motion", h("span", { class: "row-hint" }, "Windows' animation setting is always followed too.")), h("span", { class: "switch" }, motion)),
       ),
+      updatesGroup(current),
       group(
         "Community name",
         communityRow(),
@@ -72,6 +75,28 @@ export function createSettingsView(ctx) {
         row(h("span", null, "Favorites", h("span", { class: "row-hint" }, `${favorites.list().length} saved`)), h("button", { class: "btn btn-danger", type: "button", onclick: clearFavorites }, "Clear favorites")),
         row(h("span", null, "Recently viewed", h("span", { class: "row-hint" }, `${recent.list().length} saved`)), h("button", { class: "btn btn-danger", type: "button", onclick: clearRecent }, "Clear history")),
       ),
+    );
+  }
+
+  function updatesGroup(current) {
+    const version = h("span", { class: "row-hint" }, "version …");
+    appVersion().then((v) => { version.textContent = `version ${v}`; });
+    if (!updatesSupported()) {
+      return group("Updates", row(h("span", null, "Branch", version), h("span", { class: "muted small" }, "updates work in the desktop app")));
+    }
+    const auto = h("input", { type: "checkbox", id: "auto-update", checked: current.autoUpdate !== false, onchange: (e) => settings.set({ autoUpdate: e.target.checked }) });
+    const check = h("button", { class: "btn", type: "button" }, icon("refresh"), "Check for updates");
+    check.addEventListener("click", async () => {
+      check.disabled = true;
+      check.lastChild.textContent = "Checking…";
+      await checkNow({ manual: true });
+      check.disabled = false;
+      check.lastChild.textContent = "Check for updates";
+    });
+    return group(
+      "Updates",
+      row(h("span", null, "Branch", version), check),
+      row(h("label", { for: "auto-update" }, "Update automatically", h("span", { class: "row-hint" }, "installs new versions when Branch starts. otherwise you'll be asked first.")), h("span", { class: "switch" }, auto)),
     );
   }
 
@@ -169,6 +194,7 @@ export function createAboutView(ctx) {
       linkRow("#/legal/terms", "Terms of Use"),
       linkRow("#/legal/takedown", "Copyright and Takedown Policy"),
       linkRow("#/legal/licenses", "Licenses and Credits"),
+      h("div", { class: "settings-row" }, h("span", null, "Discord server"), h("a", { href: DISCORD_URL, "data-external": true }, "Join the Discord", icon("external", "inline-icon"))),
       h("div", { class: "settings-row" }, h("span", null, "Contact"), h("span", { class: "muted contact-email" }, CONTACT_EMAIL)),
       h("div", { class: "settings-row" }, h("span", null, "Source code"), h("a", { href: REPO_URL, "data-external": true }, "GitHub", icon("external", "inline-icon"))),
     ),

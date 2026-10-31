@@ -356,6 +356,31 @@ await test("animated backgrounds are off by default and can be switched on in se
   await waitFor(`!document.querySelector("canvas.ambient") && !document.documentElement.dataset.ambient`, "background removed");
 });
 
+await test("updates: check, download with progress, and the discord link in about", async () => {
+  await go(`${BASE}/#/settings`);
+  await waitFor(`document.querySelector("input[name=ambient]")`, "settings");
+  assert(await evaluate(`[...document.querySelectorAll(".settings-row")].some(r => r.textContent.includes("updates work in the desktop app"))`), "browser preview should say updates are desktop only");
+  await evaluate(`window.__branchFakeUpdate = { version: "9.9.9", current: "1.0.0", notes: "- new animated backgrounds\\n- faster tracker" }`);
+  await evaluate(`location.hash = "#/about"`);
+  await waitFor(`document.querySelector(".made-by")`, "about");
+  assert(await evaluate(`[...document.querySelectorAll(".about a")].some(a => a.href === "https://discord.gg/ycCMckZ2N" && a.textContent.includes("Discord"))`), "discord link missing");
+  await evaluate(`location.hash = "#/settings"`);
+  await waitFor(`[...document.querySelectorAll(".settings-row button")].some(b => b.textContent.includes("Check for updates"))`, "update controls");
+  assert(await evaluate(`document.querySelector("#auto-update").checked`), "auto update should default on");
+  await evaluate(clickText(".settings-row button", "Check for updates"));
+  await waitFor(`document.querySelector("dialog.up-sheet[open]")?.textContent.includes("Branch 9.9.9") && document.querySelector(".up-notes li")`, "update screen with notes");
+  await waitFor(`document.querySelector(".up-status")?.textContent.includes("downloading…") && document.querySelector(".up-progress").getAttribute("aria-valuenow")`, "download progress");
+  await screenshot("update-progress");
+  await waitFor(`[...document.querySelectorAll("dialog.up-sheet button")].some(b => b.textContent === "Done")`, "update finished", 8000);
+  await evaluate(`[...document.querySelectorAll("dialog.up-sheet button")].find(b => b.textContent === "Done").click()`);
+  await waitFor(`!document.querySelector("dialog.up-sheet")`, "update screen closed");
+  await evaluate(`window.__branchFakeUpdate.fail = true`);
+  await evaluate(clickText(".settings-row button", "Check for updates"));
+  await waitFor(`document.querySelector(".up-status.up-error") && [...document.querySelectorAll("dialog.up-sheet button")].some(b => b.textContent.includes("Try again"))`, "failed update offers a retry", 8000);
+  await evaluate(`[...document.querySelectorAll("dialog.up-sheet button")].find(b => b.textContent === "Not now").click()`);
+  await evaluate(`delete window.__branchFakeUpdate`);
+});
+
 await test("about and legal pages open", async () => {
   await go(`${BASE}/#/about`);
   await waitFor(`document.querySelector('.made-by')?.textContent === 'made by Drifted'`, "about page");
