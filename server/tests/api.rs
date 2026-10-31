@@ -330,7 +330,8 @@ async fn full_flow() {
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "other needs details");
     let r = c.json("POST", "/api/reports", json!({ "mod_slug": "test-mod", "reason": "broken_download", "details": "404", "website": "http://spam" })).await;
     assert_eq!(r.status, StatusCode::CREATED, "bots get a fake success");
-    let r = c.json("POST", "/api/reports", json!({ "mod_slug": "test-mod", "reason": "broken_download", "details": "the link 404s", "contact": "me#1234" })).await;
+    let inbox_key = "abcd".repeat(16);
+    let r = c.json("POST", "/api/reports", json!({ "mod_slug": "test-mod", "reason": "broken_download", "details": "the link 404s", "contact": "me#1234", "key": inbox_key.as_str() })).await;
     assert_eq!(r.status, StatusCode::CREATED);
     c.json("POST", "/api/reports", json!({ "mod_slug": "test-mod", "reason": "broken_download", "details": "again" })).await;
 
@@ -339,8 +340,21 @@ async fn full_flow() {
     assert_eq!(reports.len(), 1, "honeypot and same-day duplicates aren't stored");
     assert_eq!(reports[0]["contact"], "me#1234");
     let report_id = reports[0]["id"].as_str().unwrap().to_string();
-    let r = c.json("PUT", &format!("/api/admin/reports/{report_id}"), json!({ "status": "resolved", "admin_note": "fixed the link" })).await;
+    assert_eq!(reports[0]["has_inbox"], true);
+    let r = c.json("PUT", &format!("/api/admin/reports/{report_id}"), json!({ "status": "resolved", "admin_note": "fixed the link", "reply": "thanks! the download works again." })).await;
     assert_eq!(r.status, StatusCode::OK);
+    let r = c.json("POST", "/api/inbox", json!({ "key": inbox_key.as_str() })).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    assert_eq!(r.json["reports"][0]["status"], "resolved");
+    assert_eq!(r.json["reports"][0]["reply"], "thanks! the download works again.");
+    assert!(!r.json.to_string().contains("fixed the link"), "the private note stays private");
+    assert_eq!(c.json("POST", "/api/inbox", json!({ "key": "" })).await.json["reports"].as_array().unwrap().len(), 0);
+    let r = c.json("POST", "/api/admin/announcements", json!({ "title": "Branch is live", "body": "welcome everyone", "kind": "announcement" })).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    assert_eq!(c.json("POST", "/api/admin/announcements", json!({ "title": "x" })).await.status, StatusCode::UNPROCESSABLE_ENTITY);
+    let r = c.json("POST", "/api/inbox", json!({})).await;
+    assert_eq!(r.json["announcements"][0]["title"], "Branch is live");
+    assert!(r.json["releases"].is_array());
     assert_eq!(c.get("/api/admin/reports?status=open").await.json["items"].as_array().unwrap().len(), 0);
     assert!(!String::from_utf8_lossy(&c.get("/api/mods/test-mod").await.bytes).contains("me#1234"));
 

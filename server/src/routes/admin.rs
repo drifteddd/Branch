@@ -1181,6 +1181,8 @@ struct ReportRow {
     contact: String,
     status: String,
     admin_note: String,
+    reply: String,
+    has_inbox: bool,
     created_at: DateTime<Utc>,
     resolved_at: Option<DateTime<Utc>>,
     resolved_by: Option<String>,
@@ -1190,7 +1192,7 @@ async fn list_reports(State(state): State<AppState>, Admin(_): Admin, Query(quer
     let status = query.status.filter(|s| matches!(s.as_str(), "open" | "resolved" | "dismissed"));
     let rows: Vec<ReportRow> = sqlx::query_as(
         "select r.id, r.mod_id, m.slug as mod_slug, r.mod_name, r.reason, r.details, r.contact, r.status, r.admin_note,
-                r.created_at, r.resolved_at, a.username as resolved_by
+                r.reply, (r.poster_id is not null) as has_inbox, r.created_at, r.resolved_at, a.username as resolved_by
          from reports r
          left join mods m on m.id = r.mod_id
          left join admins a on a.id = r.resolved_by
@@ -1209,6 +1211,8 @@ struct ReportUpdate {
     status: String,
     #[serde(default)]
     admin_note: String,
+    #[serde(default)]
+    reply: String,
 }
 
 async fn update_report(State(state): State<AppState>, Admin(admin): Admin, Path(id): Path<Uuid>, Json(input): Json<ReportUpdate>) -> ApiResult<Json<Value>> {
@@ -1219,8 +1223,12 @@ async fn update_report(State(state): State<AppState>, Admin(admin): Admin, Path(
     if too_long(note, 2000) {
         return Err(AppError::field("admin_note", "keep the note under 2000 characters"));
     }
+    let reply = input.reply.trim();
+    if too_long(reply, 2000) {
+        return Err(AppError::field("reply", "keep the reply under 2000 characters"));
+    }
     let mod_name: Option<String> = sqlx::query_scalar(
-        "update reports set status = $1, admin_note = $2,
+        "update reports set status = $1, admin_note = $2, reply = $5,
             resolved_at = case when $1 = 'open' then null else now() end,
             resolved_by = case when $1 = 'open' then null else $3 end
          where id = $4 returning mod_name",
@@ -1229,6 +1237,7 @@ async fn update_report(State(state): State<AppState>, Admin(admin): Admin, Path(
     .bind(note)
     .bind(admin.id)
     .bind(id)
+    .bind(reply)
     .fetch_optional(&state.db)
     .await?;
     let mod_name = mod_name.ok_or_else(|| AppError::not_found("that report doesn't exist"))?;

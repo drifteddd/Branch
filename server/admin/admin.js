@@ -246,6 +246,7 @@ const NAV = [
   ["mods", "Mods"],
   ["import", "Import"],
   ["reports", "Reports"],
+  ["inbox", "Inbox"],
   ["requests", "Requests"],
   ["forum", "Forum"],
   ["rewards", "Rewards"],
@@ -299,6 +300,7 @@ async function route() {
   try {
     if (section === "mods" && id) await renderEditor(id === "new" ? null : id);
     else if (section === "reports") await renderReports();
+    else if (section === "inbox") await renderInboxAdmin();
     else if (section === "requests") await renderRequests();
     else if (section === "import") await renderImport();
     else if (section === "forum") await renderForum();
@@ -910,8 +912,11 @@ async function renderReports() {
   const cards = items.map((r) => {
     const note = h("textarea", { class: "textarea", rows: "2", maxlength: "2000", "aria-label": "Private admin note" });
     note.value = r.admin_note;
+    const reply = h("textarea", { class: "textarea", rows: "2", maxlength: "2000", "aria-label": "Reply to the reporter", placeholder: r.has_inbox ? "e.g. thanks! the download is fixed now." : "this report was sent from an older version, so the reporter can't see replies" });
+    reply.value = r.reply || "";
+    reply.disabled = !r.has_inbox;
     const update = async (status) => {
-      await api(`/api/admin/reports/${r.id}`, { method: "PUT", body: { status, admin_note: note.value } });
+      await api(`/api/admin/reports/${r.id}`, { method: "PUT", body: { status, admin_note: note.value, reply: reply.value } });
       toast(status === "open" ? "Reopened" : status === "resolved" ? "Marked resolved" : "Dismissed");
       await refreshOverview();
       renderReports();
@@ -930,12 +935,13 @@ async function renderReports() {
       r.details ? h("p", { class: "report-body" }, r.details) : h("p", { class: "muted" }, "no details given."),
       r.contact ? h("p", { class: "small" }, "contact: ", h("span", { class: "code" }, r.contact)) : h("p", { class: "muted small" }, "no contact info."),
       r.resolved_by ? h("p", { class: "muted small" }, `${r.status} by ${r.resolved_by} on ${fmtTime(r.resolved_at)}`) : null,
-      h("div", { class: "field" }, h("span", { class: "field-label" }, "Private note"), note),
+      h("div", { class: "field" }, h("span", { class: "field-label" }, "Reply to the reporter ", h("span", { class: "muted small" }, r.has_inbox ? "(they see this in their Inbox)" : "(not available for this report)")), reply),
+      h("div", { class: "field" }, h("span", { class: "field-label" }, "Private note ", h("span", { class: "muted small" }, "(only admins see this)")), note),
       h(
         "div",
         { class: "report-actions" },
         r.status === "open" ? h("button", { class: "btn btn-primary", type: "button", onclick: () => update("resolved") }, "Mark resolved") : h("button", { class: "btn", type: "button", onclick: () => update("open") }, "Reopen"),
-        r.status === "open" ? h("button", { class: "btn", type: "button", onclick: () => update("dismissed") }, "Dismiss") : h("button", { class: "btn", type: "button", onclick: () => update(r.status) }, "Save note"),
+        r.status === "open" ? h("button", { class: "btn", type: "button", onclick: () => update("dismissed") }, "Dismiss") : h("button", { class: "btn", type: "button", onclick: () => update(r.status) }, "Save reply and note"),
         r.mod_id ? h("a", { class: "btn btn-quiet", href: `#/mods/${r.mod_id}` }, "Open mod (turn off downloads, edit, remove)") : null,
         h("span", { class: "grow" }),
         h("button", { class: "btn btn-quiet btn-danger", type: "button", onclick: async () => { if (await confirmDialog("Delete this report?", "it's removed for good, including any contact info.", "Delete report")) { await api(`/api/admin/reports/${r.id}`, { method: "DELETE" }); await refreshOverview(); renderReports(); } } }, "Delete"),
@@ -1306,6 +1312,71 @@ async function renderForum() {
     posts.length
       ? h("div", { class: "table-wrap" }, h("table", { class: "table" }, h("thead", null, h("tr", null, ["Type", "Post", "By", "When", ""].map((t) => h("th", { scope: "col" }, t)))), h("tbody", null, rows)))
       : h("div", { class: "card" }, h("p", { class: "muted" }, "no posts yet.")),
+  ]);
+}
+
+const ANNOUNCEMENT_KINDS = [["announcement", "Announcement"], ["update", "Update log"], ["notice", "Notice"]];
+
+async function renderInboxAdmin() {
+  const { items } = await api("/api/admin/announcements");
+  const title = h("input", { class: "input", id: "an-title", maxlength: "120", placeholder: "e.g. new rewards round starts friday" });
+  const kind = h("select", { class: "select", id: "an-kind" }, ANNOUNCEMENT_KINDS.map(([v, t]) => h("option", { value: v }, t)));
+  const body = h("textarea", { class: "textarea", id: "an-body", rows: "6", maxlength: "5000", placeholder: "write the message. markdown works: **bold**, - lists, links." });
+  const error = h("p", { class: "form-error hidden", role: "alert" });
+  const send = h("button", { class: "btn btn-primary", type: "submit" }, "Send to everyone");
+  const form = h(
+    "form",
+    { class: "card form-grid" },
+    h("h2", { class: "full" }, "New announcement"),
+    field("an-title", "Title", title, { required: true }),
+    field("an-kind", "Type", kind),
+    h("div", { class: "full" }, field("an-body", "Message", body, { hint: "everyone sees this in the Inbox tab of the app, with a badge until they open it." })),
+    h("div", { class: "full" }, error, send),
+  );
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    error.classList.add("hidden");
+    send.disabled = true;
+    try {
+      await api("/api/admin/announcements", { method: "POST", body: { title: title.value, body: body.value, kind: kind.value } });
+      toast("Sent to everyone's inbox");
+      renderInboxAdmin();
+    } catch (err) {
+      error.textContent = err.message;
+      error.classList.remove("hidden");
+      send.disabled = false;
+    }
+  });
+  const list = items.length
+    ? h(
+        "div",
+        { class: "table-wrap" },
+        h(
+          "table",
+          { class: "table" },
+          h("thead", null, h("tr", null, ["Title", "Type", "Sent", ""].map((t) => h("th", { scope: "col" }, t)))),
+          h(
+            "tbody",
+            null,
+            items.map((a) =>
+              h(
+                "tr",
+                null,
+                h("td", null, h("strong", null, a.title), a.body ? h("div", { class: "muted small" }, a.body.slice(0, 140)) : null),
+                h("td", null, label(ANNOUNCEMENT_KINDS.map(([key, l]) => ({ key, label: l })), a.kind) || a.kind),
+                h("td", { class: "muted small" }, fmtTime(a.created_at)),
+                h("td", null, h("button", { class: "btn btn-quiet btn-danger", type: "button", onclick: async () => { if (await confirmDialog("Delete this announcement?", "it disappears from everyone's inbox.", "Delete")) { await api(`/api/admin/announcements/${a.id}`, { method: "DELETE" }); toast("Deleted"); renderInboxAdmin(); } } }, "Delete")),
+              ),
+            ),
+          ),
+        ),
+      )
+    : h("p", { class: "muted" }, "no announcements yet.");
+  shell("inbox", [
+    h("div", { class: "page-head" }, h("h1", null, "Inbox")),
+    h("p", { class: "muted" }, "announcements go to everyone. update logs from each new release are added automatically, and your replies to reports appear in the reporter's inbox."),
+    form,
+    h("div", { class: "card" }, h("h2", null, `Sent (${items.length})`), list),
   ]);
 }
 

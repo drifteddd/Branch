@@ -1,6 +1,7 @@
 pub mod admin;
 pub mod assistant;
 pub mod forum;
+pub mod inbox;
 pub mod public;
 pub mod rewards;
 
@@ -45,6 +46,7 @@ pub fn router(state: AppState) -> Router {
         .merge(forum::router())
         .merge(rewards::router())
         .merge(assistant::router())
+        .merge(inbox::router())
         .merge(admin_ui::router())
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit))
         .layer(DefaultBodyLimit::max(256 * 1024))

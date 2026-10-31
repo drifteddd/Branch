@@ -1,0 +1,173 @@
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+use axum::extract::{Path, State};
+use axum::routing::{delete, get, post};
+use axum::{Json, Router};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use sqlx::FromRow;
+use uuid::Uuid;
+
+use crate::auth::{audit, Admin};
+use crate::error::{ApiResult, AppError, FieldErrors};
+use crate::state::AppState;
+use crate::util::{too_long, Visitor};
+
+const RELEASES_URL: &str = "https://api.github.com/repos/drifteddd/Branch/releases?per_page=10";
+
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route("/api/inbox", post(inbox))
+        .route("/api/admin/announcements", get(list_announcements).post(create_announcement))
+        .route("/api/admin/announcements/{id}", delete(delete_announcement))
+}
+
+#[derive(FromRow, Serialize)]
+struct Announcement {
+    id: Uuid,
+    title: String,
+    body: String,
+    kind: String,
+    created_at: DateTime<Utc>,
+}
+
+#[derive(FromRow, Serialize)]
+struct MyReport {
+    id: Uuid,
+    mod_name: String,
+    mod_slug: Option<String>,
+    reason: String,
+    status: String,
+    reply: String,
+    created_at: DateTime<Utc>,
+    resolved_at: Option<DateTime<Utc>>,
+}
+
+static RELEASES: Mutex<Option<(Instant, Value)>> = Mutex::new(None);
+
+async fn releases(state: &AppState) -> Value {
+    if let Ok(cache) = RELEASES.lock() {
+        if let Some((at, value)) = cache.as_ref() {
+            if at.elapsed() < Duration::from_secs(600) {
+                return value.clone();
+            }
+        }
+    }
+    let fetched = async {
+        let response = state
+            .http
+            .get(RELEASES_URL)
+            .header("User-Agent", "branch-server")
+            .header("Accept", "application/vnd.github+json")
+            .timeout(Duration::from_secs(10))
+            .send()
+            .await
+            .ok()?;
+        if !response.status().is_success() {
+            return None;
+        }
+        let list: Value = response.json().await.ok()?;
+        let items: Vec<Value> = list
+            .as_array()?
+            .iter()
+            .filter(|r| r.get("draft").and_then(|d| d.as_bool()) != Some(true))
+            .map(|r| {
+                json!({
+                    "id": r.get("id"),
+                    "version": r.get("tag_name").and_then(|t| t.as_str()).unwrap_or("").trim_start_matches('v'),
+                    "title": r.get("name"),
+                    "notes": r.get("body").and_then(|b| b.as_str()).map(|b| b.split("\n\nDownload **").next().unwrap_or(b).trim().to_string()),
+                    "published_at": r.get("published_at"),
+                    "url": r.get("html_url"),
+                })
+            })
+            .collect();
+        Some(Value::Array(items))
+    }
+    .await;
+    match fetched {
+        Some(value) => {
+            if let Ok(mut cache) = RELEASES.lock() {
+                *cache = Some((Instant::now(), value.clone()));
+            }
+            value
+        }
+        None => RELEASES.lock().ok().and_then(|c| c.as_ref().map(|(_, v)| v.clone())).unwrap_or_else(|| json!([])),
+    }
+}
+
+#[derive(Deserialize)]
+struct InboxInput {
+    #[serde(default)]
+    key: String,
+}
+
+async fn inbox(State(state): State<AppState>, visitor: Visitor, Json(input): Json<InboxInput>) -> ApiResult<Json<Value>> {
+    let announcements: Vec<Announcement> =
+        sqlx::query_as("select id, title, body, kind, created_at from announcements order by created_at desc limit 50").fetch_all(&state.db).await?;
+    let reports: Vec<MyReport> = if input.key.trim().is_empty() {
+        Vec::new()
+    } else {
+        match crate::routes::forum::poster_for(&state, input.key.trim(), &visitor, false).await {
+            Ok(poster) => {
+                sqlx::query_as(
+                    "select r.id, r.mod_name, m.slug as mod_slug, r.reason, r.status, r.reply, r.created_at, r.resolved_at
+                     from reports r left join mods m on m.id = r.mod_id
+                     where r.poster_id = $1 order by r.created_at desc limit 30",
+                )
+                .bind(poster.id)
+                .fetch_all(&state.db)
+                .await?
+            }
+            Err(_) => Vec::new(),
+        }
+    };
+    Ok(Json(json!({ "announcements": announcements, "reports": reports, "releases": releases(&state).await })))
+}
+
+async fn list_announcements(State(state): State<AppState>, Admin(_): Admin) -> ApiResult<Json<Value>> {
+    let items: Vec<Announcement> =
+        sqlx::query_as("select id, title, body, kind, created_at from announcements order by created_at desc limit 200").fetch_all(&state.db).await?;
+    Ok(Json(json!({ "items": items })))
+}
+
+#[derive(Deserialize)]
+struct NewAnnouncement {
+    title: String,
+    #[serde(default)]
+    body: String,
+    #[serde(default)]
+    kind: String,
+}
+
+async fn create_announcement(State(state): State<AppState>, Admin(admin): Admin, Json(input): Json<NewAnnouncement>) -> ApiResult<Json<Value>> {
+    let title = input.title.trim();
+    let body = input.body.trim();
+    let kind = if input.kind.is_empty() { "announcement" } else { input.kind.as_str() };
+    let mut errors = FieldErrors::default();
+    errors.check(title.chars().count() >= 2, "title", "give it a title");
+    errors.check(!too_long(title, 120), "title", "keep the title under 120 characters");
+    errors.check(!too_long(body, 5000), "body", "keep the message under 5000 characters");
+    errors.check(matches!(kind, "announcement" | "update" | "notice"), "kind", "pick a type");
+    errors.finish()?;
+    let id = Uuid::new_v4();
+    sqlx::query("insert into announcements (id, title, body, kind, created_by) values ($1, $2, $3, $4, $5)")
+        .bind(id)
+        .bind(title)
+        .bind(body)
+        .bind(kind)
+        .bind(admin.id)
+        .execute(&state.db)
+        .await?;
+    audit(&state.db, &admin, "create_announcement", title, kind).await;
+    Ok(Json(json!({ "ok": true, "id": id })))
+}
+
+async fn delete_announcement(State(state): State<AppState>, Admin(admin): Admin, Path(id): Path<Uuid>) -> ApiResult<Json<Value>> {
+    let title: Option<String> = sqlx::query_scalar("delete from announcements where id = $1 returning title").bind(id).fetch_optional(&state.db).await?;
+    let title = title.ok_or_else(|| AppError::not_found("that announcement doesn't exist"))?;
+    audit(&state.db, &admin, "delete_announcement", &title, "").await;
+    Ok(Json(json!({ "ok": true })))
+}

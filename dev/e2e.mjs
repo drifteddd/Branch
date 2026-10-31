@@ -342,7 +342,7 @@ await test("animated backgrounds are off by default and can be switched on in se
   assert(await evaluate(`document.querySelector("input[name=ambient][value=off]").checked && !document.querySelector("canvas.ambient")`), "backgrounds should start off");
   await sleep(300);
   await screenshot("ambient-picker");
-  for (const style of ["aurora", "sunset", "ocean", "forest", "nebula", "borealis", "leaves", "network", "waves"]) {
+  for (const style of ["aurora", "sunset", "ocean", "forest", "nebula", "borealis", "waves"]) {
     await evaluate(click(`input[name=ambient][value=${style}]`));
     await waitFor(`document.documentElement.dataset.ambient === "${style}" && document.querySelector("canvas.ambient")?.width > 0`, `${style} background`);
     await sleep(1500);
@@ -907,6 +907,33 @@ await test("admin sees and resolves the report", async () => {
   await screenshot("admin-reports");
   await evaluate(clickText(".report-actions button", "Mark resolved"));
   await waitFor(`!document.querySelector('.report') || document.querySelector('.card p')?.textContent.includes('no open reports')`, "resolved");
+});
+
+await test("inbox: announcements, update logs and replies to your reports", async () => {
+  await go(`${BASE}/#/browse`);
+  const slug = await evaluate(`fetch("/api/mods?per_page=1").then(r => r.json()).then(d => d.items[0].slug)`);
+  await evaluate(`fetch("/api/reports", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mod_slug: "${slug}", reason: "outdated", details: "inbox test report", key: localStorage.getItem("branch.forumKey") }) })`);
+  await go(`${BASE}/admin#/inbox`);
+  await waitFor(`document.querySelector("#an-title")`, "admin inbox page");
+  await evaluate(type("#an-title", "Welcome to the inbox"));
+  await evaluate(type("#an-body", "**big news** for everyone"));
+  await evaluate(click("form.card button[type=submit]"));
+  await waitFor(`document.querySelector("tbody")?.textContent.includes("Welcome to the inbox")`, "announcement sent");
+  await screenshot("admin-inbox");
+  await go(`${BASE}/admin#/reports`);
+  await waitFor(`[...document.querySelectorAll(".report")].some(r => r.textContent.includes("inbox test report"))`, "report in admin");
+  await evaluate(`(() => { const card = [...document.querySelectorAll(".report")].find(r => r.textContent.includes("inbox test report")); const reply = card.querySelector('textarea[aria-label="Reply to the reporter"]'); if (reply.disabled) throw new Error("reply box disabled"); reply.value = "thanks, we updated it!"; [...card.querySelectorAll("button")].find(b => b.textContent === "Mark resolved").click(); return true; })()`);
+  await waitFor(`![...document.querySelectorAll(".report")].some(r => r.textContent.includes("inbox test report"))`, "report resolved");
+  await go(`${BASE}/?fresh=inbox#/browse`);
+  await waitFor(`!document.querySelector("#inbox-count").hidden && Number(document.querySelector("#inbox-count").textContent) > 0`, "unread badge", 10000);
+  await go(`${BASE}/#/inbox`);
+  await waitFor(`document.querySelector(".inbox-card.report .inbox-reply")?.textContent.includes("thanks, we updated it!")`, "reply in the inbox");
+  assert(await evaluate(`[...document.querySelectorAll(".inbox-card")].some(c => c.textContent.includes("Welcome to the inbox") && c.querySelector(".inbox-body strong")?.textContent === "big news")`), "announcement missing");
+  assert(await evaluate(`[...document.querySelectorAll(".inbox-card")].some(c => c.textContent.includes("Branch 1.0.20"))`), "update log missing");
+  await screenshot("inbox");
+  await waitFor(`document.querySelector("#inbox-count").hidden`, "badge cleared after opening");
+  await evaluate(clickText(".inbox-filters label", "My reports"));
+  await waitFor(`document.querySelectorAll(".inbox-card").length >= 1 && [...document.querySelectorAll(".inbox-card")].every(c => c.classList.contains("report"))`, "my reports filter");
 });
 
 ws.close();

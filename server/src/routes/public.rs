@@ -227,17 +227,22 @@ struct TreeNode {
     downloads: i64,
     community: bool,
     added: DateTime<Utc>,
+    rating_sum: i32,
+    rating_count: i32,
+    featured: bool,
 }
 
 pub async fn tree(State(state): State<AppState>) -> ApiResult<Response> {
-    let nodes: Vec<TreeNode> = sqlx::query_as(
-        "select m.slug, m.name, c.slug as category_slug, c.name as category_name, m.download_count as downloads,
-                (m.source = 'community') as community, coalesce(m.published_at, m.created_at) as added
+    let nodes: Vec<TreeNode> = sqlx::query_as(&format!(
+        "with top as ({TOP_RATED_SQL})
+         select m.slug, m.name, c.slug as category_slug, c.name as category_name, m.download_count as downloads,
+                (m.source = 'community') as community, coalesce(m.published_at, m.created_at) as added,
+                m.rating_sum, m.rating_count, (m.id in (select id from top)) as featured
          from mods m left join categories c on c.id = m.category_id
          where m.status = 'published'
          order by coalesce(m.published_at, m.created_at), m.id
-         limit 20000",
-    )
+         limit 20000"
+    ))
     .fetch_all(&state.db)
     .await?;
     Ok(([(header::CACHE_CONTROL, "public, max-age=15")], Json(json!({ "mods": nodes }))).into_response())
@@ -416,6 +421,8 @@ pub struct ReportInput {
     contact: String,
     #[serde(default)]
     website: String,
+    #[serde(default)]
+    key: String,
 }
 
 pub async fn create_report(State(state): State<AppState>, visitor: Visitor, Json(input): Json<ReportInput>) -> ApiResult<(StatusCode, Json<Value>)> {
@@ -458,8 +465,13 @@ pub async fn create_report(State(state): State<AppState>, visitor: Visitor, Json
     .fetch_one(&state.db)
     .await?;
 
+    let poster_id = if input.key.trim().is_empty() {
+        None
+    } else {
+        crate::routes::forum::poster_for(&state, input.key.trim(), &visitor, true).await.ok().map(|p| p.id)
+    };
     if !duplicate {
-        sqlx::query("insert into reports (id, mod_id, mod_name, reason, details, contact, visitor) values ($1, $2, $3, $4, $5, $6, $7)")
+        sqlx::query("insert into reports (id, mod_id, mod_name, reason, details, contact, visitor, poster_id) values ($1, $2, $3, $4, $5, $6, $7, $8)")
             .bind(Uuid::new_v4())
             .bind(mod_id)
             .bind(&mod_name)
@@ -467,6 +479,7 @@ pub async fn create_report(State(state): State<AppState>, visitor: Visitor, Json
             .bind(&details)
             .bind(&contact)
             .bind(&visitor.id)
+            .bind(poster_id)
             .execute(&state.db)
             .await?;
         tracing::info!(reason = %input.reason, "new report received");

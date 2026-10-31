@@ -18,6 +18,7 @@ import { createCheckerView } from "./views/checker.js";
 import { createTreeView } from "./views/tree.js";
 import { createTrackerView } from "./views/tracker.js";
 import { createAssistantView } from "./views/assistant.js";
+import { createInboxView, inboxUnread } from "./views/inbox.js";
 
 const root = document.documentElement;
 const main = document.getElementById("main");
@@ -66,6 +67,12 @@ const ctx = {
     else delete root.dataset.motion;
     refreshAmbient();
   },
+  setInboxCount(count) {
+    const badge = document.getElementById("inbox-count");
+    if (!badge) return;
+    badge.textContent = count > 9 ? "9+" : String(count);
+    badge.hidden = !count;
+  },
   applyAmbient(style) {
     settings.set({ ambient: style });
     setAmbient(style);
@@ -85,6 +92,7 @@ const views = {
   tree: createTreeView(ctx),
   tracker: createTrackerView(ctx),
   ask: createAssistantView(ctx),
+  inbox: createInboxView(ctx),
 };
 
 let currentRoute = null;
@@ -108,6 +116,7 @@ function parseRoute() {
   if (first === "tree") return { name: "tree", path };
   if (first === "tracker") return { name: "tracker", path };
   if (first === "ask") return { name: "ask", path };
+  if (first === "inbox") return { name: "inbox", path };
   if (first === "legal" && parts[1]) return { name: "legal", path, doc: parts[1] };
   return { name: "browse", path: "/browse", mode: "all", category: "" };
 }
@@ -147,7 +156,7 @@ function markSidebar() {
   if (route.name === "browse") {
     if (route.mode === "all" && ctx.browse.category) active = categoryNav.querySelector(`[data-category="${CSS.escape(ctx.browse.category)}"]`);
     else active = sidebar.querySelector(`[data-nav="${route.mode}"]`);
-  } else if (["settings", "about", "upload", "check", "forum", "rewards", "tree", "tracker", "ask"].includes(route.name)) {
+  } else if (["settings", "about", "upload", "check", "forum", "rewards", "tree", "tracker", "ask", "inbox"].includes(route.name)) {
     active = sidebar.querySelector(`[data-nav="${route.name}"]`);
   } else if (route.name === "legal") {
     active = sidebar.querySelector('[data-nav="about"]');
@@ -194,6 +203,14 @@ async function refreshEverything() {
   }
   await views.browse.quietRefresh();
   if (currentView === views.tree) await views.tree.poll();
+  await updateInboxBadge();
+}
+
+async function updateInboxBadge() {
+  if (currentView === views.inbox) return;
+  try {
+    ctx.setInboxCount(await inboxUnread());
+  } catch {}
 }
 
 function startAutoRefresh() {
@@ -358,6 +375,7 @@ async function start() {
   if (!ctx.meta) loadMeta();
   else views.browse.metaChanged();
   startAutoRefresh();
+  updateInboxBadge();
 }
 
 start();

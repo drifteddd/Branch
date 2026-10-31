@@ -1,6 +1,6 @@
 # Privacy Notice
 
-**Version 9** · Effective October 31, 2026
+**Version 10** · Effective October 31, 2026
 
 This Privacy Notice explains how Drifted (the "**Operator**," "**we**," "**us**") collects, uses, stores and shares information in connection with the Branch application and its related services (the "**Service**"). Contact: **drifted1000@outlook.com**.
 
@@ -49,6 +49,8 @@ If you apply for the Rewards Program, we store your Roblox username, the link to
 ## 7. Reports and Mod Requests
 
 If you submit a report or a mod request, we store the related Mod, the reason or details you provide, your contact information if you choose to provide it, the Hashed Identifier and the time of submission. This information is visible only to the Operator and is deleted one hundred eighty (180) days after the report or request is closed.
+
+**Inbox.** Reports sent from the app are linked to your Community Forum identity (the random key stored on your computer, as described in Section 5) so that you can follow the report and read the Operator's reply in the Inbox. Only you can see your reports and their replies; the Operator's private notes are never shown. The Inbox also shows announcements and update notes, which are the same for everyone. Which items you have already seen is stored only on your computer.
 
 **Ratings.** When you rate a Mod, we store your star rating together with the Hashed Identifier so that each person can rate a Mod only once and can change their rating later. Ratings are shown only as averages and counts, and are deleted if the Mod is removed.
 

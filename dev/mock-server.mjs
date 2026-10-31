@@ -49,6 +49,7 @@ function demoSvg(n, label) {
 const images = new Map();
 const uploadedImages = new Map();
 const assistantCalls = [];
+const announcements = [];
 const assistantUsage = () => ({ limit: 25, used: assistantCalls.length, remaining: Math.max(0, 25 - assistantCalls.length), window_hours: 5, resets_at: assistantCalls.length ? new Date(assistantCalls[0] + 5 * 3600_000).toISOString() : null });
 
 const trackerCards = (() => {
@@ -350,6 +351,16 @@ async function adminApi(req, res, path, url) {
       return send(res, 200, refreshRelease(r));
     }
   }
+  if (parts[0] === "announcements") {
+    if (!parts[1] && method === "GET") return send(res, 200, { items: announcements });
+    if (!parts[1] && method === "POST") {
+      const p = await json(req);
+      if (!p.title || p.title.trim().length < 2) return fail(res, 422, "give it a title", { title: "give it a title" });
+      announcements.unshift({ id: randomUUID(), title: p.title.trim(), body: (p.body || "").trim(), kind: p.kind || "announcement", created_at: new Date().toISOString() });
+      return send(res, 200, { ok: true });
+    }
+    if (parts[1] && method === "DELETE") { const i = announcements.findIndex((a) => a.id === parts[1]); if (i >= 0) announcements.splice(i, 1); return send(res, 200, { ok: true }); }
+  }
   if (parts[0] === "categories") {
     if (!parts[1] && method === "GET") return send(res, 200, { items: categories.map((c) => ({ ...c, mod_count: mods.filter((m) => m.category?.id === c.id).length })) });
     if (!parts[1] && method === "POST") {
@@ -376,7 +387,7 @@ async function adminApi(req, res, path, url) {
     const r = reports.find((x) => x.id === parts[1]);
     if (!r) return fail(res, 404, "that report doesn't exist");
     if (method === "DELETE") reports.splice(reports.indexOf(r), 1);
-    else { const p = await json(req); r.status = p.status; r.admin_note = p.admin_note; r.resolved_at = p.status === "open" ? null : new Date().toISOString(); r.resolved_by = p.status === "open" ? null : admin.username; }
+    else { const p = await json(req); r.status = p.status; r.admin_note = p.admin_note; r.reply = p.reply || ""; r.resolved_at = p.status === "open" ? null : new Date().toISOString(); r.resolved_by = p.status === "open" ? null : admin.username; }
     return send(res, 200, { ok: true });
   }
   if (parts[0] === "audit") return send(res, 200, { items: audit.slice(0, 300) });
@@ -494,7 +505,7 @@ async function publicApi(req, res, path, url) {
   }
   if (path === "/api/tree") {
     const list = mods.filter((m) => m.status === "published").sort((a, b) => String(a.published_at || a.created_at).localeCompare(String(b.published_at || b.created_at)));
-    return send(res, 200, { mods: list.map((m) => ({ slug: m.slug, name: m.name, category_slug: m.category?.slug || null, category_name: m.category?.name || null, downloads: m.downloads, community: Boolean(m.community), added: m.published_at || m.created_at })) });
+    return send(res, 200, { mods: list.map((m) => ({ slug: m.slug, name: m.name, category_slug: m.category?.slug || null, category_name: m.category?.name || null, downloads: m.downloads, community: Boolean(m.community), added: m.published_at || m.created_at, rating_sum: m.rating_sum || 0, rating_count: m.rating_count || 0, featured: topRated().has(m.id) })) });
   }
   if (path === "/api/mods") {
     const p = url.searchParams;
@@ -552,6 +563,11 @@ async function publicApi(req, res, path, url) {
     }
     return res.end();
   }
+  if (path === "/api/inbox" && req.method === "POST") {
+    const { key } = await json(req);
+    const mine = key ? reports.filter((r) => r.reporter_key === key).map((r) => ({ id: r.id, mod_name: r.mod_name, mod_slug: r.mod_slug, reason: r.reason, status: r.status, reply: r.reply || "", created_at: r.created_at, resolved_at: r.resolved_at })) : [];
+    return send(res, 200, { announcements, reports: mine, releases: [{ id: 1, version: "1.0.20", title: "Branch 1.0.20", notes: ["- demo release notes", "- new backgrounds"].join("\n"), published_at: "2026-10-30T12:00:00Z", url: null }] });
+  }
   if (path === "/api/reports" && req.method === "POST") {
     const body = await json(req);
     if (body.website) return send(res, 201, { ok: true });
@@ -559,7 +575,7 @@ async function publicApi(req, res, path, url) {
     if (body.reason === "other" && !body.details?.trim()) return fail(res, 422, "tell the admin a little about the problem", { details: "tell the admin a little about the problem" });
     const m = mods.find((x) => x.slug === body.mod_slug && x.status === "published");
     if (!m) return fail(res, 404, "that mod isn't listed anymore");
-    reports.unshift({ id: randomUUID(), mod_id: m.id, mod_slug: m.slug, mod_name: m.name, reason: body.reason, details: body.details || "", contact: body.contact || "", status: "open", admin_note: "", created_at: new Date().toISOString(), resolved_at: null, resolved_by: null });
+    reports.unshift({ id: randomUUID(), mod_id: m.id, mod_slug: m.slug, mod_name: m.name, reason: body.reason, details: body.details || "", contact: body.contact || "", status: "open", admin_note: "", reply: "", reporter_key: body.key || null, has_inbox: Boolean(body.key), created_at: new Date().toISOString(), resolved_at: null, resolved_by: null });
     return send(res, 201, { ok: true });
   }
   if (path.startsWith("/api/rewards/")) {

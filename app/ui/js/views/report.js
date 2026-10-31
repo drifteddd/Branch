@@ -1,6 +1,7 @@
 import { h, clear } from "../dom.js";
 import { icon } from "../icons.js";
 import { api } from "../platform.js";
+import { forumKey } from "../forum-identity.js";
 
 const FALLBACK_REASONS = [
   { key: "broken_download", label: "Broken download" },
@@ -91,7 +92,7 @@ export function openReportDialog(ctx, mod) {
     try {
       await api("/api/reports", {
         method: "POST",
-        body: { mod_slug: mod.slug, reason, details: details.value.trim(), contact: contact.value.trim(), website: trap.value },
+        body: { mod_slug: mod.slug, reason, details: details.value.trim(), contact: contact.value.trim(), website: trap.value, key: forumKey() },
       });
       clear(dialog).append(
         h(
@@ -99,7 +100,7 @@ export function openReportDialog(ctx, mod) {
           { class: "sheet-body center" },
           h("div", { class: "state-icon ok" }, icon("check")),
           h("h2", { class: "sheet-title", id: "report-title" }, "Report sent"),
-          h("p", { class: "muted" }, "thanks. the Branch admin will look at it. if you left contact info you might hear back."),
+          h("p", { class: "muted" }, "thanks. the Branch admin will look at it, and you can follow it and see any reply in your Inbox."),
         ),
         h("div", { class: "sheet-actions" }, h("button", { class: "btn btn-primary", type: "button", onclick: () => dialog.close(), autofocus: true }, "Done")),
       );

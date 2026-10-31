@@ -17,12 +17,9 @@ export const AMBIENT_STYLES = [
   ["forest", "Forest", preview(AURORAS.forest)],
   ["nebula", "Nebula", `radial-gradient(circle at 30% 40%, #fff 0 1px, transparent 2px), radial-gradient(circle at 70% 65%, #fff 0 1px, transparent 2px), radial-gradient(circle at 85% 20%, #fff 0 1px, transparent 2px), ${preview(AURORAS.nebula)}`],
   ["borealis", "Borealis", `linear-gradient(170deg, transparent 20%, #2fe39a99 38%, transparent 55%), linear-gradient(190deg, transparent 35%, #6a5bd699 52%, transparent 70%), ${preview(AURORAS.borealis)}`],
-  ["leaves", "Leaves", "radial-gradient(ellipse 14% 7% at 30% 30%, #2f9e6b88 60%, transparent 62%), radial-gradient(ellipse 10% 5% at 70% 60%, #3b7fc488 60%, transparent 62%), radial-gradient(ellipse 12% 6% at 45% 80%, #1aa6a688 60%, transparent 62%)"],
-  ["network", "Network", "radial-gradient(circle at 25% 35%, #8e5bd6 0 3px, transparent 4px), radial-gradient(circle at 65% 25%, #3b7fc4 0 3px, transparent 4px), radial-gradient(circle at 55% 70%, #2f9e6b 0 3px, transparent 4px), linear-gradient(160deg, transparent 47%, #8e5bd655 48% 50%, transparent 51%)"],
-  ["waves", "Waves", "radial-gradient(120% 50% at 50% 100%, #3b7fc455 50%, transparent 52%), radial-gradient(120% 45% at 30% 110%, #2f9e6b55 50%, transparent 52%)"],
+  ["waves", "Waves", "linear-gradient(172deg, transparent 38%, #3b7fc4aa 46%, transparent 56%), linear-gradient(186deg, transparent 52%, #8e5bd6aa 60%, transparent 70%), linear-gradient(176deg, transparent 64%, #1aa6a6aa 72%, transparent 82%), radial-gradient(circle at 25% 30%, #2f9e6b55, transparent 60%)"],
 ];
 
-const PALETTE = ["#2f9e6b", "#3b7fc4", "#8e5bd6", "#1aa6a6", "#d4892b", "#c45cb0"];
 const FRAME_MS = 1000 / 30;
 
 let canvas = null;
@@ -34,7 +31,7 @@ let start = 0;
 let items = [];
 let stars = [];
 let ribbons = [];
-let pointer = { x: -9999, y: -9999 };
+let glows = [];
 let resizeObserver = null;
 let w = 0;
 let h = 0;
@@ -57,6 +54,7 @@ function seed() {
   const area = (w * h) / 1e6;
   stars = [];
   ribbons = [];
+  glows = [];
   if (AURORAS[style]) {
     items = AURORAS[style].map((color, i) => ({ color, ax: rand(0.15, 0.85), ay: rand(0.15, 0.85), rx: rand(0.15, 0.35), ry: rand(0.12, 0.3), sx: rand(0.03, 0.07) * (i % 2 ? 1 : -1), sy: rand(0.025, 0.06), phase: rand(0, Math.PI * 2), size: rand(0.35, 0.6) }));
     if (style === "nebula") {
@@ -65,46 +63,11 @@ function seed() {
     if (style === "borealis") {
       ribbons = [0, 1, 2].map((i) => ({ color: AURORAS.borealis[i * 2 % 5], base: 0.22 + i * 0.12, amp: rand(0.05, 0.1), len: rand(0.6, 1.1), speed: rand(0.08, 0.16) * (i % 2 ? -1 : 1), height: rand(0.22, 0.34), phase: rand(0, Math.PI * 2) }));
     }
-  } else if (style === "leaves") {
-    items = Array.from({ length: Math.round(18 + area * 22) }, () => newLeaf(true));
-  } else if (style === "network") {
-    items = Array.from({ length: Math.round(34 + area * 45) }, () => ({ x: rand(0, w), y: rand(0, h), vx: rand(-12, 12), vy: rand(-12, 12), r: rand(1.6, 3.4), color: PALETTE[Math.floor(rand(0, PALETTE.length))] }));
   } else if (style === "waves") {
-    items = [0, 1, 2, 3].map((i) => ({ color: PALETTE[i], amp: rand(18, 42), len: rand(380, 720), speed: rand(0.12, 0.3) * (i % 2 ? 1 : -1), base: 0.62 + i * 0.09, phase: rand(0, Math.PI * 2) }));
+    const colors = ["#3b7fc4", "#8e5bd6", "#1aa6a6", "#2f9e6b", "#c45cb0"];
+    glows = [0, 1].map((i) => ({ color: colors[i * 3], ax: rand(0.2, 0.8), ay: rand(0.2, 0.5), phase: rand(0, Math.PI * 2) }));
+    items = colors.map((color, i) => ({ color, next: colors[(i + 2) % colors.length], base: 0.4 + i * 0.1, amp: rand(0.04, 0.08), len: rand(0.55, 1.05), speed: rand(0.1, 0.2) * (i % 2 ? -1 : 1), thick: rand(0.07, 0.13), phase: rand(0, Math.PI * 2) }));
   } else items = [];
-}
-
-function newLeaf(anywhere) {
-  return {
-    x: rand(-40, w + 40),
-    y: anywhere ? rand(-h * 0.2, h) : rand(-120, -30),
-    size: rand(10, 26),
-    fall: rand(14, 34),
-    sway: rand(18, 46),
-    swaySpeed: rand(0.3, 0.8),
-    spin: rand(-0.6, 0.6),
-    angle: rand(0, Math.PI * 2),
-    phase: rand(0, Math.PI * 2),
-    color: PALETTE[Math.floor(rand(0, 4))],
-  };
-}
-
-function drawLeaf(x, y, size, angle, color) {
-  const ux = Math.cos(angle);
-  const uy = Math.sin(angle);
-  const width = size * 0.42;
-  ctx.beginPath();
-  ctx.moveTo(x - ux * size, y - uy * size);
-  ctx.quadraticCurveTo(x - uy * width * 2, y + ux * width * 2, x + ux * size, y + uy * size);
-  ctx.quadraticCurveTo(x + uy * width * 2, y - ux * width * 2, x - ux * size, y - uy * size);
-  ctx.fillStyle = color;
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(x - ux * size * 0.8, y - uy * size * 0.8);
-  ctx.lineTo(x + ux * size * 0.8, y + uy * size * 0.8);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1;
-  ctx.stroke();
 }
 
 function frame(now) {
@@ -164,67 +127,46 @@ function frame(now) {
       ctx.fillStyle = isDark ? `rgba(255, 255, 255, ${twinkle * 0.9})` : `rgba(60, 40, 120, ${twinkle * 0.45})`;
       ctx.fill();
     }
-  } else if (style === "leaves") {
-    for (let i = 0; i < items.length; i++) {
-      const l = items[i];
-      l.y += l.fall * dt;
-      l.angle += l.spin * dt;
-      const x = l.x + Math.sin(t * l.swaySpeed + l.phase) * l.sway;
-      if (l.y - l.size > h + 20) items[i] = newLeaf(false);
-      drawLeaf(x, l.y, l.size, l.angle, hexAlpha(l.color, isDark ? 0.34 : 0.26));
-    }
-  } else if (style === "network") {
-    const reach = 130;
-    for (const p of items) {
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      if (p.x < -20) p.x = w + 20;
-      if (p.x > w + 20) p.x = -20;
-      if (p.y < -20) p.y = h + 20;
-      if (p.y > h + 20) p.y = -20;
-    }
-    ctx.lineWidth = 1;
-    for (let i = 0; i < items.length; i++) {
-      const a = items[i];
-      for (let j = i + 1; j < items.length; j++) {
-        const b = items[j];
-        const d = Math.hypot(a.x - b.x, a.y - b.y);
-        if (d > reach) continue;
-        ctx.strokeStyle = hexAlpha(a.color, (1 - d / reach) * (isDark ? 0.35 : 0.25));
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
-      }
-      const near = Math.max(0, 1 - Math.hypot(a.x - pointer.x, a.y - pointer.y) / 180);
-      if (near > 0) {
-        ctx.strokeStyle = hexAlpha(a.color, near * 0.5);
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(pointer.x, pointer.y);
-        ctx.stroke();
-      }
-      ctx.beginPath();
-      ctx.arc(a.x, a.y, a.r * (1 + near * 0.8), 0, Math.PI * 2);
-      ctx.fillStyle = hexAlpha(a.color, isDark ? 0.7 : 0.55);
-      ctx.fill();
-    }
   } else if (style === "waves") {
-    for (const wave of items) {
-      ctx.beginPath();
-      ctx.moveTo(0, h);
-      for (let x = 0; x <= w + 10; x += 10) {
-        const y = wave.base * h + Math.sin(x / wave.len * Math.PI * 2 + t * wave.speed * 2 + wave.phase) * wave.amp + Math.sin(x / (wave.len * 0.37) + t * wave.speed) * wave.amp * 0.3;
-        ctx.lineTo(x, y);
+    ctx.globalCompositeOperation = isDark ? "screen" : "multiply";
+    for (const glow of glows) {
+      const x = (glow.ax + Math.sin(t * 0.05 + glow.phase) * 0.15) * w;
+      const y = (glow.ay + Math.cos(t * 0.04 + glow.phase) * 0.1) * h;
+      const r = Math.max(w, h) * 0.55;
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, hexAlpha(glow.color, isDark ? 0.22 : 0.14));
+      g.addColorStop(1, hexAlpha(glow.color, 0));
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+    }
+    for (const band of items) {
+      const top = [];
+      const bottom = [];
+      for (let x = -10; x <= w + 20; x += 10) {
+        const u = x / w;
+        const y = (band.base + Math.sin(u * Math.PI * 2 / band.len + t * band.speed * 2 + band.phase) * band.amp + Math.sin(u * 7 - t * band.speed * 2.6 + band.phase) * band.amp * 0.3) * h;
+        const thick = band.thick * h * (0.55 + 0.45 * Math.sin(u * 3.2 + t * band.speed * 1.4 + band.phase * 2));
+        top.push([x, y]);
+        bottom.push([x, y + thick]);
       }
-      ctx.lineTo(w, h);
+      const shift = (Math.sin(t * 0.07 + band.phase) + 1) / 2;
+      const g = ctx.createLinearGradient(0, 0, w, 0);
+      g.addColorStop(0, hexAlpha(band.color, isDark ? 0.42 : 0.3));
+      g.addColorStop(0.2 + shift * 0.6, hexAlpha(band.next, isDark ? 0.5 : 0.34));
+      g.addColorStop(1, hexAlpha(band.color, isDark ? 0.42 : 0.3));
+      ctx.beginPath();
+      top.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      for (let i = bottom.length - 1; i >= 0; i--) ctx.lineTo(bottom[i][0], bottom[i][1]);
       ctx.closePath();
-      const g = ctx.createLinearGradient(0, wave.base * h - wave.amp, 0, h);
-      g.addColorStop(0, hexAlpha(wave.color, isDark ? 0.22 : 0.14));
-      g.addColorStop(1, hexAlpha(wave.color, 0.02));
       ctx.fillStyle = g;
       ctx.fill();
+      ctx.beginPath();
+      top.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      ctx.strokeStyle = isDark ? "rgba(255, 255, 255, 0.28)" : hexAlpha(band.color, 0.45);
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
     }
+    ctx.globalCompositeOperation = "source-over";
   }
   if (!reduceMotion()) schedule();
 }
@@ -235,8 +177,7 @@ function schedule() {
 
 function fit() {
   if (!canvas) return;
-  const main = document.getElementById("main");
-  const box = main.getBoundingClientRect();
+  const box = document.querySelector(".shell").getBoundingClientRect();
   canvas.style.left = `${box.left}px`;
   canvas.style.top = `${box.top}px`;
   canvas.style.width = `${box.width}px`;
@@ -251,12 +192,6 @@ function fit() {
   if (changed) seed();
   last = 0;
   schedule();
-}
-
-function onPointer(e) {
-  if (!canvas) return;
-  const box = canvas.getBoundingClientRect();
-  pointer = { x: e.clientX - box.left, y: e.clientY - box.top };
 }
 
 function onVisibility() {
@@ -275,7 +210,6 @@ export function setAmbient(next) {
     cancelAnimationFrame(raf);
     raf = 0;
     resizeObserver?.disconnect();
-    window.removeEventListener("pointermove", onPointer);
     document.removeEventListener("visibilitychange", onVisibility);
     canvas?.remove();
     canvas = null;
@@ -289,8 +223,7 @@ export function setAmbient(next) {
     document.querySelector(".shell").prepend(canvas);
     ctx = canvas.getContext("2d");
     resizeObserver = new ResizeObserver(fit);
-    resizeObserver.observe(document.getElementById("main"));
-    window.addEventListener("pointermove", onPointer, { passive: true });
+    resizeObserver.observe(document.querySelector(".shell"));
     document.addEventListener("visibilitychange", onVisibility);
   }
   root.dataset.ambient = style;

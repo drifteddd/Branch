@@ -23,12 +23,23 @@ function seeded(seed) {
 
 const at = (x, y, angle, length) => ({ x: x + Math.cos(angle) * length, y: y + Math.sin(angle) * length });
 const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+const quad = (c, t) => ({ x: (1 - t) * (1 - t) * c.p0.x + 2 * (1 - t) * t * c.c.x + t * t * c.p1.x, y: (1 - t) * (1 - t) * c.p0.y + 2 * (1 - t) * t * c.c.y + t * t * c.p1.y });
+const tangent = (c, t) => Math.atan2(2 * (1 - t) * (c.c.y - c.p0.y) + 2 * t * (c.p1.y - c.c.y), 2 * (1 - t) * (c.c.x - c.p0.x) + 2 * t * (c.p1.x - c.c.x));
+
+function curveFrom(x, y, angle, length, bend) {
+  const p0 = { x, y };
+  const p1 = at(x, y, angle, length);
+  const mid = lerp(p0, p1, 0.5);
+  return { p0, p1, c: { x: mid.x - Math.sin(angle) * length * bend, y: mid.y + Math.cos(angle) * length * bend } };
+}
 
 export function buildTree(mods) {
   const random = seeded(7);
   const segments = [];
   const nodes = [];
   const leaves = [];
+  const roots = [];
+  const labels = [];
   let maxOrder = 1;
   const stamp = (item) => { maxOrder = Math.max(maxOrder, item.order + 1); return item; };
 
@@ -45,28 +56,38 @@ export function buildTree(mods) {
   const total = mods.length;
   const trunkLength = 150 + 34 * Math.sqrt(total);
   const trunkWidth = 12 + 1.7 * Math.sqrt(total);
-  const top = at(0, 0, TRUNK_ANGLE, trunkLength);
+  const trunk = curveFrom(0, 0, TRUNK_ANGLE, trunkLength, 0.05);
 
-  const placeAlong = (list, from, to, angle, width, color, group, order, start = 0.3) => {
-    const nx = -Math.sin(angle);
-    const ny = Math.cos(angle);
+  const nodeSize = (mod) => {
+    const pop = Math.min(0.9, Math.log10(1 + (mod.downloads || 0)) / 3);
+    const rated = mod.rating_count ? Math.min(0.35, (mod.rating_sum / mod.rating_count - 2.5) * 0.14) : 0;
+    return NODE_RADIUS * (0.85 + pop + Math.max(0, rated));
+  };
+
+  const placeAlong = (list, curve, width, color, group, order, start = 0.3) => {
     list.forEach((mod, k) => {
       const t = list.length === 1 ? (start + 1) / 2 : start + (1 - start) * (k / (list.length - 1));
-      const p = lerp(from, to, t);
+      const p = quad(curve, t);
+      const a = tangent(curve, t);
       const side = k % 2 === 0 ? 1 : -1;
-      const offset = side * (width * 0.5 + 8 + random() * 4);
-      nodes.push(stamp({ x: p.x + nx * offset, y: p.y + ny * offset, mod, color, group, order: order + t }));
+      const size = nodeSize(mod);
+      const offset = side * (width * 0.5 + size + 4 + random() * 4);
+      nodes.push(stamp({ x: p.x - Math.sin(a) * offset, y: p.y + Math.cos(a) * offset, mod, color, group, size, featured: Boolean(mod.featured), order: order + t }));
     });
   };
 
-  const grow = (list, x, y, angle, width, color, group, depth, order) => {
+  const grow = (list, x, y, angle, width, color, group, depth, order, cat) => {
     const length = 46 + 30 * Math.sqrt(list.length);
-    const end = at(x, y, angle, length);
-    segments.push(stamp({ x1: x, y1: y, x2: end.x, y2: end.y, w1: width, w2: Math.max(1.4, width * 0.55), order }));
+    const bend = (random() < 0.5 ? -1 : 1) * (0.06 + random() * 0.1);
+    const curve = curveFrom(x, y, angle, length, bend);
+    segments.push(stamp({ curve, w1: width, w2: Math.max(1.4, width * 0.55), order }));
+    if (cat && depth === 0) labels.push({ x: curve.p1.x, y: curve.p1.y, name: cat.name, count: cat.mods.length, color, slug: cat.slug });
     const own = depth >= 6 ? list : list.slice(0, MODS_PER_BRANCH);
     const rest = depth >= 6 ? [] : list.slice(MODS_PER_BRANCH);
-    placeAlong(own, { x, y }, end, angle, width * 0.7, color, group, order);
-    leaves.push(stamp({ x: end.x, y: end.y, angle, length: 14 + 6 * Math.sqrt(own.length), width: 6 + 2.4 * Math.sqrt(own.length), color, order: order + 1 }));
+    placeAlong(own, curve, width * 0.7, color, group, order);
+    const endAngle = tangent(curve, 1);
+    leaves.push(stamp({ x: curve.p1.x, y: curve.p1.y, angle: endAngle, length: 14 + 6 * Math.sqrt(own.length), width: 6 + 2.4 * Math.sqrt(own.length), color, phase: random() * Math.PI * 2, order: order + 1 }));
+    if (own.length > 3) leaves.push(stamp({ ...quad(curve, 0.62), angle: endAngle + (random() < 0.5 ? -1 : 1) * 0.9, length: 8 + 3 * Math.sqrt(own.length), width: 4 + 1.4 * Math.sqrt(own.length), color, phase: random() * Math.PI * 2, order: order + 0.8 }));
     if (!rest.length) return;
     const kids = Math.min(3, Math.max(1, Math.ceil(rest.length / 12)));
     const size = Math.ceil(rest.length / kids);
@@ -74,29 +95,35 @@ export function buildTree(mods) {
       const chunk = rest.slice(j * size, (j + 1) * size);
       if (!chunk.length) continue;
       const t = 0.42 + (0.5 * (j + 1)) / (kids + 1);
-      const p = lerp({ x, y }, end, t);
-      const up = angle < -Math.PI / 2 ? 1 : -1;
+      const p = quad(curve, t);
+      const a = tangent(curve, t);
+      const up = a < -Math.PI / 2 ? 1 : -1;
       const side = (j + depth) % 2 === 0 ? up : -up;
       const spread = (side === up ? 26 + random() * 14 : 20 + random() * 10) * DEG;
-      grow(chunk, p.x, p.y, angle + side * spread, Math.max(1.6, width * 0.62), color, group, depth + 1, order + t);
+      grow(chunk, p.x, p.y, a + side * spread, Math.max(1.6, width * 0.62), color, group, depth + 1, order + t, null);
     }
   };
 
-  segments.push(stamp({ x1: 0, y1: 0, x2: top.x, y2: top.y, w1: trunkWidth, w2: trunkWidth * 0.42, order: 0 }));
-  placeAlong(loose.slice(0, 40), { x: 0, y: 0 }, top, TRUNK_ANGLE, trunkWidth, "#8a8a8e", null, 0, 0.08);
-  if (loose.length > 40) grow(loose.slice(40), top.x, top.y, TRUNK_ANGLE - 8 * DEG, trunkWidth * 0.4, "#8a8a8e", null, 1, 1);
-  else leaves.push(stamp({ x: top.x, y: top.y, angle: TRUNK_ANGLE, length: 24 + 3 * Math.sqrt(total), width: 10 + 1.2 * Math.sqrt(total), color: null, order: 1 }));
+  segments.push(stamp({ curve: trunk, w1: trunkWidth, w2: trunkWidth * 0.42, order: 0 }));
+  for (let i = 0; i < 5; i++) {
+    const angle = (32 + i * 29 + (random() - 0.5) * 12) * DEG;
+    roots.push({ curve: curveFrom(0, 0, angle, trunkWidth * (1.1 + random() * 0.8), (random() - 0.5) * 0.3), w1: trunkWidth * (0.7 - Math.abs(i - 2) * 0.1), w2: trunkWidth * 0.12 });
+  }
+  placeAlong(loose.slice(0, 40), trunk, trunkWidth, "#8a8a8e", null, 0, 0.08);
+  const top = trunk.p1;
+  if (loose.length > 40) grow(loose.slice(40), top.x, top.y, tangent(trunk, 1) - 8 * DEG, trunkWidth * 0.4, "#8a8a8e", null, 1, 1, null);
+  else leaves.push(stamp({ x: top.x, y: top.y, angle: tangent(trunk, 1), length: 24 + 3 * Math.sqrt(total), width: 10 + 1.2 * Math.sqrt(total), color: null, phase: 0, order: 1 }));
 
   categories.forEach((cat, i) => {
     const t = categories.length === 1 ? 0.55 : 0.26 + (0.66 * i) / (categories.length - 1);
-    const base = lerp({ x: 0, y: 0 }, top, t);
+    const base = quad(trunk, t);
     const left = i % 2 === 0;
-    const angle = TRUNK_ANGLE + (left ? -58 : 52) * DEG + (random() - 0.5) * 10 * DEG;
+    const angle = tangent(trunk, t) + (left ? -58 : 52) * DEG + (random() - 0.5) * 10 * DEG;
     const width = trunkWidth * (0.58 - 0.26 * t);
-    grow(cat.mods, base.x, base.y, angle, width, cat.color, cat.slug, 0, t);
+    grow(cat.mods, base.x, base.y, angle, width, cat.color, cat.slug, 0, t, cat);
   });
 
-  return { segments, nodes, leaves, categories, loose: loose.length, maxOrder };
+  return { segments, nodes, leaves, roots, labels, categories, loose: loose.length, maxOrder, trunkWidth };
 }
 
 export function createTreeView() {
@@ -108,6 +135,8 @@ export function createTreeView() {
   let hovered = null;
   let focused = null;
   let frame = 0;
+  let breezing = false;
+  let labelBoxes = [];
   let canvas, ctx2d, stage, tooltip, stats, legend, listView, resizeObserver;
 
   const reduceMotion = () => settings.get().reduceMotion || matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -121,12 +150,38 @@ export function createTreeView() {
     if (!frame) frame = requestAnimationFrame(() => { frame = 0; draw(); });
   }
 
+  function taper(curve, w1, w2, upto) {
+    const steps = 16;
+    const left = [];
+    const right = [];
+    for (let i = 0; i <= steps; i++) {
+      const t = (i / steps) * upto;
+      const p = quad(curve, t);
+      const a = tangent(curve, t);
+      const half = (w1 + (w2 - w1) * (i / steps)) / 2;
+      left.push([p.x - Math.sin(a) * half, p.y + Math.cos(a) * half]);
+      right.push([p.x + Math.sin(a) * half, p.y - Math.cos(a) * half]);
+    }
+    ctx2d.beginPath();
+    left.forEach(([x, y], i) => (i ? ctx2d.lineTo(x, y) : ctx2d.moveTo(x, y)));
+    for (let i = right.length - 1; i >= 0; i--) ctx2d.lineTo(right[i][0], right[i][1]);
+    ctx2d.closePath();
+    ctx2d.fill();
+    const end = quad(curve, upto);
+    ctx2d.beginPath();
+    ctx2d.arc(end.x, end.y, w2 / 2, 0, Math.PI * 2);
+    ctx2d.arc(curve.p0.x, curve.p0.y, w1 / 2, 0, Math.PI * 2);
+    ctx2d.fill();
+  }
+
   function draw() {
     if (!canvas || !tree) return;
     const dpr = window.devicePixelRatio || 1;
     const w = canvas.clientWidth;
     const hgt = canvas.clientHeight;
     const c = colors();
+    const time = performance.now() / 1000;
+    const sway = breezing ? 1 : 0;
     ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx2d.clearRect(0, 0, w, hgt);
     ctx2d.save();
@@ -134,12 +189,22 @@ export function createTreeView() {
     ctx2d.scale(view.k, view.k);
     const visible = (order) => order <= growth;
     const part = (order) => Math.max(0, Math.min(1, growth - order));
+    const tw = tree.trunkWidth;
+
+    const shadow = ctx2d.createRadialGradient(0, tw * 0.4, 0, 0, tw * 0.4, tw * 7);
+    shadow.addColorStop(0, "rgba(0, 0, 0, 0.16)");
+    shadow.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx2d.fillStyle = shadow;
+    ctx2d.beginPath();
+    ctx2d.ellipse(0, tw * 0.4, tw * 7, tw * 1.4, 0, 0, Math.PI * 2);
+    ctx2d.fill();
 
     for (const leaf of tree.leaves) {
       if (!visible(leaf.order)) continue;
       const g = part(leaf.order);
-      const ux = Math.cos(leaf.angle);
-      const uy = Math.sin(leaf.angle);
+      const angle = leaf.angle + Math.sin(time * 1.3 + leaf.phase) * 0.09 * sway;
+      const ux = Math.cos(angle);
+      const uy = Math.sin(angle);
       const len = leaf.length * g;
       const cx = leaf.x + ux * len * 0.82;
       const cy = leaf.y + uy * len * 0.82;
@@ -148,36 +213,43 @@ export function createTreeView() {
       ctx2d.quadraticCurveTo(cx - uy * leaf.width * 2 * g, cy + ux * leaf.width * 2 * g, cx + ux * len, cy + uy * len);
       ctx2d.quadraticCurveTo(cx + uy * leaf.width * 2 * g, cy - ux * leaf.width * 2 * g, cx - ux * len, cy - uy * len);
       ctx2d.fillStyle = leaf.color || c.ink;
-      ctx2d.globalAlpha = leaf.color ? 0.28 : 0.85;
+      ctx2d.globalAlpha = leaf.color ? 0.3 : 0.85;
       ctx2d.fill();
+      if (leaf.color) {
+        ctx2d.globalAlpha = 0.35;
+        ctx2d.strokeStyle = leaf.color;
+        ctx2d.lineWidth = 0.8;
+        ctx2d.beginPath();
+        ctx2d.moveTo(cx - ux * len * 0.85, cy - uy * len * 0.85);
+        ctx2d.lineTo(cx + ux * len * 0.85, cy + uy * len * 0.85);
+        ctx2d.stroke();
+      }
     }
     ctx2d.globalAlpha = 1;
 
     ctx2d.fillStyle = c.ink;
+    for (const r of tree.roots) taper(r.curve, r.w1, r.w2, Math.min(1, growth * 3));
     for (const s of tree.segments) {
       if (!visible(s.order)) continue;
       const g = part(s.order);
-      const x2 = s.x1 + (s.x2 - s.x1) * g;
-      const y2 = s.y1 + (s.y2 - s.y1) * g;
-      const len = Math.hypot(x2 - s.x1, y2 - s.y1) || 1;
-      const nx = -(y2 - s.y1) / len;
-      const ny = (x2 - s.x1) / len;
-      const w1 = s.w1 / 2;
-      const w2 = (s.w1 + (s.w2 - s.w1) * g) / 2;
-      ctx2d.beginPath();
-      ctx2d.moveTo(s.x1 + nx * w1, s.y1 + ny * w1);
-      ctx2d.lineTo(x2 + nx * w2, y2 + ny * w2);
-      ctx2d.arc(x2, y2, w2, Math.atan2(ny, nx), Math.atan2(-ny, -nx), true);
-      ctx2d.lineTo(s.x1 - nx * w1, s.y1 - ny * w1);
-      ctx2d.arc(s.x1, s.y1, w1, Math.atan2(-ny, -nx), Math.atan2(ny, nx), true);
-      ctx2d.fill();
+      taper(s.curve, s.w1, s.w1 + (s.w2 - s.w1) * g, g);
     }
 
     const stroke = 1.6 / Math.max(view.k, 0.4);
     for (const n of tree.nodes) {
       if (!visible(n.order)) continue;
       const g = Math.min(1, part(n.order) * 3);
-      const r = NODE_RADIUS * g * (n === hovered || n === focused ? 1.6 : 1);
+      const active = n === hovered || n === focused;
+      const r = n.size * g * (active ? 1.5 : 1);
+      if (active) {
+        const glow = ctx2d.createRadialGradient(n.x, n.y, r, n.x, n.y, r * 3.2);
+        glow.addColorStop(0, n.color + "66");
+        glow.addColorStop(1, n.color + "00");
+        ctx2d.fillStyle = glow;
+        ctx2d.beginPath();
+        ctx2d.arc(n.x, n.y, r * 3.2, 0, Math.PI * 2);
+        ctx2d.fill();
+      }
       ctx2d.beginPath();
       ctx2d.arc(n.x, n.y, r, 0, Math.PI * 2);
       ctx2d.fillStyle = n.color;
@@ -185,18 +257,55 @@ export function createTreeView() {
       ctx2d.lineWidth = stroke;
       ctx2d.strokeStyle = c.surface;
       ctx2d.stroke();
+      if (n.featured && g >= 1) {
+        ctx2d.beginPath();
+        ctx2d.arc(n.x, n.y, r + 2.6, 0, Math.PI * 2);
+        ctx2d.lineWidth = 1.8 / Math.max(view.k, 0.5);
+        ctx2d.strokeStyle = "#e0a100";
+        ctx2d.stroke();
+      }
     }
     if (focused) {
       ctx2d.beginPath();
-      ctx2d.arc(focused.x, focused.y, NODE_RADIUS * 3, 0, Math.PI * 2);
+      ctx2d.arc(focused.x, focused.y, focused.size * 3, 0, Math.PI * 2);
       ctx2d.lineWidth = 2.5 / view.k;
       ctx2d.strokeStyle = focused.color;
       ctx2d.stroke();
     }
     ctx2d.restore();
 
+    labelBoxes = [];
+    const font = getComputedStyle(document.body).fontFamily;
+    if (growth >= tree.maxOrder && view.k < 1.35) {
+      ctx2d.font = "600 12px " + font;
+      ctx2d.textBaseline = "middle";
+      for (const l of tree.labels) {
+        const sx = l.x * view.k + view.x;
+        const sy = l.y * view.k + view.y;
+        const text = `${l.name} · ${l.count}`;
+        const bw = ctx2d.measureText(text).width + 30;
+        const box = { x: sx - bw / 2, y: sy - 30, w: bw, h: 22, slug: l.slug };
+        if (box.x + box.w < 0 || box.x > w || box.y > hgt || box.y + box.h < 0) continue;
+        if (labelBoxes.some((t) => box.x < t.x + t.w && t.x < box.x + box.w && box.y < t.y + t.h && t.y < box.y + box.h)) continue;
+        labelBoxes.push(box);
+        ctx2d.fillStyle = c.surface;
+        ctx2d.shadowColor = "rgba(0, 0, 0, 0.12)";
+        ctx2d.shadowBlur = 8;
+        ctx2d.beginPath();
+        ctx2d.roundRect(box.x, box.y, box.w, box.h, 11);
+        ctx2d.fill();
+        ctx2d.shadowBlur = 0;
+        ctx2d.fillStyle = l.color;
+        ctx2d.beginPath();
+        ctx2d.arc(box.x + 12, box.y + 11, 4, 0, Math.PI * 2);
+        ctx2d.fill();
+        ctx2d.fillStyle = c.ink;
+        ctx2d.fillText(text, box.x + 21, box.y + 11.5);
+      }
+    }
+
     if (view.k >= 1.35 && growth >= tree.maxOrder) {
-      ctx2d.font = "500 12px " + getComputedStyle(document.body).fontFamily;
+      ctx2d.font = "500 12px " + font;
       ctx2d.textBaseline = "middle";
       ctx2d.lineJoin = "round";
       let drawn = 0;
@@ -206,26 +315,39 @@ export function createTreeView() {
         const sy = n.y * view.k + view.y;
         if (sx < -50 || sy < -20 || sx > w + 10 || sy > hgt + 20) continue;
         const label = n.mod.name.length > 28 ? `${n.mod.name.slice(0, 27)}…` : n.mod.name;
-        const box = { x: sx + NODE_RADIUS * view.k + 3, y: sy - 8, w: ctx2d.measureText(label).width + 4, h: 16 };
+        const offset = n.size * view.k + 5;
+        const box = { x: sx + offset - 2, y: sy - 8, w: ctx2d.measureText(label).width + 4, h: 16 };
         if (taken.some((t) => box.x < t.x + t.w && t.x < box.x + box.w && box.y < t.y + t.h && t.y < box.y + box.h)) continue;
         taken.push(box);
         ctx2d.lineWidth = 4;
         ctx2d.strokeStyle = c.surface;
-        ctx2d.strokeText(label, sx + NODE_RADIUS * view.k + 5, sy);
+        ctx2d.strokeText(label, sx + offset, sy);
         ctx2d.fillStyle = c.ink;
-        ctx2d.fillText(label, sx + NODE_RADIUS * view.k + 5, sy);
+        ctx2d.fillText(label, sx + offset, sy);
         if (++drawn > 450) break;
       }
     }
+  }
+
+  function startBreeze() {
+    if (breezing || reduceMotion()) return;
+    breezing = true;
+    let last = 0;
+    const step = (now) => {
+      if (!breezing || !el.isConnected) { breezing = false; return; }
+      if (now - last > 42 && growth >= (tree?.maxOrder || 0)) { last = now; draw(); }
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   }
 
   function bounds(list) {
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     const add = (x, y, pad) => { minX = Math.min(minX, x - pad); minY = Math.min(minY, y - pad); maxX = Math.max(maxX, x + pad); maxY = Math.max(maxY, y + pad); };
     for (const item of list) {
-      if ("x1" in item) { add(item.x1, item.y1, item.w1); add(item.x2, item.y2, item.w2); }
+      if (item.curve) { add(item.curve.p0.x, item.curve.p0.y, item.w1); add(item.curve.c.x, item.curve.c.y, item.w1); add(item.curve.p1.x, item.curve.p1.y, item.w2); }
       else if ("length" in item) add(item.x, item.y, item.length * 1.8);
-      else add(item.x, item.y, NODE_RADIUS * 2);
+      else add(item.x, item.y, (item.size || NODE_RADIUS) * 2);
     }
     return { minX, minY, maxX, maxY };
   }
@@ -239,7 +361,7 @@ export function createTreeView() {
   }
 
   function fitAll(animate = true) {
-    const b = bounds([...tree.segments, ...tree.leaves, ...tree.nodes]);
+    const b = bounds([...tree.segments, ...tree.roots, ...tree.leaves, ...tree.nodes]);
     const w = canvas.clientWidth;
     const hgt = canvas.clientHeight;
     fitK = Math.min(w / (b.maxX - b.minX + 80), hgt / (b.maxY - b.minY + 80));
@@ -274,7 +396,7 @@ export function createTreeView() {
   function nodeAt(sx, sy) {
     const wx = (sx - view.x) / view.k;
     const wy = (sy - view.y) / view.k;
-    const reach = Math.max(NODE_RADIUS * 1.6, 10 / view.k);
+    const reach = Math.max(NODE_RADIUS * 2, 10 / view.k);
     let best = null;
     let bestDist = reach * reach;
     for (const n of tree.nodes) {
@@ -289,6 +411,13 @@ export function createTreeView() {
     tooltip.replaceChildren(
       h("strong", null, n.mod.name),
       h("span", { class: "tree-tip-meta" }, h("span", { class: "tree-dot" }), n.mod.category_name || "No category", n.mod.community ? " · community" : ""),
+      h(
+        "span",
+        { class: "tree-tip-stats" },
+        n.mod.rating_count ? h("span", { class: "tree-tip-rating" }, icon("starFill"), (n.mod.rating_sum / n.mod.rating_count).toFixed(1), h("span", { class: "muted" }, ` (${n.mod.rating_count})`)) : h("span", { class: "muted" }, "not rated yet"),
+        h("span", { class: "muted" }, ` · ${n.mod.downloads || 0} downloads`),
+        n.featured ? h("span", { class: "tree-tip-featured" }, "Featured") : null,
+      ),
       h("span", { class: "muted small" }, "click to open"),
     );
     tooltip.querySelector(".tree-dot").style.background = n.color;
@@ -341,9 +470,10 @@ export function createTreeView() {
         }
       }
       const n = nodeAt(e.offsetX, e.offsetY);
+      const overLabel = labelBoxes.some((b) => e.offsetX >= b.x && e.offsetX <= b.x + b.w && e.offsetY >= b.y && e.offsetY <= b.y + b.h);
+      canvas.style.cursor = n || overLabel ? "pointer" : "grab";
       if (n !== hovered) {
         hovered = n;
-        canvas.style.cursor = n ? "pointer" : "grab";
         requestDraw();
       }
       showTooltip(n, e.offsetX, e.offsetY);
@@ -353,8 +483,12 @@ export function createTreeView() {
       if (pointers.size < 2) pinch = null;
       canvas.classList.remove("dragging");
       if (!moved && dragStart && pointers.size === 0) {
-        const n = nodeAt(e.offsetX, e.offsetY);
-        if (n) location.hash = `#/mod/${encodeURIComponent(n.mod.slug)}`;
+        const label = labelBoxes.find((b) => e.offsetX >= b.x && e.offsetX <= b.x + b.w && e.offsetY >= b.y && e.offsetY <= b.y + b.h);
+        if (label) fitTo(bounds(tree.nodes.filter((n) => n.group === label.slug)), true, 3);
+        else {
+          const n = nodeAt(e.offsetX, e.offsetY);
+          if (n) location.hash = `#/mod/${encodeURIComponent(n.mod.slug)}`;
+        }
       }
       if (pointers.size === 0) dragStart = null;
     };
@@ -383,6 +517,7 @@ export function createTreeView() {
       return;
     }
     growth = 0;
+    breezing = false;
     const began = performance.now();
     const duration = Math.min(2800, 1200 + tree.maxOrder * 180);
     const step = (now) => {
@@ -390,6 +525,7 @@ export function createTreeView() {
       growth = (1 - Math.pow(1 - t, 2)) * tree.maxOrder;
       draw();
       if (t < 1 && el.isConnected) requestAnimationFrame(step);
+      else startBreeze();
     };
     requestAnimationFrame(step);
   }
@@ -426,14 +562,17 @@ export function createTreeView() {
     if (quiet) {
       growth = tree.maxOrder;
       requestDraw();
+      startBreeze();
       return;
     }
     fitAll(false);
     grow();
   }
 
+  let pinned = false;
+
   async function poll() {
-    if (!tree || !el.isConnected) return;
+    if (!tree || !el.isConnected || pinned) return;
     try {
       const data = await api("/api/tree");
       if (JSON.stringify(data.mods) !== drawnFrom) setMods(data.mods, { quiet: true });
@@ -514,13 +653,13 @@ export function createTreeView() {
     }
   }
 
-  if (!isDesktop) window.__branchTree = { setMods: (mods) => setMods(mods) };
+  if (!isDesktop) window.__branchTree = { setMods: (mods) => { pinned = true; setMods(mods); } };
 
   return {
     el,
     title: () => "Tree of Life",
     show() { render(); return 0; },
     poll,
-    hide() { resizeObserver?.disconnect(); },
+    hide() { resizeObserver?.disconnect(); breezing = false; },
   };
 }
