@@ -16,6 +16,52 @@ use crate::state::AppState;
 use crate::util::{too_long, Visitor};
 
 const RELEASES_URL: &str = "https://api.github.com/repos/drifteddd/Branch/releases?per_page=10";
+const RELEASES_FEED: &str = "https://github.com/drifteddd/Branch/releases.atom";
+
+fn between<'a>(text: &'a str, open: &str, close: &str) -> Option<&'a str> {
+    let start = text.find(open)? + open.len();
+    let end = text[start..].find(close)? + start;
+    Some(&text[start..end])
+}
+
+fn unescape(text: &str) -> String {
+    text.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'").replace("&amp;", "&")
+}
+
+fn html_to_text(html: &str) -> String {
+    let mut out = String::new();
+    let mut rest = html;
+    while let Some(start) = rest.find('<') {
+        out.push_str(&rest[..start]);
+        let Some(end) = rest[start..].find('>') else { break };
+        let tag = rest[start + 1..start + end].trim().to_lowercase();
+        if tag == "li" {
+            out.push_str("\n- ");
+        } else if tag == "/p" || tag == "br" || tag == "br/" || tag == "/ul" {
+            out.push('\n');
+        } else if tag == "strong" || tag == "/strong" || tag == "b" || tag == "/b" {
+            out.push_str("**");
+        }
+        rest = &rest[start + end + 1..];
+    }
+    out.push_str(rest);
+    unescape(&out).lines().map(str::trim_end).filter(|l| !l.contains("Download **")).collect::<Vec<_>>().join("\n").trim().to_string()
+}
+
+pub(crate) fn parse_feed(feed: &str) -> Vec<Value> {
+    feed.split("<entry>")
+        .skip(1)
+        .take(10)
+        .filter_map(|entry| {
+            let title = unescape(between(entry, "<title>", "</title>")?.trim());
+            let updated = between(entry, "<updated>", "</updated>")?.trim().to_string();
+            let link = between(entry, "href=\"", "\"").unwrap_or("").to_string();
+            let version = link.rsplit('/').next().unwrap_or("").trim_start_matches('v').to_string();
+            let notes = between(entry, "<content type=\"html\">", "</content>").map(|c| html_to_text(&unescape(c))).unwrap_or_default();
+            Some(json!({ "id": link, "version": version, "title": title, "notes": notes, "published_at": updated, "url": link }))
+        })
+        .collect()
+}
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -46,6 +92,7 @@ struct MyReport {
 }
 
 static RELEASES: Mutex<Option<(Instant, Value)>> = Mutex::new(None);
+static LAST_TRY: Mutex<Option<Instant>> = Mutex::new(None);
 
 async fn releases(state: &AppState) -> Value {
     if let Ok(cache) = RELEASES.lock() {
@@ -55,7 +102,13 @@ async fn releases(state: &AppState) -> Value {
             }
         }
     }
-    let fetched = async {
+    if let Ok(mut last) = LAST_TRY.lock() {
+        if last.is_some_and(|t| t.elapsed() < Duration::from_secs(120)) {
+            return RELEASES.lock().ok().and_then(|c| c.as_ref().map(|(_, v)| v.clone())).unwrap_or_else(|| json!([]));
+        }
+        *last = Some(Instant::now());
+    }
+    let from_api = async {
         let response = state
             .http
             .get(RELEASES_URL)
@@ -87,6 +140,18 @@ async fn releases(state: &AppState) -> Value {
         Some(Value::Array(items))
     }
     .await;
+    let fetched = match from_api {
+        Some(v) => Some(v),
+        None => async {
+            let response = state.http.get(RELEASES_FEED).header("User-Agent", "branch-server").timeout(Duration::from_secs(10)).send().await.ok()?;
+            if !response.status().is_success() {
+                return None;
+            }
+            let items = parse_feed(&response.text().await.ok()?);
+            (!items.is_empty()).then(|| Value::Array(items))
+        }
+        .await,
+    };
     match fetched {
         Some(value) => {
             if let Ok(mut cache) = RELEASES.lock() {
@@ -170,4 +235,19 @@ async fn delete_announcement(State(state): State<AppState>, Admin(admin): Admin,
     let title = title.ok_or_else(|| AppError::not_found("that announcement doesn't exist"))?;
     audit(&state.db, &admin, "delete_announcement", &title, "").await;
     Ok(Json(json!({ "ok": true })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_feed;
+
+    #[test]
+    fn reads_the_release_feed() {
+        let feed = r#"<feed><entry><id>tag:github.com,2008:Repository/1/v1.0.21</id><updated>2026-10-31T10:00:00Z</updated><link rel="alternate" type="text/html" href="https://github.com/drifteddd/Branch/releases/tag/v1.0.21"/><title>Branch 1.0.21</title><content type="html">&lt;ul&gt;&lt;li&gt;New Inbox&lt;/li&gt;&lt;li&gt;Better tree&lt;/li&gt;&lt;/ul&gt;&lt;p&gt;Download &lt;strong&gt;Branch_1.0.21_x64-setup.exe&lt;/strong&gt; below.&lt;/p&gt;</content></entry></feed>"#;
+        let items = parse_feed(feed);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0]["version"], "1.0.21");
+        assert_eq!(items[0]["title"], "Branch 1.0.21");
+        assert_eq!(items[0]["notes"], "- New Inbox\n- Better tree");
+    }
 }
