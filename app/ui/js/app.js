@@ -5,6 +5,7 @@ import { settings, favorites, recent } from "./store.js";
 import { runSplash } from "./splash.js";
 import { requireTerms } from "./terms.js";
 import { showStoryOnce } from "./story.js";
+import { runOnboardingOnce } from "./onboarding.js";
 import { setAmbient, refreshAmbient } from "./ambient.js";
 import { startUpdater, checkOnSplash } from "./updater.js";
 import { toast } from "./ui.js";
@@ -370,6 +371,7 @@ async function start() {
   await startUpdater(update);
   await requireTerms();
   await showStoryOnce();
+  await runOnboardingOnce(ctx);
 
   if (!currentRoute) route();
   if (!ctx.meta) loadMeta();

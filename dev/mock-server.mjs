@@ -50,6 +50,7 @@ const images = new Map();
 const uploadedImages = new Map();
 const assistantCalls = [];
 const announcements = [];
+const onboardingStats = new Map();
 const assistantUsage = () => ({ limit: 25, used: assistantCalls.length, remaining: Math.max(0, 25 - assistantCalls.length), window_hours: 5, resets_at: assistantCalls.length ? new Date(assistantCalls[0] + 5 * 3600_000).toISOString() : null });
 
 const trackerCards = (() => {
@@ -351,6 +352,10 @@ async function adminApi(req, res, path, url) {
       return send(res, 200, refreshRelease(r));
     }
   }
+  if (parts[0] === "onboarding" && method === "GET") {
+    const list = (kind) => [...onboardingStats].filter(([k]) => k.startsWith(kind + ":")).map(([k, count]) => ({ value: k.slice(kind.length + 1), count })).sort((a, b) => b.count - a.count);
+    return send(res, 200, { heard_from: list("heard_from"), heard_other: [], uses: list("uses") });
+  }
   if (parts[0] === "announcements") {
     if (!parts[1] && method === "GET") return send(res, 200, { items: announcements });
     if (!parts[1] && method === "POST") {
@@ -562,6 +567,24 @@ async function publicApi(req, res, path, url) {
       await new Promise((resolve) => setTimeout(resolve, 60));
     }
     return res.end();
+  }
+  if (path === "/api/onboarding" && req.method === "POST") {
+    const body = await json(req);
+    const bump = (kind, value) => { const k = kind + ":" + value; onboardingStats.set(k, (onboardingStats.get(k) || 0) + 1); };
+    if (body.heard_from) bump("heard_from", body.heard_from);
+    for (const u of body.uses || []) bump("uses", u);
+    return send(res, 200, { ok: true });
+  }
+  if (path === "/api/onboarding/picks" && req.method === "POST") {
+    const { interests = [] } = await json(req);
+    await new Promise((r) => setTimeout(r, 500));
+    const words = { cosmetics: ["cosmetic", "hat", "glove", "lantern"], maps: ["map"], movement: ["landing", "climb", "boots"], camera: ["camera"], visuals: ["light", "trail", "color"] };
+    const list = mods.filter((m) => m.status === "published").map((m) => {
+      const text = (m.name + " " + m.summary + " " + (m.category?.name || "")).toLowerCase();
+      const hits = interests.filter((i) => (words[i] || [i]).some((w) => text.includes(w)));
+      return { m, score: hits.length * 10 + ratingScore(m), hits };
+    }).sort((a, b) => b.score - a.score).slice(0, 4);
+    return send(res, 200, { source: "ai", picks: list.map(({ m, hits }) => ({ slug: m.slug, name: m.name, summary: m.summary, category: m.category?.name || null, thumbnail_url: m.thumbnail_url, rating: ratingOf(m), reason: hits.length ? `you said you like ${hits.join(" and ")}, and people love this one.` : "one of the most popular mods on Branch." })) });
   }
   if (path === "/api/inbox" && req.method === "POST") {
     const { key } = await json(req);

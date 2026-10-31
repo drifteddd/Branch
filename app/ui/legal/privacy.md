@@ -1,6 +1,6 @@
 # Privacy Notice
 
-**Version 10** · Effective October 31, 2026
+**Version 11** · Effective October 31, 2026
 
 This Privacy Notice explains how Drifted (the "**Operator**," "**we**," "**us**") collects, uses, stores and shares information in connection with the Branch application and its related services (the "**Service**"). Contact: **drifted1000@outlook.com**.
 
@@ -49,6 +49,8 @@ If you apply for the Rewards Program, we store your Roblox username, the link to
 ## 7. Reports and Mod Requests
 
 If you submit a report or a mod request, we store the related Mod, the reason or details you provide, your contact information if you choose to provide it, the Hashed Identifier and the time of submission. This information is visible only to the Operator and is deleted one hundred eighty (180) days after the report or request is closed.
+
+**Setup questions.** The optional setup shown when you first open the app may ask where you heard about Branch and what you want to use it for. If you answer, we only add one to an anonymous total for each answer; your answers are not linked to you, your device or your Hashed Identifier. If you pick mod interests, they are sent together with the list of Mods to our artificial-intelligence provider, SiliconFlow, to suggest a few Mods, and are not stored by Branch. Your choices are also saved on your computer so the app remembers that setup is finished.
 
 **Inbox.** Reports sent from the app are linked to your Community Forum identity (the random key stored on your computer, as described in Section 5) so that you can follow the report and read the Operator's reply in the Inbox. Only you can see your reports and their replies; the Operator's private notes are never shown. The Inbox also shows announcements and update notes, which are the same for everyone. Which items you have already seen is stored only on your computer.
 

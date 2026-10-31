@@ -1084,10 +1084,29 @@ async function renderRequests() {
   ]);
 }
 
+const ONBOARDING_LABELS = {
+  drifted: "From Drifted", friend: "A friend", discord: "A Discord server", video: "A video (YouTube, TikTok)", search: "Searching online", forum: "A forum or website", other: "Something else",
+  find: "Finding mods", upload: "Uploading mods", tracker: "Player tracker", community: "Community and chat", checker: "Checking mods for viruses", rewards: "Earning rewards", assistant: "Asking the AI",
+};
+
+function statBars(list) {
+  if (!list.length) return h("p", { class: "muted small" }, "no answers yet.");
+  const max = Math.max(...list.map((x) => x.count));
+  return h("div", { class: "stat-bars" }, list.map((x) => h("div", { class: "stat-bar" }, h("span", { class: "stat-label" }, ONBOARDING_LABELS[x.value] || x.value), h("span", { class: "stat-track" }, Object.assign(h("span", { class: "stat-fill" }), { style: `width: ${Math.max(4, (x.count / max) * 100)}%` })), h("span", { class: "stat-count" }, String(x.count)))));
+}
+
 async function renderActivity() {
-  const { items } = await api("/api/admin/audit");
+  const [{ items }, onboarding] = await Promise.all([api("/api/admin/audit"), api("/api/admin/onboarding").catch(() => ({ heard_from: [], heard_other: [], uses: [] }))]);
   shell("activity", [
     h("div", { class: "page-head" }, h("h1", null, "Activity")),
+    h(
+      "div",
+      { class: "card onboarding-stats" },
+      h("h2", null, "How people found Branch"),
+      h("p", { class: "muted small" }, "anonymous totals from the optional questions in the app's setup. nobody's answers are linked to them."),
+      h("div", { class: "stat-columns" }, h("div", null, h("h3", null, "Heard about Branch from"), statBars(onboarding.heard_from)), h("div", null, h("h3", null, "Wants to use Branch for"), statBars(onboarding.uses))),
+      onboarding.heard_other.length ? h("p", { class: "small" }, h("strong", null, "\"Something else\" answers: "), onboarding.heard_other.map((x) => `${x.value} (${x.count})`).join(", ")) : null,
+    ),
     h("p", { class: "muted" }, "the last 300 admin actions."),
     h("div", { class: "table-wrap" }, h("table", { class: "table" }, h("thead", null, h("tr", null, ["When", "Who", "What", "On", "Details"].map((t) => h("th", { scope: "col" }, t)))), h("tbody", null, items.map((a) => h("tr", null, h("td", { class: "muted small" }, fmtTime(a.created_at)), h("td", null, a.admin_username), h("td", null, a.action.replaceAll("_", " ")), h("td", null, a.target), h("td", { class: "small code" }, a.details)))))),
   ]);

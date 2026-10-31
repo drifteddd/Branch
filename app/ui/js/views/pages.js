@@ -5,6 +5,7 @@ import { appVersion, assetUrl, isDesktop, openExternal } from "../platform.js";
 import { showStory } from "../story.js";
 import { AMBIENT_STYLES } from "../ambient.js";
 import { checkNow, updatesSupported } from "../updater.js";
+import { runOnboarding } from "../onboarding.js";
 
 function adminDoor() {
   const img = h("img", { src: "shared/branch-mark.svg", alt: "", width: "88", height: "88", class: "about-icon" });
@@ -63,6 +64,10 @@ export function createSettingsView(ctx) {
         row(h("label", { for: "reduce-motion" }, "Reduce motion", h("span", { class: "row-hint" }, "Windows' animation setting is always followed too.")), h("span", { class: "switch" }, motion)),
       ),
       updatesGroup(current),
+      group(
+        "Setup",
+        row(h("span", null, "Run setup again", h("span", { class: "row-hint" }, "pick a name and background, get mod suggestions and take the tour again.")), h("button", { class: "btn", type: "button", onclick: async () => { await runOnboarding(ctx); render(); } }, icon("sparkle"), "Start setup")),
+      ),
       group(
         "Community name",
         communityRow(),

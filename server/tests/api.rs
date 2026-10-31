@@ -355,6 +355,17 @@ async fn full_flow() {
     let r = c.json("POST", "/api/inbox", json!({})).await;
     assert_eq!(r.json["announcements"][0]["title"], "Branch is live");
     assert!(r.json["releases"].is_array());
+
+    let r = c.json("POST", "/api/onboarding", json!({ "heard_from": "friend", "uses": ["find", "tracker", "made-up"] })).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    let r = c.get("/api/admin/onboarding").await;
+    assert_eq!(r.json["heard_from"][0], json!({ "value": "friend", "count": 1 }));
+    assert_eq!(r.json["uses"].as_array().unwrap().len(), 2, "unknown answers are ignored");
+    let r = c.json("POST", "/api/onboarding/picks", json!({ "interests": ["cosmetics", "not-real"], "uses": ["find"] })).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    assert_eq!(r.json["source"], "basic", "no ai key in tests");
+    assert!(!r.json["picks"].as_array().unwrap().is_empty());
+    assert!(r.json["picks"][0]["slug"].is_string() && r.json["picks"][0]["reason"].is_string());
     assert_eq!(c.get("/api/admin/reports?status=open").await.json["items"].as_array().unwrap().len(), 0);
     assert!(!String::from_utf8_lossy(&c.get("/api/mods/test-mod").await.bytes).contains("me#1234"));
 

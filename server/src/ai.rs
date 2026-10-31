@@ -406,6 +406,33 @@ pub async fn chat(http: &reqwest::Client, config: &Config, system: &str, message
     Ok(content)
 }
 
+const PICKS_PROMPT: &str = r#"You welcome new users to Branch, a free Gorilla Tag mod app, by recommending a few mods to start with.
+
+You get the user's interests, what they want to use Branch for, and Branch's catalog of mods (slug, name, category, tags, summary, average rating, downloads, ban risk).
+
+Rules:
+- Pick up to 6 mods from the catalog that fit the user's interests best. Only use slugs that appear in the catalog.
+- Prefer well-rated and popular mods, and mods with low or no ban risk, unless the user's interests are clearly about menus, competitive play or cheats.
+- Mix it up a little: don't pick six nearly identical mods if other good matches exist.
+- If nothing fits well, pick the most popular, well-rated mods instead.
+- For each pick, write one short, friendly reason (under 18 words) that connects the mod to what the user said. Plain wording, mostly lowercase.
+
+Respond with one JSON object only:
+{"picks": [{"slug": "<slug from the catalog>", "reason": "<short reason>"}]}"#;
+
+pub async fn pick_mods(http: &reqwest::Client, config: &Config, payload: &Value) -> Result<Vec<(String, String)>, String> {
+    let v = ask_json(http, config, PICKS_PROMPT, payload, 600).await?;
+    Ok(v.get("picks")
+        .and_then(|p| p.as_array())
+        .map(|list| {
+            list.iter()
+                .filter_map(|p| Some((p.get("slug")?.as_str()?.trim().to_string(), clean(p.get("reason").and_then(|r| r.as_str()).unwrap_or(""), 160))))
+                .take(6)
+                .collect()
+        })
+        .unwrap_or_default())
+}
+
 pub struct DuplicateVerdict {
     pub duplicate: bool,
     pub duplicate_of: Option<String>,

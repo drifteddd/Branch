@@ -2,7 +2,7 @@ import { h } from "./dom.js";
 import { renderMarkdown } from "../shared/markdown.js";
 import { appWindow, isDesktop } from "./platform.js";
 
-export const TERMS_VERSION = 11;
+export const TERMS_VERSION = 12;
 const KEY = "branch.termsAccepted";
 
 export function termsAccepted() {

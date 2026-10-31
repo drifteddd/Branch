@@ -100,6 +100,11 @@ async function go(url) {
     await evaluate("[...document.querySelectorAll('dialog.story-sheet button')].find(b => b.textContent.includes(\"Let's go\")).click()");
     await waitFor("!document.querySelector('dialog.story-sheet')", "story closed");
   }
+  await sleep(150);
+  if (await evaluate("Boolean(document.querySelector('dialog.ob-sheet[open]'))")) {
+    await evaluate("document.querySelector('dialog.ob-sheet .ob-skip-all').click()");
+    await waitFor("!document.querySelector('dialog.ob-sheet')", "setup skipped");
+  }
 }
 async function setFile(selector, path) {
   const { result } = await cdp("Runtime.evaluate", { expression: `document.querySelector(${JSON.stringify(selector)})` });
@@ -934,6 +939,64 @@ await test("inbox: announcements, update logs and replies to your reports", asyn
   await waitFor(`document.querySelector("#inbox-count").hidden`, "badge cleared after opening");
   await evaluate(clickText(".inbox-filters label", "My reports"));
   await waitFor(`document.querySelectorAll(".inbox-card").length >= 1 && [...document.querySelectorAll(".inbox-card")].every(c => c.classList.contains("report"))`, "my reports filter");
+});
+
+await test("onboarding: name, look, questions, ai picks and a tour", async () => {
+  await setSize(1280, 820);
+  await go(`${BASE}/#/browse`);
+  await evaluate(`localStorage.removeItem("branch.onboarded")`);
+  await cdp("Page.navigate", { url: `${BASE}/?fresh=onboarding#/browse` });
+  await waitFor(`document.querySelector("dialog.ob-sheet[open]")?.textContent.includes("let's set up Branch")`, "setup after loading", 20000);
+  await sleep(300);
+  await screenshot("onboarding-welcome");
+  const next = `document.querySelector("dialog.ob-sheet .ob-actions .btn-primary").click()`;
+  const at = (kind) => `document.querySelector(".ob-body")?.dataset.step === "${kind}"`;
+  await evaluate(next);
+  await waitFor(`${at("name")} && document.querySelector("#ob-name").value.length > 0`, "name step");
+  await evaluate(type("#ob-name", "Onboard Tester"));
+  await evaluate(next);
+  await waitFor(at("look"), "look step");
+  await evaluate(click("input[name=ob-ambient][value=ocean]"));
+  await waitFor(`document.documentElement.dataset.ambient === "ocean"`, "background applied live");
+  await sleep(800);
+  await screenshot("onboarding-look");
+  await evaluate(next);
+  await waitFor(at("heard"), "heard step");
+  await evaluate(clickText(".ob-chip", "A friend"));
+  await evaluate(next);
+  await waitFor(at("uses"), "uses step");
+  await evaluate(clickText(".ob-chip", "The player tracker"));
+  await evaluate(clickText(".ob-chip", "Asking the AI"));
+  await evaluate(next);
+  await waitFor(at("interests"), "interests step");
+  await evaluate(clickText(".ob-chip", "Cosmetics"));
+  await evaluate(clickText(".ob-chip", "Custom maps"));
+  await sleep(300);
+  await screenshot("onboarding-interests");
+  await evaluate(next);
+  await waitFor(`document.querySelectorAll(".ob-pick").length > 0`, "ai picks", 8000);
+  assert(await evaluate(`document.querySelector(".ob-pick-reason").textContent.includes("cosmetics")`), "picks should mention the interests");
+  await screenshot("onboarding-picks");
+  const picked = await evaluate(`(() => { document.querySelector(".ob-fav").click(); return document.querySelector(".ob-pick strong").textContent; })()`);
+  await evaluate(next);
+  await waitFor(at("done"), "done step");
+  await evaluate(next);
+  await waitFor(`document.querySelector(".tour-overlay .tour-title")?.textContent === "Player Tracker"`, "tour starts with what you picked");
+  await sleep(400);
+  await screenshot("onboarding-tour");
+  for (let i = 0; i < 14 && (await evaluate(`Boolean(document.querySelector(".tour-overlay"))`)); i++) {
+    await evaluate(`document.querySelector(".tour-actions .btn-primary").click()`);
+    await sleep(120);
+  }
+  assert(!(await evaluate(`Boolean(document.querySelector(".tour-overlay"))`)), "tour should end");
+  assert(await evaluate(`localStorage.getItem("branch.onboarded") === "1" && JSON.parse(localStorage.getItem("branch.settings")).ambient === "ocean"`), "choices not saved");
+  const me = await evaluate(`fetch("/api/forum/me", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: localStorage.getItem("branch.forumKey") }) }).then(r => r.json())`);
+  assert(me.name === "Onboard Tester", `name not saved: ${me.name}`);
+  const favs = await evaluate(`fetch("/api/mods?favorites=1&slugs=" + JSON.parse(localStorage.getItem("branch.favorites") || "[]").join(",") + "&per_page=50").then(r => r.json()).then(d => d.items.map(m => m.name))`);
+  assert(favs.includes(picked), `starred pick not in favorites: ${picked}`);
+  await evaluate(`location.hash = "#/settings"`);
+  await waitFor(`[...document.querySelectorAll(".settings-row button")].some(b => b.textContent.includes("Start setup"))`, "run setup again in settings");
+  await evaluate(click("input[name=ambient][value=off]"));
 });
 
 ws.close();

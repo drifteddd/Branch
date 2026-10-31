@@ -564,7 +564,7 @@ pub async fn create_request(State(state): State<AppState>, visitor: Visitor, Jso
     Ok((StatusCode::CREATED, Json(json!({ "ok": true }))))
 }
 
-const AI_CALLS_KEY: &str = "__ai_calls__";
+pub(crate) const AI_CALLS_KEY: &str = "__ai_calls__";
 const CACHE_VERSION: &str = "v3";
 
 pub(crate) async fn usage_today(state: &AppState, visitor: &str) -> Result<i32, sqlx::Error> {

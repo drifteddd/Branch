@@ -200,3 +200,11 @@ dialog.preview { width: min(980px, calc(100vw - 32px)); }
 
 .reasons-list { margin: 6px 0 0; padding-left: 18px; }
 .page-head .switch span { font-weight: 600; }
+
+.onboarding-stats h3 { margin: 0 0 8px; font-size: 13px; color: var(--text-3); font-weight: 600; }
+.stat-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; margin-top: 10px; }
+.stat-bars { display: grid; gap: 6px; }
+.stat-bar { display: grid; grid-template-columns: 150px 1fr 40px; align-items: center; gap: 10px; font-size: 13px; }
+.stat-track { height: 8px; border-radius: 980px; background: var(--surface-2); overflow: hidden; }
+.stat-fill { display: block; height: 100%; border-radius: inherit; background: var(--text); }
+.stat-count { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
