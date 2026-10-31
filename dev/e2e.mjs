@@ -340,7 +340,9 @@ await test("animated backgrounds are off by default and can be switched on in se
   await go(`${BASE}/#/settings`);
   await waitFor(`document.querySelector("input[name=ambient][value=off]")`, "background picker");
   assert(await evaluate(`document.querySelector("input[name=ambient][value=off]").checked && !document.querySelector("canvas.ambient")`), "backgrounds should start off");
-  for (const style of ["aurora", "leaves", "network", "waves"]) {
+  await sleep(300);
+  await screenshot("ambient-picker");
+  for (const style of ["aurora", "sunset", "ocean", "forest", "nebula", "borealis", "leaves", "network", "waves"]) {
     await evaluate(click(`input[name=ambient][value=${style}]`));
     await waitFor(`document.documentElement.dataset.ambient === "${style}" && document.querySelector("canvas.ambient")?.width > 0`, `${style} background`);
     await sleep(1500);
@@ -379,6 +381,21 @@ await test("updates: check, download with progress, and the discord link in abou
   await waitFor(`document.querySelector(".up-status.up-error") && [...document.querySelectorAll("dialog.up-sheet button")].some(b => b.textContent.includes("Try again"))`, "failed update offers a retry", 8000);
   await evaluate(`[...document.querySelectorAll("dialog.up-sheet button")].find(b => b.textContent === "Not now").click()`);
   await evaluate(`delete window.__branchFakeUpdate`);
+});
+
+await test("an update found on the loading screen installs right after it", async () => {
+  const { identifier } = await cdp("Page.addScriptToEvaluateOnNewDocument", { source: 'window.__branchFakeUpdate = { version: "9.9.10", current: "1.0.0", notes: "- found while loading" };' });
+  try {
+    await go(`${BASE}/?fresh=update#/browse`);
+    await waitFor(`document.querySelector("dialog.up-sheet[open]")?.textContent.includes("Branch 9.9.10")`, "update screen right after loading", 8000);
+    await waitFor(`[...document.querySelectorAll("dialog.up-sheet button")].some(b => b.textContent === "Done")`, "update finished", 8000);
+    await evaluate(`[...document.querySelectorAll("dialog.up-sheet button")].find(b => b.textContent === "Done").click()`);
+  } finally {
+    await cdp("Page.removeScriptToEvaluateOnNewDocument", { identifier });
+  }
+  await go(`${BASE}/?fresh=none#/browse`);
+  await sleep(500);
+  assert(!(await evaluate(`Boolean(document.querySelector("dialog.up-sheet"))`)), "no update screen without an update");
 });
 
 await test("about and legal pages open", async () => {

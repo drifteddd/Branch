@@ -278,11 +278,15 @@ fn parse_insights(value: &Value) -> Option<UploadInsights> {
 }
 
 async fn call(http: &reqwest::Client, config: &Config, key: &str, body: &Value) -> Result<(reqwest::StatusCode, Value), String> {
+    call_with_timeout(http, config, key, body, Duration::from_secs(60)).await
+}
+
+async fn call_with_timeout(http: &reqwest::Client, config: &Config, key: &str, body: &Value, timeout: Duration) -> Result<(reqwest::StatusCode, Value), String> {
     let response = http
         .post(format!("{}/chat/completions", config.ai_base_url))
         .bearer_auth(key)
         .json(body)
-        .timeout(Duration::from_secs(60))
+        .timeout(timeout)
         .send()
         .await
         .map_err(|e| format!("couldn't reach the ai: {e}"))?;
@@ -390,7 +394,7 @@ pub async fn chat(http: &reqwest::Client, config: &Config, system: &str, message
         "max_tokens": max_tokens,
         "stream": false,
     });
-    let (status, value) = call(http, config, key, &body).await?;
+    let (status, value) = call_with_timeout(http, config, key, &body, Duration::from_secs(150)).await?;
     if !status.is_success() {
         let message = value.pointer("/message").or_else(|| value.pointer("/error/message")).and_then(|v| v.as_str()).unwrap_or("unknown error");
         return Err(format!("the ai answered {status}: {message}"));

@@ -96,8 +96,14 @@ export function createAssistantView() {
     thread.append(bubble("user", h("p", null, message)));
     input.value = "";
     autosize();
-    const typing = bubble("assistant", h("span", { class: "as-typing", "aria-label": "Branch is thinking" }, h("span"), h("span"), h("span")));
+    const typing = bubble("assistant", h("div", { class: "as-thinking" }, h("span", { class: "as-typing", "aria-label": "Branch is thinking" }, h("span"), h("span"), h("span")), h("span", { class: "as-slow", hidden: true })));
     thread.append(typing);
+    const slowNote = typing.querySelector(".as-slow");
+    const slowTimers = [
+      setTimeout(() => { slowNote.textContent = "thinking it through…"; slowNote.hidden = false; }, 9000),
+      setTimeout(() => { slowNote.textContent = "big question, this can take up to a minute…"; }, 25000),
+      setTimeout(() => { slowNote.textContent = "still working on it, almost there…"; }, 70000),
+    ];
     renderUsage();
     scrollDown();
     try {
@@ -116,6 +122,7 @@ export function createAssistantView() {
       );
       if (err.status === 429 || err.status === 503) loadUsage();
     } finally {
+      slowTimers.forEach(clearTimeout);
       busy = false;
       renderUsage();
       scrollDown();

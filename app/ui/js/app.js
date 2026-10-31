@@ -6,7 +6,7 @@ import { runSplash } from "./splash.js";
 import { requireTerms } from "./terms.js";
 import { showStoryOnce } from "./story.js";
 import { setAmbient, refreshAmbient } from "./ambient.js";
-import { startUpdater } from "./updater.js";
+import { startUpdater, checkOnSplash } from "./updater.js";
 import { toast } from "./ui.js";
 import { createBrowseView } from "./views/browse.js";
 import { createDetailView } from "./views/detail.js";
@@ -316,6 +316,7 @@ async function start() {
   setupWindow();
   setAmbient(settings.get().ambient);
 
+  let update = null;
   await runSplash(async (say) => {
     say("Connecting to the Branch server");
     try {
@@ -342,13 +343,16 @@ async function start() {
     }
     say(`Loading favorites (${favorites.list().length})`);
     say(`Loading recently viewed (${recent.list().length})`);
+    say("Checking for updates");
+    update = await checkOnSplash();
+    say(update ? `Branch ${update.version} is ready to install` : "Branch is up to date");
     say("Loading settings");
     say("Getting everything ready");
   });
 
+  await startUpdater(update);
   await requireTerms();
   await showStoryOnce();
-  startUpdater();
 
   if (!currentRoute) route();
   if (!ctx.meta) loadMeta();

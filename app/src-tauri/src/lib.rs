@@ -93,6 +93,7 @@ async fn api_request(
         "PUT" => http.api.put(&url).json(&body.unwrap_or(serde_json::Value::Null)),
         _ => return Err(CmdError::new("app", "unsupported request")),
     };
+    let request = if path.starts_with("/api/assistant") { request.timeout(Duration::from_secs(170)) } else { request };
     read_json(request.send().await?).await
 }
 

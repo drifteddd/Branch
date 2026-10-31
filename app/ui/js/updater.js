@@ -50,7 +50,7 @@ function showCard(update) {
   document.body.append(card);
 }
 
-export async function updateNow(update = pending) {
+export async function updateNow(update = pending, { startup = false } = {}) {
   if (installing || !update) return;
   installing = true;
   hideCard();
@@ -96,6 +96,12 @@ export async function updateNow(update = pending) {
     }
   } catch (err) {
     installing = false;
+    if (startup) {
+      dialog.close();
+      dialog.remove();
+      showCard(update);
+      return;
+    }
     fill.classList.remove("indeterminate");
     fill.style.width = "0%";
     status.textContent = err.message || "the update couldn't be installed.";
@@ -128,8 +134,22 @@ export async function checkNow({ manual = false, atStartup = false } = {}) {
   }
 }
 
-export function startUpdater() {
+export async function checkOnSplash(limit = 7000) {
+  if (!updatesSupported()) return null;
+  try {
+    const found = await Promise.race([checkForUpdate(), new Promise((resolve) => setTimeout(() => resolve(undefined), limit))]);
+    if (found === undefined) return null;
+    pending = found;
+    return found;
+  } catch {
+    return null;
+  }
+}
+
+export async function startUpdater(found = null) {
   if (!updatesSupported()) return;
-  setTimeout(() => checkNow({ atStartup: true }), 1500);
   setInterval(() => checkNow(), CHECK_EVERY);
+  if (!found) return;
+  if (autoUpdate()) await updateNow(found, { startup: true });
+  else showCard(found);
 }
