@@ -32,7 +32,7 @@ function slugList(key) {
 
 export const settings = {
   get() {
-    return { theme: "light", reduceMotion: false, ...read(KEYS.settings, {}) };
+    return { theme: "light", reduceMotion: false, ambient: "off", ...read(KEYS.settings, {}) };
   },
   set(patch) {
     const next = { ...this.get(), ...patch };

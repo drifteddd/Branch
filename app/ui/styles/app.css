@@ -948,3 +948,7 @@
 @media (max-width: 720px) { .as-suggestions { grid-template-columns: 1fr; } .as-msg.user .as-bubble { max-width: 90%; } }
 @media (prefers-reduced-motion: reduce) { .as-typing span, .as-msg { animation: none; } }
 .about-story { margin-top: 10px; }
+
+.ambient { position: fixed; z-index: 0; pointer-events: none; }
+:root[data-ambient] .main { position: relative; z-index: 1; background: transparent; }
+.ambient-picker { flex-wrap: wrap; }

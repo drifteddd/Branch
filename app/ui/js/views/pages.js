@@ -3,6 +3,7 @@ import { icon } from "../icons.js";
 import { renderMarkdown } from "../../shared/markdown.js";
 import { appVersion, assetUrl, isDesktop, openExternal } from "../platform.js";
 import { showStory } from "../story.js";
+import { AMBIENT_STYLES } from "../ambient.js";
 
 function adminDoor() {
   const img = h("img", { src: "shared/branch-mark.svg", alt: "", width: "88", height: "88", class: "about-icon" });
@@ -41,12 +42,20 @@ export function createSettingsView(ctx) {
       ),
     );
     const motion = h("input", { type: "checkbox", id: "reduce-motion", checked: current.reduceMotion, onchange: (e) => ctx.applyMotion(e.target.checked) });
+    const ambientGroup = h(
+      "div",
+      { class: "segmented ambient-picker", role: "radiogroup", "aria-labelledby": "ambient-label" },
+      AMBIENT_STYLES.map(([value, label]) =>
+        h("label", null, h("input", { type: "radio", name: "ambient", value, checked: (current.ambient || "off") === value, onchange: () => ctx.applyAmbient(value) }), h("span", null, label)),
+      ),
+    );
 
     clear(el).append(
       h("header", { class: "view-head" }, h("h1", { class: "view-title", id: "settings-title" }, "Settings")),
       group(
         "Appearance",
         row(h("span", { id: "appearance-label" }, "Theme"), themeGroup),
+        row(h("span", { id: "ambient-label" }, "Animated background", h("span", { class: "row-hint" }, "a moving background behind the app. it pauses when Branch is minimized.")), ambientGroup),
         row(h("label", { for: "reduce-motion" }, "Reduce motion", h("span", { class: "row-hint" }, "Windows' animation setting is always followed too.")), h("span", { class: "switch" }, motion)),
       ),
       group(

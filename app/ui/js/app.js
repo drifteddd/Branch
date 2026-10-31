@@ -5,6 +5,7 @@ import { settings, favorites, recent } from "./store.js";
 import { runSplash } from "./splash.js";
 import { requireTerms } from "./terms.js";
 import { showStoryOnce } from "./story.js";
+import { setAmbient, refreshAmbient } from "./ambient.js";
 import { toast } from "./ui.js";
 import { createBrowseView } from "./views/browse.js";
 import { createDetailView } from "./views/detail.js";
@@ -56,11 +57,17 @@ const ctx = {
   applyTheme(theme) {
     settings.set({ theme });
     applyTheme(theme);
+    refreshAmbient();
   },
   applyMotion(reduce) {
     settings.set({ reduceMotion: reduce });
     if (reduce) root.dataset.motion = "reduce";
     else delete root.dataset.motion;
+    refreshAmbient();
+  },
+  applyAmbient(style) {
+    settings.set({ ambient: style });
+    setAmbient(style);
   },
 };
 
@@ -306,6 +313,7 @@ async function start() {
   hydrateIcons();
   applyTheme(settings.get().theme);
   setupWindow();
+  setAmbient(settings.get().ambient);
 
   await runSplash(async (say) => {
     say("Connecting to the Branch server");

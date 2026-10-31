@@ -335,6 +335,27 @@ await test("dark mode setting applies and persists", async () => {
   await evaluate(click("input[name=theme][value=system]"));
 });
 
+await test("animated backgrounds are off by default and can be switched on in settings", async () => {
+  await setSize(1280, 820);
+  await go(`${BASE}/#/settings`);
+  await waitFor(`document.querySelector("input[name=ambient][value=off]")`, "background picker");
+  assert(await evaluate(`document.querySelector("input[name=ambient][value=off]").checked && !document.querySelector("canvas.ambient")`), "backgrounds should start off");
+  for (const style of ["aurora", "leaves", "network", "waves"]) {
+    await evaluate(click(`input[name=ambient][value=${style}]`));
+    await waitFor(`document.documentElement.dataset.ambient === "${style}" && document.querySelector("canvas.ambient")?.width > 0`, `${style} background`);
+    await sleep(1500);
+    await evaluate(`location.hash = "#/browse"`);
+    await waitFor(`${rows}.length >= 10`, "list over the background");
+    await sleep(600);
+    await screenshot(`ambient-${style}`);
+    await evaluate(`location.hash = "#/settings"`);
+    await waitFor(`document.querySelector("input[name=ambient][value=off]")`, "settings again");
+  }
+  assert(await evaluate(`JSON.parse(localStorage.getItem("branch.settings") || "{}").ambient === "waves"`), "choice not saved");
+  await evaluate(click(`input[name=ambient][value=off]`));
+  await waitFor(`!document.querySelector("canvas.ambient") && !document.documentElement.dataset.ambient`, "background removed");
+});
+
 await test("about and legal pages open", async () => {
   await go(`${BASE}/#/about`);
   await waitFor(`document.querySelector('.made-by')?.textContent === 'made by Drifted'`, "about page");
