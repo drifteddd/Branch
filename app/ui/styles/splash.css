@@ -116,3 +116,4 @@ dialog.story-sheet::backdrop { background: var(--bg); }
 .story-icon { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 10px; background: var(--surface-2); color: var(--text); }
 .story-icon svg { width: 18px; height: 18px; }
 .story-sign { font-size: 14px; color: var(--text-2); font-style: italic; }
+.story-note { font-size: 13px; line-height: 1.5; color: var(--text-3); }
