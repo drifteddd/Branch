@@ -1,6 +1,6 @@
 # Privacy Notice
 
-**Version 8** · Effective October 30, 2026
+**Version 9** · Effective October 31, 2026
 
 This Privacy Notice explains how Drifted (the "**Operator**," "**we**," "**us**") collects, uses, stores and shares information in connection with the Branch application and its related services (the "**Service**"). Contact: **drifted1000@outlook.com**.
 
@@ -49,6 +49,10 @@ If you apply for the Rewards Program, we store your Roblox username, the link to
 ## 7. Reports and Mod Requests
 
 If you submit a report or a mod request, we store the related Mod, the reason or details you provide, your contact information if you choose to provide it, the Hashed Identifier and the time of submission. This information is visible only to the Operator and is deleted one hundred eighty (180) days after the report or request is closed.
+
+**Ratings.** When you rate a Mod, we store your star rating together with the Hashed Identifier so that each person can rate a Mod only once and can change their rating later. Ratings are shown only as averages and counts, and are deleted if the Mod is removed.
+
+**Uploads through Discord.** When you post a mod file in the upload channel of the Branch Discord server, our bot downloads the file, processes it as described in Section 4, and publishes it. We do not store your Discord username or ID; we store only a scrambled (hashed) version of your Discord user ID, linked to your uploads, to enforce the daily upload limit. Any name you write in the message is used as the author name; otherwise the upload is shown as Anonymous.
 
 **Player Tracker (Beta).** The Player Tracker displays information about public Gorilla Tag rooms received from a third-party Discord bot: room codes, regions, and in-game player names, IDs and colors. Branch does not collect this information from you or your device. We keep only the fifty (50) most recent room reports and discard anything older. If you would like information about your in-game account removed from the Player Tracker, contact us at the address below.
 

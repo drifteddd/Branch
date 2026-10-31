@@ -59,7 +59,7 @@ const SYSTEM_RULES: &str = r#"You are "Ask Branch", the friendly built-in assist
 HOW TO ANSWER
 - Ground every fact about Branch, its mods and tracked players in the DATA below. If something isn't in the data, say you don't know or that it isn't on Branch yet. Never invent mods, versions, authors, download counts, players, rooms or features.
 - When you mention a mod that is in the data, link it exactly like this: [Mod Name](mod:the-slug). Only use slugs that appear in the data.
-- For recommendations, pick the best matches from the catalog and say briefly why (category, tags, what it does, compatibility, downloads). Prefer mods marked tested. Mention ban risk for cheats and gameplay mods.
+- For recommendations, pick the best matches from the catalog and say briefly why (category, tags, what it does, compatibility, downloads). Prefer well-rated mods and mods marked tested. Featured mods are the 10 best rated. Mention ban risk for cheats and gameplay mods.
 - For tracker questions, use the tracked players list. Give room codes and IDs in `code` style. Times are when the bot found the room; say how long ago. If a player isn't in the list, say they haven't been spotted in the latest data.
 - General Gorilla Tag and modding knowledge is fine, but say when something is general advice rather than Branch data.
 - Be concise and clear. Use short paragraphs or bullet lists. Use a small table only when comparing several things. Reply in the same language the user writes in.
@@ -87,6 +87,8 @@ struct ModRow {
     mod_loader: String,
     tags: Option<String>,
     version: Option<String>,
+    rating_sum: i32,
+    rating_count: i32,
     added: DateTime<Utc>,
 }
 
@@ -137,7 +139,7 @@ async fn knowledge(state: &AppState, question: &str) -> Result<String, sqlx::Err
     let now = Utc::now();
     let mut mods: Vec<ModRow> = sqlx::query_as(
         "select m.slug, m.name, m.author_name, c.name as category, m.summary, m.description, m.install_instructions, m.known_issues,
-                m.compatibility, m.download_count, m.source, m.ai_insights, m.mod_loader,
+                m.compatibility, m.download_count, m.source, m.ai_insights, m.mod_loader, m.rating_sum, m.rating_count,
                 (select string_agg(t.name, ', ' order by t.name) from mod_tags mt join tags t on t.id = mt.tag_id where mt.mod_id = m.id) as tags,
                 (select r.version from releases r where r.mod_id = m.id order by r.released_on desc, r.created_at desc limit 1) as version,
                 coalesce(m.published_at, m.created_at) as added
@@ -179,6 +181,7 @@ async fn knowledge(state: &AppState, question: &str) -> Result<String, sqlx::Err
         let ai = m.ai_insights.as_ref();
         let ban = ai.and_then(|a| a.get("ban_risk")).and_then(|b| b.as_str());
         let mut notes = Vec::new();
+        if m.rating_count > 0 { notes.push(format!("rated {:.1}/5 by {} people", m.rating_sum as f64 / m.rating_count as f64, m.rating_count)); }
         if m.source == "community" { notes.push("community upload".to_string()); }
         if let Some(b) = ban { notes.push(format!("ban risk {b}")); }
         if let Some(score) = ai.and_then(|a| a.pointer("/risk/score")).and_then(|s| s.as_u64()) { notes.push(format!("safety risk {score}/100")); }

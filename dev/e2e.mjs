@@ -209,13 +209,13 @@ await test("category, compatibility and sort filters work", async () => {
   assert(await evaluate(`location.hash.includes('category=maps')`), "hash didn't keep the category");
   await evaluate(choose("#filter-category", ""));
   await evaluate(choose("#filter-compat", "broken"));
-  await waitFor(`${rows}.length > 0 && ${rows}.every(r => r.querySelector('.badge').classList.contains('broken'))`, "only broken");
+  await waitFor(`${rows}.length > 0 && ${rows}.every(r => r.querySelector('.row-side .badge').classList.contains('broken'))`, "only broken");
   await evaluate(choose("#filter-compat", ""));
   await evaluate(choose("#filter-sort", "name"));
   await waitFor(`${rows}.length >= 10`, "sorted list");
   const names = await evaluate(rowNames);
   assert(JSON.stringify(names) === JSON.stringify([...names].sort((a, b) => a.localeCompare(b))), "not sorted by name");
-  await evaluate(choose("#filter-sort", "updated"));
+  await evaluate(choose("#filter-sort", "top"));
   await waitFor(`${rows}.length >= 10`, "list");
 });
 
@@ -418,10 +418,52 @@ await test("keyboard: ctrl+f focuses search and arrows move through rows", async
   assert(await evaluate(`document.activeElement === ${rows}[1].querySelector('.row-link')`), "arrow down didn't move focus");
 });
 
+await test("easy upload: drop a dll and the ai writes the listing", async () => {
+  const modFile = join(profile, "LongArms_v1.2.dll");
+  writeFileSync(modFile, Buffer.from("MZ demo long arms BepInEx " + Date.now()));
+  await go(`${BASE}/#/upload`);
+  await waitFor(`document.querySelector("input[name=upload-mode][value=easy]")`, "upload modes");
+  await evaluate(click("input[name=upload-mode][value=easy]"));
+  await waitFor(`document.querySelector(".easy-drop")`, "easy upload");
+  await evaluate(click(".easy-form button[type=submit]"));
+  await waitFor(`!document.querySelector("#easy-file-error").hidden`, "needs a file");
+  await setFile("#easy-file", modFile);
+  await waitFor(`document.querySelector(".easy-file-name")?.textContent.includes("LongArms_v1.2.dll")`, "file chosen");
+  await screenshot("upload-easy");
+  await evaluate(click(".easy-form button[type=submit]"));
+  await waitFor(`document.querySelector(".easy-form .error:not([hidden])")?.textContent.includes("confirm")`, "needs the confirmation");
+  await evaluate(click("#easy-confirm"));
+  await evaluate(click(".easy-form button[type=submit]"));
+  await waitFor(`document.querySelector(".state-block h2")?.textContent === "Your mod is live" && document.querySelector(".easy-result h3")?.textContent === "Long Arms"`, "ai-written listing", 8000);
+  assert(await evaluate(`document.querySelector(".easy-result .prose").textContent.includes("How to use")`), "ai description missing");
+  await screenshot("upload-easy-done");
+  await evaluate(clickText(".state-block a", "View your mod"));
+  await waitFor(`document.querySelector(".detail-title")?.textContent === "Long Arms" && document.querySelector(".byline").textContent.includes("Anonymous")`, "easy upload mod page");
+});
+
+await test("star ratings: rate a mod, top rated sorting and automatic featured", async () => {
+  await go(`${BASE}/#/browse`);
+  await waitFor(`${rows}.length >= 10 && document.querySelector("#filter-sort").value === "top"`, "top rated by default");
+  assert(await evaluate(`document.querySelector(".mod-row .row-rating") !== null`), "rated rows show stars");
+  const featured = await evaluate(`fetch("/api/mods?featured=true").then(r => r.json()).then(d => d.items.length)`);
+  assert(featured > 0 && featured <= 10, `featured should be the top rated mods, got ${featured}`);
+  const target = await evaluate(`fetch("/api/mods?sort=name&per_page=50").then(r => r.json()).then(d => d.items.find(m => !m.rating.count).slug)`);
+  await go(`${BASE}/#/mod/${target}`);
+  await waitFor(`document.querySelector(".rate-summary")?.textContent.includes("no ratings yet")`, "unrated mod");
+  await evaluate(`document.querySelectorAll(".rate-star")[3].click()`);
+  await waitFor(`document.querySelector(".rate-summary").textContent.includes("4.0") && document.querySelector(".rate-summary").textContent.includes("you gave 4")`, "rating saved");
+  assert(await evaluate(`document.querySelectorAll(".rate-star.on").length === 4`), "four stars lit");
+  await screenshot("rating");
+  await evaluate(`document.querySelectorAll(".rate-star")[4].click()`);
+  await waitFor(`document.querySelector(".rate-summary").textContent.includes("5.0") && document.querySelector(".rate-summary").textContent.includes("1 rating")`, "rating changed, not added twice");
+});
+
 await test("community upload needs a file, name, description and rights confirmation", async () => {
   const modFile = join(profile, "TinyHats.dll");
   writeFileSync(modFile, Buffer.from("MZ demo tiny hats BepInEx"));
   await go(`${BASE}/#/upload`);
+  await waitFor(`document.querySelector("input[name=upload-mode][value=advanced]")`, "upload modes");
+  await evaluate(click("input[name=upload-mode][value=advanced]"));
   await waitFor(`document.querySelector("#up-name")`, "upload form");
   await evaluate(click(".form-card button[type=submit]"));
   await waitFor(`!document.querySelector("#up-file-error").hidden && !document.querySelector("#up-description-error").hidden && !document.querySelector("#up-confirm-error").hidden`, "required field errors");
@@ -574,7 +616,7 @@ await test("new mods show up on their own without reloading the list", async () 
   await evaluate(`document.querySelector(".mod-row").dataset.kept = "top"`);
   await evaluate(`window.__branchRefresh()`);
   assert(await evaluate(`document.querySelector(".mod-row").dataset.kept === "top"`), "an unchanged list was redrawn");
-  await evaluate(choose("#filter-sort", "updated"));
+  await evaluate(choose("#filter-sort", "top"));
 });
 
 await test("player tracker streams players in one at a time, with search and region filters", async () => {
@@ -816,6 +858,8 @@ await test("rewards: reach 10 unique uploads, apply, get accepted, earn and get 
   const modFile = join(profile, "BrandNewHat.dll");
   writeFileSync(modFile, Buffer.from("MZ brand new reward hat " + Date.now()));
   await go(`${BASE}/#/upload`);
+  await waitFor(`document.querySelector("input[name=upload-mode][value=advanced]")`, "upload modes");
+  await evaluate(click("input[name=upload-mode][value=advanced]"));
   await waitFor(`document.querySelector("#up-name")`, "upload form");
   await setFile("#up-file", modFile);
   await evaluate(type("#up-name", "Brand New Hat"));

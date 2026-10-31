@@ -109,6 +109,7 @@ export function createDetailView(ctx) {
           latest ? h("span", null, `Version ${latest.version}`) : null,
           latest ? h("span", null, `Released ${formatDate(latest.released_on)}`) : null,
         ),
+        ratingWidget(mod),
         downloadArea(mod, latest),
         h("div", { class: "hero-secondary" }, favButton, sourceButton, reportButton),
       ),
@@ -203,6 +204,58 @@ export function createDetailView(ctx) {
           : `from Branch's basic scan when the mod was uploaded${ai.checked_at ? ` on ${formatDate(ai.checked_at)}` : ""}. the AI wasn't available at the time, so there's no overview.`,
       ),
     );
+  }
+
+  function ratingWidget(mod) {
+    let mine = mod.my_rating || 0;
+    let rating = mod.rating || { average: null, count: 0 };
+    const summary = h("span", { class: "rate-summary" });
+    const stars = [1, 2, 3, 4, 5].map((n) => h("button", { class: "rate-star", type: "button", role: "radio", "aria-label": `${n} ${n === 1 ? "star" : "stars"}`, dataset: { stars: String(n) } }, icon("starFill")));
+    const group = h("div", { class: "rate-stars", role: "radiogroup", "aria-label": "Rate this mod" }, stars);
+    const paint = (hover = 0) => {
+      const shown = hover || mine;
+      stars.forEach((s, i) => {
+        s.classList.toggle("on", i < shown);
+        s.setAttribute("aria-checked", String(i + 1 === mine));
+      });
+      summary.replaceChildren(
+        rating.count ? h("strong", null, rating.average.toFixed(1)) : null,
+        rating.count ? ` · ${rating.count} ${rating.count === 1 ? "rating" : "ratings"}` : "no ratings yet",
+        h("span", { class: "muted" }, mine ? ` · you gave ${mine}` : " · tap a star to rate"),
+      );
+    };
+    group.addEventListener("mouseover", (e) => { const s = e.target.closest(".rate-star"); if (s) paint(Number(s.dataset.stars)); });
+    group.addEventListener("mouseleave", () => paint());
+    group.addEventListener("click", async (e) => {
+      const s = e.target.closest(".rate-star");
+      if (!s) return;
+      const value = Number(s.dataset.stars);
+      const before = mine;
+      mine = value;
+      paint();
+      try {
+        const data = await api(`/api/mods/${encodeURIComponent(mod.slug)}/rating`, { method: "POST", body: { stars: value } });
+        rating = data.rating;
+        mod.rating = data.rating;
+        mod.my_rating = value;
+        paint();
+        toast(before ? "Rating updated" : "Thanks for rating!", { tone: "ok" });
+        ctx.refreshLists?.();
+      } catch (err) {
+        mine = before;
+        paint();
+        toast(err.message || "couldn't save your rating", { tone: "error" });
+      }
+    });
+    group.addEventListener("keydown", (e) => {
+      if (!["ArrowLeft", "ArrowRight"].includes(e.key)) return;
+      e.preventDefault();
+      const next = Math.min(5, Math.max(1, (mine || 0) + (e.key === "ArrowRight" ? 1 : -1)));
+      stars[next - 1].click();
+      stars[next - 1].focus();
+    });
+    paint();
+    return h("div", { class: "rate-row" }, group, summary);
   }
 
   function compatWarning(mod, info) {

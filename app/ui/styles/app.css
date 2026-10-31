@@ -965,3 +965,33 @@ dialog.up-sheet { width: min(460px, calc(100vw - 32px)); }
 .up-status { margin: 0; font-size: 13px; color: var(--text-2); }
 .up-status.up-error { color: var(--danger); }
 @media (max-width: 560px) { .up-card { flex-wrap: wrap; } }
+.upload-modes { margin-top: 14px; }
+.easy-form { gap: 16px; }
+.easy-intro { margin: 0; color: var(--text-2); }
+.easy-drop { display: grid; justify-items: center; gap: 6px; width: 100%; padding: 34px 20px; border: 1.5px dashed var(--line-strong); border-radius: var(--r-xl); background: var(--surface-2); color: var(--text); font: inherit; text-align: center; cursor: pointer; transition: border-color var(--fast) var(--ease), background var(--fast) var(--ease), transform var(--fast) var(--ease); }
+.easy-drop:hover { background: var(--surface-hover); }
+.easy-drop.dragging { border-color: var(--focus); background: var(--focus-soft); transform: scale(1.01); }
+.easy-drop.has-file { border-style: solid; border-color: var(--ok); background: var(--ok-soft); }
+.easy-drop strong { font-size: 16px; }
+.easy-drop-icon { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: 4px; border-radius: 16px; background: var(--surface); box-shadow: var(--shadow-1); }
+.easy-drop-icon svg { width: 24px; height: 24px; }
+.easy-file-name { margin-top: 4px; padding: 3px 10px; border-radius: 980px; background: var(--surface); font-size: 12.5px; font-weight: 600; }
+.easy-steps { list-style: none; margin: 0; padding: 12px 14px; display: grid; gap: 8px; border-radius: var(--r-m); background: var(--surface-2); font-size: 13.5px; color: var(--text-3); }
+.easy-steps li { display: flex; align-items: center; gap: 10px; }
+.easy-steps li.active { color: var(--text); font-weight: 600; }
+.easy-steps li.done { color: var(--ok); }
+.easy-step-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line-strong); flex: none; }
+.easy-steps li.active .easy-step-dot { background: var(--focus); animation: tk-pulse 1.4s ease-out infinite; color: var(--focus); }
+.easy-steps li.done .easy-step-dot { background: var(--ok); }
+.easy-result { max-width: 640px; margin: 16px auto 0; padding: 16px 18px; border-radius: var(--r-l); background: var(--surface); box-shadow: var(--shadow-1); }
+.easy-result h3 { margin: 4px 0 8px; font-size: 18px; }
+.row-rating { display: inline-flex; align-items: center; gap: 3px; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.row-rating svg { width: 13px; height: 13px; color: #e0a100; }
+.rate-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 2px 0 4px; }
+.rate-stars { display: inline-flex; gap: 2px; }
+.rate-star { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--line-strong); cursor: pointer; transition: color var(--fast) var(--ease), transform var(--fast) var(--spring); }
+.rate-star svg { width: 22px; height: 22px; }
+.rate-star.on { color: #e0a100; }
+.rate-star:hover { transform: scale(1.15); }
+.rate-star:focus-visible { outline: 2px solid var(--focus); }
+.rate-summary { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; }

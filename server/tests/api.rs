@@ -451,6 +451,30 @@ async fn full_flow() {
     assert_eq!(r.json["ai"]["risk"]["source"], "basic", "no ai key in tests, so only the basic scan ran");
     assert!(r.json["ai"]["overview"].is_null());
     assert_eq!(r.json["author"]["name"], "Anonymous");
+
+    let r = c.json("POST", &format!("/api/mods/{slug}/rating"), json!({ "stars": 5 })).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    assert_eq!(r.json["rating"]["average"], 5.0);
+    assert_eq!(r.json["rating"]["count"], 1);
+    let r = c.json("POST", &format!("/api/mods/{slug}/rating"), json!({ "stars": 4 })).await;
+    assert_eq!(r.json["rating"]["count"], 1, "rating again replaces your old rating");
+    assert_eq!(r.json["rating"]["average"], 4.0);
+    assert_eq!(c.json("POST", &format!("/api/mods/{slug}/rating"), json!({ "stars": 9 })).await.status, StatusCode::BAD_REQUEST);
+    let r = c.get(&format!("/api/mods/{slug}")).await;
+    assert_eq!(r.json["my_rating"], 4);
+    assert_eq!(r.json["rating"]["average"], 4.0);
+    assert_eq!(r.json["featured"], true, "the best rated mods are featured automatically");
+    let r = c.get("/api/mods?featured=true").await;
+    assert_eq!(r.json["items"].as_array().unwrap().len(), 1);
+    assert_eq!(r.json["items"][0]["slug"], slug.as_str());
+    let r = c.get("/api/mods").await;
+    assert_eq!(r.json["items"][0]["slug"], slug.as_str(), "top rated comes first by default");
+    assert_eq!(r.json["items"][0]["rating"]["count"], 1);
+
+    let r = c.form_files("/api/submissions", &[("mode", "easy"), ("confirm", "true")], &[("file", "EasyHats.dll", &b"MZ BepInEx easy hats"[..])]).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "{}", r.json);
+    assert!(r.json["fields"]["file"].as_str().unwrap().contains("AI isn't available"), "easy upload needs the ai: {}", r.json);
+    let r = c.get(&format!("/api/mods/{slug}")).await;
     assert_eq!(r.json["community"], true);
     assert_eq!(r.json["releases"][0]["version"], "2.1");
     let release_id = r.json["releases"][0]["id"].as_str().unwrap().to_string();

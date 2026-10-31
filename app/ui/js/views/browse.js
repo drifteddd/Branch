@@ -19,6 +19,7 @@ const MODES = {
 };
 
 const SORTS = [
+  ["top", "Top rated"],
   ["updated", "Recently updated"],
   ["newest", "Newest"],
   ["name", "Name"],
@@ -88,7 +89,7 @@ export function createBrowseView(ctx) {
   }
 
   function hasFilters() {
-    return Boolean(state.q || state.category || state.compat || state.sort !== "updated");
+    return Boolean(state.q || state.category || state.compat || state.sort !== "top");
   }
 
   categorySelect.addEventListener("change", () => { state.category = categorySelect.value; ctx.syncBrowseHash(); refresh(); });
@@ -99,7 +100,7 @@ export function createBrowseView(ctx) {
     state.q = "";
     state.category = "";
     state.compat = "";
-    state.sort = "updated";
+    state.sort = "top";
     ctx.setSearchText("");
     ctx.syncBrowseHash();
     refresh();
@@ -273,7 +274,7 @@ export function createBrowseView(ctx) {
     }
     const empty = {
       all: { iconName: "box", title: "No mods yet", message: "nothing has been published on Branch yet. check back soon." },
-      featured: { iconName: "sparkle", title: "Nothing featured right now", message: "featured picks show up here when the Branch admin chooses some.", actions: [ctx.link("#/browse", "Browse all mods")] },
+      featured: { iconName: "sparkle", title: "Nothing featured yet", message: "featured mods are the 10 best-rated mods on Branch. open a mod and give it stars to help pick them.", actions: [ctx.link("#/browse", "Browse all mods")] },
       favorites: { iconName: "star", title: "No favorites yet", message: "tap the star on any mod to keep it here. favorites are saved on this computer only.", actions: [ctx.link("#/browse", "Browse mods")] },
       recent: { iconName: "clock", title: "Nothing viewed yet", message: "mods you open will show up here so you can find them again.", actions: [ctx.link("#/browse", "Browse mods")] },
     }[state.mode];
@@ -324,6 +325,7 @@ export function createBrowseView(ctx) {
           { class: "row-title" },
           h("a", { class: "row-link", href: `#/mod/${encodeURIComponent(mod.slug)}` }, mod.name),
           mod.latest_version ? h("span", { class: "version" }, versionLabel(mod.latest_version)) : null,
+          mod.rating?.count ? h("span", { class: "row-rating", title: `${mod.rating.average} out of 5 from ${mod.rating.count} ${mod.rating.count === 1 ? "rating" : "ratings"}` }, icon("starFill"), mod.rating.average.toFixed(1), h("span", { class: "muted" }, ` (${mod.rating.count})`)) : null,
           mod.featured ? h("span", { class: "badge plain featured-badge" }, "Featured") : null,
           mod.community ? h("span", { class: "badge plain community-badge", title: "uploaded by someone in the community" }, "Community") : null,
         ),

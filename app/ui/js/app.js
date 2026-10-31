@@ -33,7 +33,7 @@ const BROWSE_MODES = { browse: "all", featured: "featured", favorites: "favorite
 
 const ctx = {
   meta: null,
-  browse: { mode: "all", q: "", category: "", compat: "", sort: "updated" },
+  browse: { mode: "all", q: "", category: "", compat: "", sort: "top" },
   link(href, label) {
     return h("a", { class: "btn btn-primary", href }, label);
   },

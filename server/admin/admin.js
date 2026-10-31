@@ -811,7 +811,6 @@ async function renderEditor(id) {
         : mod.status === "published"
           ? h("button", { class: "btn", type: "button", onclick: () => setStatus("unpublished") }, "Unpublish")
           : h("button", { class: "btn btn-primary", type: "button", onclick: () => setStatus("published") }, "Publish"),
-      isNew ? null : h("button", { class: "btn btn-quiet", type: "button", onclick: async () => { mod = await api(`/api/admin/mods/${mod.id}/featured`, { method: "POST", body: { featured: !mod.featured } }); toast(mod.featured ? "Featured" : "No longer featured"); drawBar(); } }, mod.featured ? "Unfeature" : "Feature"),
       isNew || mod.status === "archived" ? null : h("button", { class: "btn btn-quiet", type: "button", onclick: async () => { if (await confirmDialog("Archive this mod?", "it disappears from the app but stays here. you can publish it again later.", "Archive", false)) setStatus("archived"); } }, "Archive"),
       isNew ? null : h("button", { class: "btn btn-quiet btn-danger", type: "button", onclick: async () => {
         if (!(await confirmDialog(`Delete ${mod.name} for good?`, "this deletes the listing, its releases, pictures and hosted files. reports keep the mod's name. this can't be undone. archive it instead if you might want it back.", "Delete forever"))) return;

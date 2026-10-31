@@ -3,6 +3,7 @@ import { icon } from "../icons.js";
 import { uploadForm } from "../platform.js";
 import { forumKey } from "../forum-identity.js";
 import { stateBlock } from "../ui.js";
+import { renderMarkdown } from "../../shared/markdown.js";
 
 const MIN_DESCRIPTION = 30;
 const THUMB_W = 960;
@@ -82,7 +83,7 @@ export function createUploadView(ctx) {
     );
   }
 
-  function render() {
+  function renderAdvanced() {
     let chosen = null;
     let thumbnail = null;
     let thumbUrl = null;
@@ -297,31 +298,7 @@ export function createUploadView(ctx) {
       submit.disabled = true;
       submit.textContent = "Uploading and checking…";
       try {
-        const result = await uploadForm("/api/submissions", data);
-        const reward = result.reward;
-        const rewardNote = !reward
-          ? null
-          : reward.earned > 0
-            ? h("a", { class: "reward-note earned", href: "#/rewards" }, h("span", { class: "robux-mark" }, "R$"), `+${reward.earned} R$ added to your rewards`)
-            : reward.uploads < reward.threshold
-              ? h("a", { class: "reward-note", href: "#/rewards" }, icon("gift"), `${reward.uploads} / ${reward.threshold} unique mods toward Rewards`)
-              : null;
-        clear(el).append(
-          ...[
-          stateBlock({
-            iconName: "check",
-            title: "Your mod is live",
-            message: "thanks for sharing! it passed the automatic check and is now in the mod list.",
-            actions: [
-              h("button", { class: "btn", type: "button", onclick: render }, "Upload another"),
-              result.slug ? h("a", { class: "btn btn-primary", href: `#/mod/${encodeURIComponent(result.slug)}` }, "View your mod") : null,
-            ],
-          }),
-          aiNote(result.ai),
-          rewardNote ? h("div", { class: "reward-note-wrap" }, rewardNote) : null,
-          ].filter(Boolean),
-        );
-        ctx.refreshLists?.();
+        showSuccess(await uploadForm("/api/submissions", data));
       } catch (err) {
         if (err.fields) showErrors(err.fields);
         else {
@@ -333,15 +310,192 @@ export function createUploadView(ctx) {
       }
     });
 
+    return form;
+  }
+
+  function showSuccess(result) {
+    const reward = result.reward;
+    const rewardNote = !reward
+      ? null
+      : reward.earned > 0
+        ? h("a", { class: "reward-note earned", href: "#/rewards" }, h("span", { class: "robux-mark" }, "R$"), `+${reward.earned} R$ added to your rewards`)
+        : reward.uploads < reward.threshold
+          ? h("a", { class: "reward-note", href: "#/rewards" }, icon("gift"), `${reward.uploads} / ${reward.threshold} unique mods toward Rewards`)
+          : null;
+    const written = result.ai?.wrote_listing
+      ? h(
+          "div",
+          { class: "easy-result" },
+          h("span", { class: "section-label" }, "Branch's AI wrote this listing"),
+          h("h3", null, result.name),
+          result.ai.description ? h("div", { class: "prose", html: renderMarkdown(result.ai.description) }) : null,
+        )
+      : null;
+    clear(el).append(
+      ...[
+        stateBlock({
+          iconName: "check",
+          title: "Your mod is live",
+          message: "thanks for sharing! it passed the automatic check and is now in the mod list.",
+          actions: [
+            h("button", { class: "btn", type: "button", onclick: render }, "Upload another"),
+            result.slug ? h("a", { class: "btn btn-primary", href: `#/mod/${encodeURIComponent(result.slug)}` }, "View your mod") : null,
+          ],
+        }),
+        written,
+        aiNote(result.ai),
+        rewardNote ? h("div", { class: "reward-note-wrap" }, rewardNote) : null,
+      ].filter(Boolean),
+    );
+    ctx.refreshLists?.();
+  }
+
+  function renderEasy() {
+    let chosen = null;
+    const fileInput = h("input", { type: "file", accept: ".dll,.zip", class: "visually-hidden", id: "easy-file", tabindex: "-1" });
+    const fileName = h("span", { class: "easy-file-name", hidden: true });
+    const drop = h(
+      "button",
+      { class: "easy-drop", type: "button", "aria-describedby": "easy-file-error", onclick: () => fileInput.click() },
+      h("span", { class: "easy-drop-icon", "aria-hidden": "true" }, icon("upload")),
+      h("strong", null, "Drop your mod here"),
+      h("span", { class: "muted small" }, ".dll or .zip, up to 50 MB · or click to choose a file"),
+      fileName,
+    );
+    const fileError = h("p", { class: "error", id: "easy-file-error", hidden: true });
+    const pick = (file) => {
+      fileError.hidden = true;
+      if (!file) return;
+      if (!/\.(dll|zip)$/i.test(file.name)) {
+        fileError.textContent = "that isn't a mod file. use a .dll or .zip";
+        fileError.hidden = false;
+        return;
+      }
+      if (file.size > 50 * 1024 * 1024) {
+        fileError.textContent = "files can be up to 50 MB";
+        fileError.hidden = false;
+        return;
+      }
+      chosen = file;
+      fileName.textContent = `${file.name} · ${formatBytes(file.size)}`;
+      fileName.hidden = false;
+      drop.classList.add("has-file");
+    };
+    fileInput.addEventListener("change", () => pick(fileInput.files?.[0]));
+    drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("dragging"); });
+    drop.addEventListener("dragleave", () => drop.classList.remove("dragging"));
+    drop.addEventListener("drop", (e) => { e.preventDefault(); drop.classList.remove("dragging"); pick(e.dataTransfer?.files?.[0]); });
+
+    const author = h("input", { class: "input", id: "easy-author", maxlength: "80", autocomplete: "off", placeholder: "leave empty to stay anonymous" });
+    const confirm = h("input", { type: "checkbox", id: "easy-confirm" });
+    const confirmError = h("p", { class: "error", hidden: true });
+    const trap = h("input", { type: "text", name: "website", tabindex: "-1", autocomplete: "off", "aria-hidden": "true" });
+    const formError = h("div", { class: "banner danger compact", role: "alert", hidden: true });
+    const steps = ["Uploading the file", "Checking that it's safe", "Writing the name and description", "Publishing it"];
+    const stepList = h("ol", { class: "easy-steps", hidden: true }, steps.map((s) => h("li", null, h("span", { class: "easy-step-dot" }), s)));
+    const submit = h("button", { class: "btn btn-primary btn-large", type: "submit" }, icon("sparkle"), "Upload with AI");
+
+    const form = h(
+      "form",
+      { class: "form-card easy-form", novalidate: true },
+      h("p", { class: "easy-intro" }, "just drop the file. Branch's AI reads the code and writes the name, description, tags and category for you."),
+      drop,
+      fileInput,
+      fileError,
+      h("div", { class: "field" }, h("label", { for: "easy-author" }, "Your name", h("span", { class: "muted" }, " (optional)")), author),
+      h(
+        "div",
+        { class: "field" },
+        h(
+          "label",
+          { class: "inline-check legal-check", for: "easy-confirm" },
+          confirm,
+          h("span", null, "I confirm that I created this mod or have the right to distribute it, and that the file contains no malicious code. I understand that this upload is governed by the Terms of Use and will be publicly available."),
+        ),
+        confirmError,
+      ),
+      h("div", { class: "trap", "aria-hidden": "true" }, trap),
+      stepList,
+      formError,
+      h("div", null, submit),
+      h("p", { class: "muted small" }, "the AI can get details wrong. for the most accurate listing, use the advanced upload and write it yourself."),
+    );
+    confirm.addEventListener("change", () => { confirmError.hidden = true; });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      formError.hidden = true;
+      if (!chosen) {
+        fileError.textContent = "drop your mod file first (.dll or .zip)";
+        fileError.hidden = false;
+        drop.focus();
+        return;
+      }
+      if (!confirm.checked) {
+        confirmError.textContent = "you have to confirm that you have the right to share this mod";
+        confirmError.hidden = false;
+        return;
+      }
+      const data = new FormData();
+      data.append("mode", "easy");
+      data.append("author", author.value.trim());
+      data.append("anonymous", author.value.trim() ? "false" : "true");
+      data.append("confirm", "true");
+      data.append("website", trap.value);
+      data.append("key", forumKey());
+      data.append("file", chosen, chosen.name);
+      submit.disabled = true;
+      submit.lastChild.textContent = "Working on it…";
+      stepList.hidden = false;
+      const items = [...stepList.children];
+      let step = 0;
+      const mark = () => items.forEach((li, i) => { li.className = i < step ? "done" : i === step ? "active" : ""; });
+      mark();
+      const timer = setInterval(() => { if (step < items.length - 1) { step += 1; mark(); } }, 2600);
+      try {
+        const result = await uploadForm("/api/submissions", data);
+        clearInterval(timer);
+        showSuccess(result);
+      } catch (err) {
+        clearInterval(timer);
+        stepList.hidden = true;
+        formError.replaceChildren(icon("alert"), h("p", null, err.fields ? Object.values(err.fields)[0] : err.message));
+        formError.hidden = false;
+        submit.disabled = false;
+        submit.lastChild.textContent = "Upload with AI";
+      }
+    });
+    return form;
+  }
+
+  function render() {
+    let mode = "easy";
+    try { mode = localStorage.getItem("branch.uploadMode") === "advanced" ? "advanced" : "easy"; } catch {}
+    const host = h("div");
+    const show = (next) => {
+      mode = next;
+      try { localStorage.setItem("branch.uploadMode", next); } catch {}
+      for (const input of switcher.querySelectorAll("input")) input.checked = input.value === next;
+      clear(host).append(next === "easy" ? renderEasy() : renderAdvanced());
+    };
+    const switcher = h(
+      "div",
+      { class: "segmented upload-modes", role: "radiogroup", "aria-label": "Upload type" },
+      [["easy", "Easy upload"], ["advanced", "Advanced upload"]].map(([value, label]) =>
+        h("label", null, h("input", { type: "radio", name: "upload-mode", value, onchange: () => show(value) }), h("span", null, label)),
+      ),
+    );
     clear(el).append(
       h(
         "header",
         { class: "page-intro" },
         h("h1", { class: "view-title", id: "upload-title" }, "Upload a mod"),
-        h("p", null, "share a mod you made with everyone on Branch. all you need is the file, a name and a description."),
+        h("p", null, "share a mod you made with everyone on Branch. drop the file and let the AI set it up, or fill everything in yourself."),
+        switcher,
       ),
-      form,
+      host,
     );
+    show(mode);
   }
 
   return {

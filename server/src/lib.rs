@@ -2,6 +2,7 @@ pub mod admin_ui;
 pub mod ai;
 pub mod auth;
 pub mod config;
+pub mod discord_uploads;
 pub mod error;
 pub mod models;
 pub mod pe;
@@ -61,6 +62,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
     let state = build_state(config).await?;
     spawn_cleanup(state.clone());
     tracker::spawn(state.clone());
+    discord_uploads::spawn(state.clone());
 
     let app = routes::router(state);
     let addr = SocketAddr::from((Ipv6Addr::UNSPECIFIED, port));

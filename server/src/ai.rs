@@ -75,8 +75,17 @@ THIS FILE IS BEING UPLOADED TO BRANCH'S PUBLIC MOD LIST. Besides the safety fiel
   "description_match": "matches" | "partly" | "mismatch"
 "description_match" says whether the uploader's description fits what the code does: "matches" if it fits, "partly" if it's vague or only covers part of it, "mismatch" if it describes something clearly different. Add all of these keys to the same JSON object."#;
 
+pub const WRITE_LISTING_PROMPT: &str = r#"
+
+THE UPLOADER DIDN'T WRITE A NAME OR DESCRIPTION, so you write them too. Add these keys to the same JSON object:
+  "suggested_name": "<a short, clear mod name, 2-5 words in Title Case. Base it on the file name, assembly name and main class names (e.g. a 'LongArms.dll' with a 'LongArmsPlugin' class becomes 'Long Arms'). Don't add words like 'Mod', 'Gorilla Tag' or a version number.>",
+  "suggested_description": "<a helpful description for the mod page in Markdown, 60-200 words: one short intro sentence about what it does, then a '**Features**' bullet list of only what the evidence supports, then '**How to use**' with short steps if you can tell how it's used (for example a menu, a button or a key). Say it needs BepInEx or other mods if the evidence shows that. Plain, friendly wording. Never invent features.>"
+If "claimed_name" or "claimed_description" is provided, keep it and only fill in what's missing."#;
+
 #[derive(Serialize, Clone, Debug, Default)]
 pub struct UploadInsights {
+    pub suggested_name: String,
+    pub suggested_description: String,
     pub overview: String,
     pub highlights: Vec<String>,
     pub tags: Vec<String>,
@@ -111,6 +120,7 @@ pub struct Claim<'a> {
     pub description: &'a str,
     pub existing_tags: &'a [String],
     pub categories: &'a [String],
+    pub write_listing: bool,
 }
 
 fn truncate_json(text: String, max: usize) -> String {
@@ -245,6 +255,17 @@ fn parse_insights(value: &Value) -> Option<UploadInsights> {
     }
     let category = value.get("category").and_then(|c| c.as_str()).map(|c| c.trim().to_lowercase()).filter(|c| !c.is_empty() && c != "null");
     Some(UploadInsights {
+        suggested_name: clean(value.get("suggested_name").and_then(|v| v.as_str()).unwrap_or(""), 80),
+        suggested_description: value
+            .get("suggested_description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .chars()
+            .filter(|c| !c.is_control() || *c == '\n')
+            .take(3000)
+            .collect::<String>()
+            .trim()
+            .to_string(),
         overview,
         highlights: list("highlights", 4, 90),
         tags,
@@ -272,7 +293,11 @@ async fn call(http: &reqwest::Client, config: &Config, key: &str, body: &Value) 
 
 pub async fn ask(http: &reqwest::Client, config: &Config, report: &ScanReport, claim: Option<&Claim<'_>>) -> Result<AiVerdict, String> {
     let key = config.ai_api_key.as_deref().ok_or("the ai key isn't set")?;
-    let (system, max_tokens) = if claim.is_some() { (format!("{SYSTEM_PROMPT}{UPLOAD_EXTRA_PROMPT}"), 1200) } else { (SYSTEM_PROMPT.to_string(), 700) };
+    let (system, max_tokens) = match claim {
+        Some(c) if c.write_listing => (format!("{SYSTEM_PROMPT}{UPLOAD_EXTRA_PROMPT}{WRITE_LISTING_PROMPT}"), 1700),
+        Some(_) => (format!("{SYSTEM_PROMPT}{UPLOAD_EXTRA_PROMPT}"), 1200),
+        None => (SYSTEM_PROMPT.to_string(), 700),
+    };
     let mut body = json!({
         "model": config.ai_model,
         "messages": [

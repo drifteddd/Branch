@@ -143,9 +143,18 @@ async function json(req) {
   try { return JSON.parse((await readBody(req)).toString("utf8") || "{}"); } catch { return {}; }
 }
 
+for (const [i, m] of mods.entries()) {
+  const count = i < 7 ? 2 + ((i * 3) % 5) : 0;
+  m.rating_count = count;
+  m.rating_sum = Math.round(count * (4.8 - i * 0.3));
+}
+const ratingOf = (m) => ({ average: m.rating_count ? Math.round((m.rating_sum / m.rating_count) * 10) / 10 : null, count: m.rating_count || 0 });
+const ratingScore = (m) => ((m.rating_sum || 0) + 15) / ((m.rating_count || 0) + 5);
+const topRated = () => new Set(mods.filter((m) => m.status === "published" && m.rating_count > 0).sort((a, b) => ratingScore(b) - ratingScore(a) || b.rating_count - a.rating_count).slice(0, 10).map((m) => m.id));
+
 function summary(m) {
   const latest = m.releases[0];
-  return { id: m.id, slug: m.slug, name: m.name, summary: m.summary, author: m.author.name, category: m.category ? { slug: m.category.slug, name: m.category.name } : null, thumbnail_url: m.thumbnail_url, compatibility: m.compatibility.status, featured: m.featured, community: Boolean(m.community), downloads: m.downloads, latest_version: latest?.version || null, last_updated: latest?.released_on || m.updated_at.slice(0, 10) };
+  return { id: m.id, slug: m.slug, name: m.name, summary: m.summary, author: m.author.name, category: m.category ? { slug: m.category.slug, name: m.category.name } : null, thumbnail_url: m.thumbnail_url, compatibility: m.compatibility.status, featured: topRated().has(m.id), community: Boolean(m.community), downloads: m.downloads, latest_version: latest?.version || null, last_updated: latest?.released_on || m.updated_at.slice(0, 10), rating: ratingOf(m) };
 }
 
 function parseMultipart(req, body) {
@@ -494,10 +503,10 @@ async function publicApi(req, res, path, url) {
     if (q) list = list.filter((m) => [m.name, m.summary, m.description, m.author.name, ...m.tags].some((t) => t.toLowerCase().includes(q)));
     if (p.get("category")) list = list.filter((m) => m.category?.slug === p.get("category"));
     if (p.get("compat")) list = list.filter((m) => m.compatibility.status === p.get("compat"));
-    if (p.get("featured") === "true") list = list.filter((m) => m.featured);
+    if (p.get("featured") === "true") { const top = topRated(); list = list.filter((m) => top.has(m.id)); }
     if (p.has("slugs")) { const s = p.get("slugs").split(","); list = list.filter((m) => s.includes(m.slug)); }
-    const sort = p.get("sort") || "updated";
-    const sorters = { updated: (a, b) => summary(b).last_updated.localeCompare(summary(a).last_updated), newest: (a, b) => b.created_at.localeCompare(a.created_at), name: (a, b) => a.name.localeCompare(b.name), downloads: (a, b) => b.downloads - a.downloads };
+    const sort = p.get("sort") || "top";
+    const sorters = { top: (a, b) => ratingScore(b) - ratingScore(a) || (b.rating_count || 0) - (a.rating_count || 0) || b.downloads - a.downloads, updated: (a, b) => summary(b).last_updated.localeCompare(summary(a).last_updated), newest: (a, b) => b.created_at.localeCompare(a.created_at), name: (a, b) => a.name.localeCompare(b.name), downloads: (a, b) => b.downloads - a.downloads };
     if (!sorters[sort]) return fail(res, 400, "unknown sort");
     list = [...list].sort(sorters[sort]);
     const per = Math.min(50, Number(p.get("per_page")) || 20);
@@ -506,11 +515,23 @@ async function publicApi(req, res, path, url) {
     await new Promise((r) => setTimeout(r, 250));
     return send(res, 200, { items, page, per_page: per, total: list.length, has_more: page * per < list.length });
   }
+  const rateMatch = /^\/api\/mods\/([a-z0-9-]+)\/rating$/.exec(path);
+  if (rateMatch && req.method === "POST") {
+    const m = mods.find((x) => x.slug === rateMatch[1] && x.status === "published");
+    if (!m) return fail(res, 404, "that mod isn't listed");
+    const { stars } = await json(req);
+    if (!(stars >= 1 && stars <= 5)) return fail(res, 400, "pick between 1 and 5 stars");
+    if (m.my_rating) { m.rating_sum -= m.my_rating; m.rating_count -= 1; }
+    m.my_rating = stars;
+    m.rating_sum = (m.rating_sum || 0) + stars;
+    m.rating_count = (m.rating_count || 0) + 1;
+    return send(res, 200, { rating: ratingOf(m), my_rating: stars });
+  }
   const modMatch = /^\/api\/mods\/([a-z0-9-]+)$/.exec(path);
   if (modMatch) {
     const m = mods.find((x) => x.slug === modMatch[1] && x.status === "published");
     await new Promise((r) => setTimeout(r, 200));
-    return m ? send(res, 200, m) : fail(res, 404, "that mod isn't listed");
+    return m ? send(res, 200, { ...m, featured: topRated().has(m.id), rating: ratingOf(m), my_rating: m.my_rating || null }) : fail(res, 404, "that mod isn't listed");
   }
   const dl = /^\/api\/releases\/([0-9a-f-]+)\/(download|out)$/.exec(path);
   if (dl) {
@@ -644,8 +665,20 @@ async function publicApi(req, res, path, url) {
     if (fields.website) return send(res, 201, { ok: true });
     const thumb = parts.thumbnail;
     const errors = {};
-    const name = (fields.name || "").trim();
-    const description = (fields.description || "").trim();
+    const easy = fields.mode === "easy";
+    let name = (fields.name || "").trim();
+    let description = (fields.description || "").trim();
+    let wroteListing = false;
+    if (easy && file) {
+      if (name.length < 2) {
+        name = file.name.replace(/\.(dll|zip)$/i, "").split(/[_\- ]/).filter((p) => p && !/^v?\d/.test(p)).join(" ").replace(/([a-z])([A-Z])/g, "$1 $2");
+        wroteListing = true;
+      }
+      if (description.length < 30) {
+        description = `adds ${name.toLowerCase()} to Gorilla Tag. this demo text stands in for what Branch's AI writes.\n\n**Features**\n- works in modded lobbies\n- has an in-game toggle\n\n**How to use**\n1. install BepInEx\n2. put the file in BepInEx/plugins`;
+        wroteListing = true;
+      }
+    }
     if (name.length < 2) errors.name = "give your mod a name";
     if (description.length < 30) errors.description = "describe what your mod does (at least 30 characters)";
     if (fields.confirm !== "true") errors.confirm = "you have to confirm that you have the right to share this mod";
@@ -703,7 +736,8 @@ async function publicApi(req, res, path, url) {
       }
     }
     const uploads = mods.filter((x) => x.community && x.uploader_key && x.uploader_key === m.uploader_key).length;
-    return send(res, 201, { ok: true, slug: m.slug, reward: { earned, reason: earned ? "earned" : "not in the rewards program", uploads, threshold: 10 }, ai: { overview: m.ai.overview, tags: m.ai.tags_by_ai ? m.tags : [], category: guessedCategory?.name || null, risk_score: 8 } });
+    m.ai.listing_by_ai = wroteListing;
+    return send(res, 201, { ok: true, slug: m.slug, name: m.name, reward: { earned, reason: earned ? "earned" : "not in the rewards program", uploads, threshold: 10 }, ai: { overview: m.ai.overview, tags: m.ai.tags_by_ai ? m.tags : [], category: guessedCategory?.name || null, risk_score: 8, wrote_listing: wroteListing, description: wroteListing ? description : null } });
   }
   if (path === "/api/requests" && req.method === "POST") {
     const body = await json(req);
