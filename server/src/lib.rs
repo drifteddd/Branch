@@ -65,6 +65,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
     tracker::spawn(state.clone());
     discord_uploads::spawn(state.clone());
     github::spawn(state.clone());
+    routes::github_import::spawn_seed(state.clone());
 
     let app = routes::router(state);
     let addr = SocketAddr::from((Ipv6Addr::UNSPECIFIED, port));

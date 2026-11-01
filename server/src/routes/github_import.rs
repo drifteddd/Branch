@@ -84,7 +84,7 @@ async fn start(State(state): State<AppState>, Admin(admin): Admin, Json(input): 
     tokio::spawn(async move {
         for (i, (owner, repo)) in repos.iter().enumerate() {
             update(i, "working", "checking github", None);
-            match import_one(&state, owner, repo, publish).await {
+            match import_one(&state, owner, repo, publish, None).await {
                 Ok((slug, message)) => update(i, "done", message, Some(slug)),
                 Err(Skip(message)) => update(i, "skipped", message, None),
             }
@@ -126,7 +126,7 @@ async fn already_listed(state: &AppState, owner: &str, repo: &str) -> Result<Opt
     Ok(rows.into_iter().find(|(_, s, p)| repo_of(s.as_deref(), p.as_deref()).is_some_and(|(o, r)| repo_key(&o, &r) == key)).map(|(slug, _, _)| slug))
 }
 
-async fn import_one(state: &AppState, owner: &str, repo: &str, publish: bool) -> Result<(String, String), Skip> {
+async fn import_one(state: &AppState, owner: &str, repo: &str, publish: bool, listing: Option<&SeedMod>) -> Result<(String, String), Skip> {
     if let Some(slug) = already_listed(state, owner, repo).await? {
         return Err(Skip(format!("already on Branch as {slug}")));
     }
@@ -153,7 +153,7 @@ async fn import_one(state: &AppState, owner: &str, repo: &str, publish: bool) ->
 
     let mut score = report.basic_score();
     let mut verdict: Option<crate::ai::AiVerdict> = None;
-    if state.config.ai_api_key.is_some() && usage_today(state, AI_CALLS_KEY).await? < state.config.ai_daily_global {
+    if listing.is_none() && state.config.ai_api_key.is_some() && usage_today(state, AI_CALLS_KEY).await? < state.config.ai_daily_global {
         bump_usage(state, AI_CALLS_KEY).await?;
         let existing_tags: Vec<String> = sqlx::query_scalar("select name from tags order by name limit 200").fetch_all(&state.db).await?;
         let categories: Vec<String> = sqlx::query_scalar("select slug from categories order by sort_order, name").fetch_all(&state.db).await?;
@@ -171,25 +171,25 @@ async fn import_one(state: &AppState, owner: &str, repo: &str, publish: bool) ->
     }
 
     let insights = verdict.as_ref().and_then(|v| v.insights.clone());
-    let name: String = insights
-        .as_ref()
-        .map(|i| i.suggested_name.trim().to_string())
+    let name: String = listing
+        .map(|l| l.name.clone())
+        .or_else(|| insights.as_ref().map(|i| i.suggested_name.trim().to_string()))
         .filter(|n| n.chars().count() >= 2)
         .unwrap_or_else(|| name_from_file(&info.name))
         .chars()
         .take(80)
         .collect();
-    let mut description = insights.as_ref().map(|i| i.suggested_description.trim().to_string()).filter(|d| d.chars().count() >= 30).unwrap_or_default();
+    let mut description = listing.map(|l| l.description.clone()).filter(|d| d.chars().count() >= 30).or_else(|| insights.as_ref().map(|i| i.suggested_description.trim().to_string()).filter(|d| d.chars().count() >= 30)).unwrap_or_default();
     if description.is_empty() {
         description = if info.description.trim().chars().count() >= 10 { info.description.trim().to_string() } else { format!("{name}, a Gorilla Tag mod by {}.", info.owner) };
     }
     description.push_str(&format!("\n\n*made by [{}](https://github.com/{}). the original is on [github]({}).*", info.owner, info.owner, info.url));
-    let tags = insights.as_ref().map(|i| i.tags.clone()).unwrap_or_default();
-    let category_id: Option<Uuid> = match insights.as_ref().and_then(|i| i.category.as_deref()) {
+    let tags = listing.map(|l| l.tags.clone()).or_else(|| insights.as_ref().map(|i| i.tags.clone())).unwrap_or_default();
+    let category_id: Option<Uuid> = match listing.map(|l| l.category.as_str()).or_else(|| insights.as_ref().and_then(|i| i.category.as_deref())) {
         Some(slug) => sqlx::query_scalar("select id from categories where slug = $1").bind(slug).fetch_optional(&state.db).await?,
         None => None,
     };
-    let mut ai_insights = upload_insights(&report, score, verdict.as_ref(), !tags.is_empty(), category_id.is_some());
+    let mut ai_insights = upload_insights(&report, score, verdict.as_ref(), listing.is_none() && !tags.is_empty(), listing.is_none() && category_id.is_some());
     ai_insights["listing_by_ai"] = json!(verdict.is_some());
     ai_insights["uploaded_via"] = json!("github-import");
 
@@ -287,6 +287,92 @@ async fn import_one(state: &AppState, owner: &str, repo: &str, publish: bool) ->
             }
             let _ = sqlx::query("delete from mods where id = $1").bind(mod_id).execute(&state.db).await;
             Err(err.into())
+        }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct SeedMod {
+    repo: String,
+    name: String,
+    category: String,
+    tags: Vec<String>,
+    description: String,
+}
+
+const SEED: &str = include_str!("../seed_mods.json");
+const SEED_KEY: &str = "github_seed_done";
+
+pub fn spawn_seed(state: AppState) {
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(90)).await;
+        if let Err(err) = run_seed(&state).await {
+            tracing::warn!(error = %err.0, "the github seed import failed");
+        }
+    });
+}
+
+async fn run_seed(state: &AppState) -> Result<(), Skip> {
+    let mods: Vec<SeedMod> = serde_json::from_str(SEED).map_err(|e| Skip(e.to_string()))?;
+    let done_value: Option<Value> = sqlx::query_scalar("select value from app_settings where key = $1").bind(SEED_KEY).fetch_optional(&state.db).await?;
+    let mut done: Vec<String> = done_value.and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default();
+    let todo: Vec<&SeedMod> = mods.iter().filter(|m| !done.contains(&m.repo.to_ascii_lowercase())).collect();
+    if todo.is_empty() {
+        return Ok(());
+    }
+    {
+        let mut guard = JOB.lock().map_err(|e| Skip(e.to_string()))?;
+        if guard.as_ref().is_some_and(|j| j.running) {
+            return Ok(());
+        }
+        *guard = Some(Job { running: true, publish: true, items: todo.iter().map(|m| Item { repo: m.repo.clone(), status: "waiting", message: String::new(), slug: None }).collect() });
+    }
+    tracing::info!(count = todo.len(), "importing the built-in list of github mods");
+    for (i, m) in todo.iter().enumerate() {
+        let Some((owner, repo)) = parse_repo(&m.repo) else { continue };
+        update(i, "working", "checking github", None);
+        let finished = match import_one(state, &owner, &repo, true, Some(m)).await {
+            Ok((id, message)) => {
+                update(i, "done", message, Some(id));
+                true
+            }
+            Err(Skip(message)) => {
+                let retry = ["couldn't reach", "busy", "answered with an error", "couldn't download", "stopped", "database error", "couldn't store"].iter().any(|t| message.contains(t));
+                update(i, "skipped", if retry { format!("{message} (will try again after the next restart)") } else { message }, None);
+                !retry
+            }
+        };
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        if !finished {
+            continue;
+        }
+        done.push(m.repo.to_ascii_lowercase());
+        sqlx::query("insert into app_settings (key, value) values ($1, $2) on conflict (key) do update set value = excluded.value")
+            .bind(SEED_KEY)
+            .bind(json!(done))
+            .execute(&state.db)
+            .await?;
+    }
+    if let Ok(mut guard) = JOB.lock() {
+        if let Some(job) = guard.as_mut() {
+            job.running = false;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn built_in_list_is_valid() {
+        let mods: Vec<SeedMod> = serde_json::from_str(SEED).unwrap();
+        assert!(mods.len() >= 50);
+        for m in &mods {
+            assert!(parse_repo(&m.repo).is_some(), "{}", m.repo);
+            assert!(matches!(m.category.as_str(), "cosmetics" | "gameplay" | "utilities" | "maps" | "libraries"), "{}", m.repo);
+            assert!(m.description.chars().count() >= 30 && m.name.chars().count() >= 2, "{}", m.repo);
         }
     }
 }
