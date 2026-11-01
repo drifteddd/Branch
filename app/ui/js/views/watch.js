@@ -171,7 +171,7 @@ export function createWatchView(ctx) {
       ? h(
           "a",
           { class: "wt-branch", href: `#/mod/${encodeURIComponent(branch.slug)}` },
-          thumbnail(branch.thumbnail_url, "wt-branch-thumb"),
+          thumbnail(branch.thumbnail_url, "wt-branch-thumb", branch),
           h(
             "div",
             null,

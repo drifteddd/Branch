@@ -459,7 +459,7 @@ export function createRewardsView(ctx) {
     return h(
       "article",
       { class: "ch-mod" },
-      h("a", { class: "ch-mod-thumb", href: `#/mod/${encodeURIComponent(mod.slug)}`, tabindex: "-1", "aria-hidden": "true" }, thumbnail(mod.thumbnail_url, "ch-thumb")),
+      h("a", { class: "ch-mod-thumb", href: `#/mod/${encodeURIComponent(mod.slug)}`, tabindex: "-1", "aria-hidden": "true" }, thumbnail(mod.thumbnail_url, "ch-thumb", mod)),
       h(
         "div",
         { class: "ch-mod-main" },

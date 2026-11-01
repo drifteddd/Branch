@@ -94,7 +94,7 @@ export function createDetailView(ctx) {
     const head = h(
       "header",
       { class: "detail-head" },
-      h("div", { class: "hero-media" }, thumbnail(mod.thumbnail_url, "hero-img")),
+      h("div", { class: "hero-media" }, thumbnail(mod.thumbnail_url, "hero-img", mod)),
       h(
         "div",
         { class: "hero-info" },

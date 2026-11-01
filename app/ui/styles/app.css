@@ -1235,3 +1235,6 @@ dialog.up-sheet { width: min(460px, calc(100vw - 32px)); }
   .wt-card-actions { justify-content: flex-start; }
 }
 .segmented span.inbox-tab-count.ch-tab-count { background: var(--surface-2); color: var(--text-2); }
+
+.thumb-gen { display: block; overflow: hidden; object-fit: unset; }
+svg.thumb, svg.hero-img, svg.ch-thumb, svg.wt-branch-thumb, svg.ob-pick-thumb { height: auto; aspect-ratio: 16 / 9; }

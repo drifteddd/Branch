@@ -1,3 +1,4 @@
+import { modCover } from "./ui.js";
 import { h, clear } from "./dom.js";
 import { icon } from "./icons.js";
 import { api, assetUrl, aiOff } from "./platform.js";
@@ -288,7 +289,7 @@ export function runOnboarding(ctx) {
                     fav.classList.toggle("on", on);
                     fav.replaceChildren(icon(on ? "starFill" : "star"));
                   });
-                  const thumb = p.thumbnail_url ? h("img", { class: "ob-pick-thumb", src: assetUrl(p.thumbnail_url), alt: "" }) : h("span", { class: "ob-pick-thumb empty" }, h("img", { src: "shared/branch-mark.svg", alt: "", width: "28", height: "28" }));
+                  const thumb = p.thumbnail_url ? h("img", { class: "ob-pick-thumb", src: assetUrl(p.thumbnail_url), alt: "" }) : modCover(p, "ob-pick-thumb");
                   return h(
                     "div",
                     { class: "ob-pick" },

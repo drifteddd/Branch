@@ -316,7 +316,7 @@ export function createBrowseView(ctx) {
     const row = h(
       "li",
       { class: "mod-row", dataset: { slug: mod.slug } },
-      thumbnail(mod.thumbnail_url),
+      thumbnail(mod.thumbnail_url, "thumb", mod),
       h(
         "div",
         { class: "row-main" },
