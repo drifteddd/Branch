@@ -1,10 +1,12 @@
 pub mod admin;
 pub mod assistant;
+pub mod creator;
 pub mod forum;
 pub mod inbox;
 pub mod onboarding;
 pub mod public;
 pub mod rewards;
+pub mod watch;
 
 use std::time::Duration;
 
@@ -49,6 +51,8 @@ pub fn router(state: AppState) -> Router {
         .merge(assistant::router())
         .merge(inbox::router())
         .merge(onboarding::router())
+        .merge(creator::router())
+        .merge(watch::router())
         .merge(admin_ui::router())
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit))
         .layer(DefaultBodyLimit::max(256 * 1024))

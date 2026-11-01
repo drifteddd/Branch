@@ -4,9 +4,10 @@ import { api } from "../platform.js";
 import { forumKey } from "../forum-identity.js";
 import { errorBlock, stateBlock } from "../ui.js";
 import { renderMarkdown } from "../../shared/markdown.js";
+import { watchInboxItems } from "./watch.js";
 
 const SEEN_KEY = "branch.inboxSeen";
-const FILTERS = [["all", "All"], ["announcement", "Announcements"], ["update", "Updates"], ["report", "My reports"]];
+const FILTERS = [["all", "All"], ["announcement", "Announcements"], ["update", "Updates"], ["mods", "Mod updates"], ["report", "My reports"]];
 const STATUS = {
   open: ["We're looking at it", "open"],
   resolved: ["Resolved", "resolved"],
@@ -39,6 +40,10 @@ function toItems(data) {
   for (const r of data.reports || []) {
     items.push({ type: "report", id: `p-${r.id}`, report: r, date: new Date(r.resolved_at || r.created_at) });
   }
+  for (const n of data.notices || []) {
+    items.push({ type: "mods", kind: "notice-mod", id: `n-${n.id}`, title: n.title, body: n.body, link: n.mod_slug ? `#/mod/${encodeURIComponent(n.mod_slug)}` : null, date: new Date(n.created_at) });
+  }
+  items.push(...watchInboxItems());
   return items.sort((a, b) => b.date - a.date);
 }
 
@@ -84,17 +89,18 @@ export function createInboxView(ctx) {
         ),
       );
     }
-    const kindLabel = item.kind === "release" ? "Update" : item.kind === "update" ? "Update log" : item.kind === "notice" ? "Notice" : "Announcement";
+    const kindLabel = item.kind === "watch" ? "Watchlist" : item.kind === "notice-mod" ? "Your mod" : item.kind === "release" ? "Update" : item.kind === "update" ? "Update log" : item.kind === "notice" ? "Notice" : "Announcement";
     return h(
       "article",
       { class: `inbox-card ${item.type}${isNew ? " is-new" : ""}` },
-      h("span", { class: `inbox-icon ${item.type}`, "aria-hidden": "true" }, icon(item.type === "update" ? "download" : item.kind === "notice" ? "alert" : "megaphone")),
+      h("span", { class: `inbox-icon ${item.type}`, "aria-hidden": "true" }, icon(item.type === "mods" ? (item.kind === "watch" ? "bell" : "repo") : item.type === "update" ? "download" : item.kind === "notice" ? "alert" : "megaphone")),
       h(
         "div",
         { class: "inbox-main" },
         h("div", { class: "inbox-top" }, h("strong", null, item.title), h("span", { class: "inbox-pill" }, kindLabel), isNew ? h("span", { class: "inbox-new" }, "New") : null),
         h("p", { class: "muted small" }, formatDate(item.date.toISOString())),
         item.body ? h("div", { class: "prose inbox-body", html: renderMarkdown(item.body) }) : null,
+        item.link ? h("a", { class: "btn btn-small inbox-link", href: item.link }, item.kind === "watch" ? "Open Watchlist" : "Open mod") : null,
       ),
     );
   }
@@ -106,6 +112,7 @@ export function createInboxView(ctx) {
         all: ["Nothing here yet", "announcements, update logs and replies to your reports show up here."],
         announcement: ["No announcements yet", "news from the Branch team shows up here."],
         update: ["No updates yet", "what's new in each version of Branch shows up here."],
+        mods: ["No mod updates yet", "new versions of mods on your Watchlist, and news about mods you uploaded, show up here."],
         report: ["No reports yet", "when you report a mod, you can follow it here and see the reply."],
       }[filter];
       clear(list).append(stateBlock({ iconName: "inbox", title: empty[0], message: empty[1] }));
@@ -141,7 +148,7 @@ export function createInboxView(ctx) {
     );
     clear(el).append(
       h("header", { class: "view-head" }, h("h1", { class: "view-title", id: "inbox-title" }, "Inbox")),
-      h("p", { class: "muted inbox-intro" }, "news from the Branch team, what's new in each update, and replies to the reports you've sent."),
+      h("p", { class: "muted inbox-intro" }, "news from the Branch team, what's new in each update, new versions of mods you watch, and replies to the reports you've sent."),
       tabs,
       list,
     );

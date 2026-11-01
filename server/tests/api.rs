@@ -136,6 +136,7 @@ async fn setup() -> Option<Client> {
         ai_base_url: "http://127.0.0.1:9".into(),
         ai_daily_per_visitor: 3,
         ai_daily_global: 10,
+        github_token: None,
     };
     let state = branch_server::build_state(config).await.unwrap();
     let db = state.db.clone();

@@ -32,6 +32,7 @@ pub struct Config {
     pub ai_base_url: String,
     pub ai_daily_per_visitor: i32,
     pub ai_daily_global: i32,
+    pub github_token: Option<String>,
 }
 
 fn optional(key: &str) -> Option<String> {
@@ -115,6 +116,7 @@ impl Config {
             ai_base_url: optional("SILICONFLOW_BASE_URL").unwrap_or_else(|| "https://api.siliconflow.com/v1".into()).trim_end_matches('/').to_string(),
             ai_daily_per_visitor: number("AI_CHECKS_PER_DAY", 20)?,
             ai_daily_global: number("AI_GLOBAL_CALLS_PER_DAY", 500)?,
+            github_token: optional("GITHUB_TOKEN"),
         })
     }
 }

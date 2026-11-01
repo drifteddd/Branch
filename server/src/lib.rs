@@ -4,6 +4,7 @@ pub mod auth;
 pub mod config;
 pub mod discord_uploads;
 pub mod error;
+pub mod github;
 pub mod models;
 pub mod pe;
 pub mod ratelimit;
@@ -63,6 +64,7 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
     spawn_cleanup(state.clone());
     tracker::spawn(state.clone());
     discord_uploads::spawn(state.clone());
+    github::spawn(state.clone());
 
     let app = routes::router(state);
     let addr = SocketAddr::from((Ipv6Addr::UNSPECIFIED, port));
@@ -90,6 +92,7 @@ fn spawn_cleanup(state: AppState) {
                 "delete from forum_reports where status = 'closed' and closed_at < now() - interval '180 days'",
                 "delete from chat_messages where created_at < now() - interval '30 days'",
                 "delete from assistant_usage where created_at < now() - interval '1 day'",
+                "delete from creator_notices where created_at < now() - interval '90 days'",
             ];
             for sql in jobs {
                 if let Err(err) = sqlx::query(sql).execute(&state.db).await {

@@ -837,9 +837,9 @@ await test("admin bulk-imports mods into a private drafts list", async () => {
 });
 
 await test("rewards: reach 10 unique uploads, apply, get accepted, earn and get paid", async () => {
-  await go(`${BASE}/#/rewards`);
-  await waitFor(`document.querySelector(".rw-hero h1")?.textContent.includes("Earn Robux")`, "rewards page");
-  assert(await evaluate(`document.querySelector(".rw-pill").textContent.includes("Limited-time offer")`), "limited-time label missing");
+  await go(`${BASE}/#/rewards?tab=rewards`);
+  await waitFor(`document.querySelector(".rw-hero-title")?.textContent.includes("Earn Robux")`, "rewards page");
+  assert(await evaluate(`document.querySelector(".rw-hero .rw-pill").textContent.includes("Limited-time offer")`), "limited-time label missing");
   await waitFor(`document.querySelector(".rw-big")`, "progress");
   await sleep(1200);
   await screenshot("rewards-progress");
@@ -858,7 +858,7 @@ await test("rewards: reach 10 unique uploads, apply, get accepted, earn and get 
     }
   })()`);
   await go(`${BASE}/#/browse`);
-  await go(`${BASE}/#/rewards`);
+  await go(`${BASE}/#/rewards?tab=rewards`);
   await waitFor(`document.querySelector(".rw-big span")?.textContent === "10" && document.querySelector("#rw-username")`, "apply form after 10 uploads");
   await evaluate(type("#rw-username", "x"));
   await evaluate(type("#rw-item", "https://evil.example/item"));
@@ -890,7 +890,7 @@ await test("rewards: reach 10 unique uploads, apply, get accepted, earn and get 
   await evaluate(click(".form-card button[type=submit]"));
   await waitFor(`document.querySelector(".reward-note.earned")?.textContent.includes("+10 R$")`, "+10 R$ after upload", 8000);
 
-  await go(`${BASE}/#/rewards`);
+  await go(`${BASE}/#/rewards?tab=rewards`);
   await waitFor(`document.querySelector(".rw-member h2")?.textContent.includes("Cool_Climber")`, "member dashboard");
   assert(await evaluate(`document.querySelector(".rw-events").textContent.includes("Brand New Hat")`), "reward not listed");
   await sleep(1300);
@@ -1020,6 +1020,59 @@ await test("turning off Branch AI turns off every AI feature", async () => {
   await evaluate(click("#use-ai"));
   await evaluate(`location.hash = "#/ask"`);
   await waitFor(`document.querySelector(".as-input")`, "ask branch back on");
+});
+
+await test("creator hub: level, stats, badges, and linking a mod to github", async () => {
+  await go(`${BASE}/#/rewards?tab=overview`);
+  await waitFor(`document.querySelector(".ch-hero h1") && document.querySelector(".ch-tiles")`, "creator hub");
+  assert(await evaluate(`document.querySelector(".ch-level-inner strong").textContent.startsWith("Lv ")`), "level missing");
+  assert(await evaluate(`document.querySelectorAll(".ch-tile").length === 4`), "should show 4 stat tiles");
+  assert(await evaluate(`document.querySelector(".ch-spark polyline")`), "sparkline missing");
+  assert(await evaluate(`document.querySelectorAll(".ch-badge").length === 10 && document.querySelectorAll(".ch-badge.earned").length >= 2`), "badges missing or none earned");
+  assert(await evaluate(`[...document.querySelectorAll("[data-nav=rewards]")].some((a) => a.textContent.includes("Creator hub"))`), "nav label");
+  await sleep(1300);
+  await screenshot("creator-hub");
+  await evaluate(clickText(".ch-tabs label", "My mods"));
+  await waitFor(`document.querySelectorAll(".ch-mod").length > 0`, "my mods list");
+  await evaluate(`document.querySelector(".ch-gh .btn").click()`);
+  await evaluate(type(".ch-gh-form input", "https://gitlab.com/nope/nope"));
+  await evaluate(click(".ch-gh-form button[type=submit]"));
+  await waitFor(`!document.querySelector(".ch-gh-form .error").hidden`, "bad link error");
+  await evaluate(type(".ch-gh-form input", "https://github.com/demo-creator/hat-pack"));
+  await evaluate(click(".ch-gh-form button[type=submit]"));
+  await waitFor(`document.querySelector(".ch-gh.linked")?.textContent.includes("demo-creator/hat-pack")`, "linked github row");
+  await screenshot("creator-hub-mods");
+  await evaluate(click(".ch-gh.linked .switch input"));
+  await waitFor(`document.querySelector(".toast")?.textContent.includes("off")`, "sync off toast");
+});
+
+await test("watchlist: find a mod from a github link, watch it, and get told about a new version", async () => {
+  await go(`${BASE}/#/watch`);
+  await waitFor(`document.querySelector("#wt-url")`, "watchlist page");
+  await evaluate(type("#wt-url", "not a link at all"));
+  await evaluate(click(".wt-search button[type=submit]"));
+  await waitFor(`!document.querySelector(".wt-search .error").hidden`, "bad link error");
+  await evaluate(type("#wt-url", "https://github.com/drifteddd/Branch/releases"));
+  await evaluate(click(".wt-search button[type=submit]"));
+  await waitFor(`document.querySelector(".wt-branch:not(.none)")?.textContent.includes("Found on Branch")`, "branch match");
+  await evaluate(type("#wt-url", "https://github.com/demo/FlyMod"));
+  await evaluate(click(".wt-search button[type=submit]"));
+  await waitFor(`document.querySelector(".wt-version")?.textContent === "1.0.0" && document.querySelector(".wt-branch.none")`, "latest version, not on Branch");
+  assert(await evaluate(`document.querySelector(".wt-assets .recommended")?.textContent.includes("FlyMod.dll")`), "best file not picked");
+  await evaluate(click("#wt-watch"));
+  await waitFor(`document.querySelector(".wt-card[data-repo='demo/flymod']")`, "watched card");
+  await screenshot("watchlist");
+  await evaluate(`fetch("/api/dev/github-release", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ repo: "demo/FlyMod", version: "1.1.0" }) })`);
+  await evaluate(clickText(".wt-list-head button", "Check now"));
+  await waitFor(`document.querySelector(".wt-card.is-new .wt-card-version")?.textContent === "1.1.0"`, "new version shown");
+  await waitFor(`document.querySelector("#watch-count") && !document.querySelector("#watch-count").hidden`, "watch badge");
+  await screenshot("watchlist-update");
+  await evaluate(`location.hash = "#/inbox"`);
+  await waitFor(`[...document.querySelectorAll(".inbox-card")].some((c) => c.textContent.includes("FlyMod 1.1.0 is out"))`, "inbox notification");
+  await evaluate(`location.hash = "#/watch"`);
+  await waitFor(`document.querySelector(".wt-card.is-new")`, "watch page again");
+  await evaluate(clickText(".wt-card button", "Mark as seen"));
+  await waitFor(`!document.querySelector(".wt-card.is-new") && document.querySelector("#watch-count").hidden`, "marked seen");
 });
 
 ws.close();

@@ -80,6 +80,15 @@ struct Announcement {
 }
 
 #[derive(FromRow, Serialize)]
+struct Notice {
+    id: Uuid,
+    title: String,
+    body: String,
+    mod_slug: Option<String>,
+    created_at: DateTime<Utc>,
+}
+
+#[derive(FromRow, Serialize)]
 struct MyReport {
     id: Uuid,
     mod_name: String,
@@ -172,11 +181,23 @@ struct InboxInput {
 async fn inbox(State(state): State<AppState>, visitor: Visitor, Json(input): Json<InboxInput>) -> ApiResult<Json<Value>> {
     let announcements: Vec<Announcement> =
         sqlx::query_as("select id, title, body, kind, created_at from announcements order by created_at desc limit 50").fetch_all(&state.db).await?;
-    let reports: Vec<MyReport> = if input.key.trim().is_empty() {
-        Vec::new()
-    } else {
-        match crate::routes::forum::poster_for(&state, input.key.trim(), &visitor, false).await {
-            Ok(poster) => {
+    let poster = if input.key.trim().is_empty() { None } else { crate::routes::forum::poster_for(&state, input.key.trim(), &visitor, false).await.ok() };
+    let notices: Vec<Notice> = match &poster {
+        Some(poster) => {
+            sqlx::query_as(
+                "select n.id, n.title, n.body, m.slug as mod_slug, n.created_at
+                 from creator_notices n left join mods m on m.id = n.mod_id
+                 where n.poster_id = $1 order by n.created_at desc limit 30",
+            )
+            .bind(poster.id)
+            .fetch_all(&state.db)
+            .await?
+        }
+        None => Vec::new(),
+    };
+    let reports: Vec<MyReport> = {
+        match poster {
+            Some(poster) => {
                 sqlx::query_as(
                     "select r.id, r.mod_name, m.slug as mod_slug, r.reason, r.status, r.reply, r.created_at, r.resolved_at
                      from reports r left join mods m on m.id = r.mod_id
@@ -186,10 +207,10 @@ async fn inbox(State(state): State<AppState>, visitor: Visitor, Json(input): Jso
                 .fetch_all(&state.db)
                 .await?
             }
-            Err(_) => Vec::new(),
+            None => Vec::new(),
         }
     };
-    Ok(Json(json!({ "announcements": announcements, "reports": reports, "releases": releases(&state).await })))
+    Ok(Json(json!({ "announcements": announcements, "reports": reports, "notices": notices, "releases": releases(&state).await })))
 }
 
 async fn list_announcements(State(state): State<AppState>, Admin(_): Admin) -> ApiResult<Json<Value>> {

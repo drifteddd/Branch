@@ -218,7 +218,7 @@ export function createUploadView(ctx) {
         "details",
         { class: "more-details" },
         h("summary", null, "More details (optional)"),
-        h("div", { class: "more-grid" }, field("version", "Version", version, { optional: true }), field("category", "Category", category, { optional: true }), field("source_url", "Source code link", sourceUrl, { optional: true, hint: "if it's on github, people can read the code inside Branch." })),
+        h("div", { class: "more-grid" }, field("version", "Version", version, { optional: true }), field("category", "Category", category, { optional: true }), field("source_url", "Source code link", sourceUrl, { optional: true, hint: "if it's on github, people can read the code inside Branch, and new github releases are added to your mod automatically." })),
       ),
       h(
         "div",

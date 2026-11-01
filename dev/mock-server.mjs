@@ -51,6 +51,8 @@ const uploadedImages = new Map();
 const assistantCalls = [];
 const announcements = [];
 const onboardingStats = new Map();
+const githubRepos = new Map();
+const creatorNotices = [];
 const assistantUsage = () => ({ limit: 25, used: assistantCalls.length, remaining: Math.max(0, 25 - assistantCalls.length), window_hours: 5, resets_at: assistantCalls.length ? new Date(assistantCalls[0] + 5 * 3600_000).toISOString() : null });
 
 const trackerCards = (() => {
@@ -587,10 +589,84 @@ async function publicApi(req, res, path, url) {
     }).sort((a, b) => b.score - a.score).slice(0, 4);
     return send(res, 200, { source: "ai", picks: list.map(({ m, hits }) => ({ slug: m.slug, name: m.name, summary: m.summary, category: m.category?.name || null, thumbnail_url: m.thumbnail_url, rating: ratingOf(m), reason: hits.length ? `you said you like ${hits.join(" and ")}, and people love this one.` : "one of the most popular mods on Branch." })) });
   }
+  if (path === "/api/creator/me" && req.method === "POST") {
+    const { key } = await json(req);
+    const top = topRated();
+    const mine = mods.filter((x) => x.community && x.uploader_key && x.uploader_key === key && x.status !== "archived");
+    const ghOf = (m) => {
+      const match = /github\.com\/([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+)/.exec(m.source_url || "");
+      return match ? { repo: `${match[1]}/${match[2]}`, url: `https://github.com/${match[1]}/${match[2]}`, sync: m.github_sync !== false, tag: m.github_tag || null, checked_at: m.github_tag ? new Date().toISOString() : null, updates: 0 } : null;
+    };
+    const list = mine.map((m) => ({ slug: m.slug, name: m.name, status: m.status, thumbnail_url: m.thumbnail_url, downloads: m.downloads || 0, week_downloads: Math.min(m.downloads || 0, 3), rating: ratingOf(m), featured: top.has(m.id), latest_version: m.releases[0]?.version || null, created_at: m.created_at, scan_score: 8, github: ghOf(m) }));
+    const published = list.filter((m) => m.status === "published");
+    const downloads = published.reduce((s, m) => s + m.downloads, 0);
+    const ratings = published.reduce((s, m) => s + m.rating.count, 0);
+    return send(res, 200, {
+      name: forum.posters.get(key)?.name || "Demo Creator",
+      mods: list,
+      totals: { uploads: published.length, downloads, week_downloads: published.reduce((s, m) => s + m.week_downloads, 0), ratings, average: ratings ? 4.5 : null, featured: published.filter((m) => m.featured).length, five_star: 0, github_linked: published.filter((m) => m.github?.sync).length, clean: published.length > 0 },
+      daily: [0, 1, 0, 2, 1, 3, 2, 1, 4, 2, 3, 5, 2, 4],
+      rank: published.length ? 3 : null,
+      creators: 12,
+    });
+  }
+  if (path.startsWith("/api/creator/mods/") && req.method === "POST") {
+    const body = await json(req);
+    const slug = decodeURIComponent(path.split("/")[4]);
+    const m = mods.find((x) => x.slug === slug && x.uploader_key === body.key);
+    if (!m) return fail(res, 404, "you can only change mods you uploaded");
+    if (typeof body.url === "string") {
+      if (body.url && !/github\.com\/[A-Za-z0-9-]+\/[A-Za-z0-9._-]+/.test(body.url)) return fail(res, 422, "paste a github link", { url: "paste a github link, like https://github.com/you/your-mod" });
+      m.source_url = body.url || null;
+      m.github_tag = null;
+      m.github_sync = true;
+    }
+    if (typeof body.sync === "boolean") m.github_sync = body.sync;
+    return send(res, 200, { ok: true });
+  }
+  if (path === "/api/dev/github-release" && req.method === "POST") {
+    const body = await json(req);
+    githubRepos.set(body.repo.toLowerCase(), { ...(githubRepos.get(body.repo.toLowerCase()) || {}), version: body.version });
+    return send(res, 200, { ok: true });
+  }
+  if ((path === "/api/github/lookup" || path === "/api/github/latest") && req.method === "POST") {
+    const body = await json(req);
+    const parse = (u) => {
+      const match = /^(?:https?:\/\/)?(?:www\.)?(?:github\.com\/)?([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+)/.exec((u || "").trim());
+      return match ? [match[1], match[2].replace(/\.git$/, "")] : null;
+    };
+    const releaseOf = (owner, repo) => {
+      const info = githubRepos.get(`${owner}/${repo}`.toLowerCase()) || { version: "1.0.0" };
+      if (!info.version) return null;
+      const tag = `v${info.version}`;
+      const base = `https://github.com/${owner}/${repo}/releases/download/${tag}`;
+      return { tag, version: info.version, title: `${repo} ${info.version}`, notes: `- demo release notes for ${info.version}\n- **faster** and fixed bugs`, published_at: "2026-10-30T12:00:00Z", url: `https://github.com/${owner}/${repo}/releases/tag/${tag}`, prerelease: false, assets: [{ name: `${repo}.dll`, size: 48_000, url: `${base}/${repo}.dll` }, { name: `${repo}-source.zip`, size: 90_000, url: `${base}/${repo}-source.zip` }] };
+    };
+    const branchOf = (owner, repo, release) => {
+      const m = mods.find((x) => x.status === "published" && (x.source_url || "").toLowerCase().includes(`github.com/${owner}/${repo}`.toLowerCase()));
+      return m ? { slug: m.slug, name: m.name, summary: m.summary, thumbnail_url: m.thumbnail_url, latest_version: m.releases[0]?.version || null, hosted: m.releases[0]?.kind === "hosted", up_to_date: !release || (m.releases[0]?.version || "").replace(/^v/, "") === release.version } : null;
+    };
+    if (path === "/api/github/lookup") {
+      const parsed = parse(body.url);
+      if (!parsed) return fail(res, 422, "paste a github link", { url: "paste a github link, like https://github.com/someone/their-mod" });
+      const [owner, repo] = parsed;
+      if (owner.toLowerCase() === "nobody") return fail(res, 422, "github couldn't find that repo", { url: "github couldn't find that repo. it might be private, renamed or deleted." });
+      const release = releaseOf(owner, repo);
+      return send(res, 200, { repo: { owner, name: repo, full_name: `${owner}/${repo}`, description: `demo: a gorilla tag mod called ${repo}.`, stars: 42, url: `https://github.com/${owner}/${repo}` }, latest: release, recommended: release ? `${repo}.dll` : null, branch: branchOf(owner, repo, release) });
+    }
+    const results = {};
+    for (const r of body.repos || []) {
+      const parsed = parse(r);
+      if (!parsed) continue;
+      const release = releaseOf(...parsed);
+      results[`${parsed[0]}/${parsed[1]}`.toLowerCase()] = { latest: release, recommended: release ? `${parsed[1]}.dll` : null, branch: branchOf(...parsed, release) };
+    }
+    return send(res, 200, { results });
+  }
   if (path === "/api/inbox" && req.method === "POST") {
     const { key } = await json(req);
     const mine = key ? reports.filter((r) => r.reporter_key === key).map((r) => ({ id: r.id, mod_name: r.mod_name, mod_slug: r.mod_slug, reason: r.reason, status: r.status, reply: r.reply || "", created_at: r.created_at, resolved_at: r.resolved_at })) : [];
-    return send(res, 200, { announcements, reports: mine, releases: [{ id: 1, version: "1.0.20", title: "Branch 1.0.20", notes: ["- demo release notes", "- new backgrounds"].join("\n"), published_at: "2026-10-30T12:00:00Z", url: null }] });
+    return send(res, 200, { announcements, reports: mine, notices: creatorNotices.filter((n) => n.key && n.key === key), releases: [{ id: 1, version: "1.0.20", title: "Branch 1.0.20", notes: ["- demo release notes", "- new backgrounds"].join("\n"), published_at: "2026-10-30T12:00:00Z", url: null }] });
   }
   if (path === "/api/reports" && req.method === "POST") {
     const body = await json(req);

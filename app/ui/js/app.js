@@ -20,6 +20,7 @@ import { createTreeView } from "./views/tree.js";
 import { createTrackerView } from "./views/tracker.js";
 import { createAssistantView } from "./views/assistant.js";
 import { createInboxView, inboxUnread } from "./views/inbox.js";
+import { createWatchView, checkWatchlist, watchUnseen } from "./views/watch.js";
 
 const root = document.documentElement;
 const main = document.getElementById("main");
@@ -74,6 +75,12 @@ const ctx = {
     badge.textContent = count > 9 ? "9+" : String(count);
     badge.hidden = !count;
   },
+  setWatchCount(count) {
+    const badge = document.getElementById("watch-count");
+    if (!badge) return;
+    badge.textContent = count > 9 ? "9+" : String(count);
+    badge.hidden = !count;
+  },
   applyAmbient(style) {
     settings.set({ ambient: style });
     setAmbient(style);
@@ -94,6 +101,7 @@ const views = {
   tracker: createTrackerView(ctx),
   ask: createAssistantView(ctx),
   inbox: createInboxView(ctx),
+  watch: createWatchView(ctx),
 };
 
 let currentRoute = null;
@@ -111,7 +119,8 @@ function parseRoute() {
   if (first === "settings") return { name: "settings", path };
   if (first === "about") return { name: "about", path };
   if (first === "upload") return { name: "upload", path };
-  if (first === "rewards") return { name: "rewards", path };
+  if (first === "rewards" || first === "creator") return { name: "rewards", path };
+  if (first === "watch") return { name: "watch", path };
   if (first === "forum") return { name: "forum", path, thread: parts[1] ? decodeURIComponent(parts[1]) : null, board: params.get("board") || "" };
   if (first === "check") return { name: "check", path };
   if (first === "tree") return { name: "tree", path };
@@ -157,7 +166,7 @@ function markSidebar() {
   if (route.name === "browse") {
     if (route.mode === "all" && ctx.browse.category) active = categoryNav.querySelector(`[data-category="${CSS.escape(ctx.browse.category)}"]`);
     else active = sidebar.querySelector(`[data-nav="${route.mode}"]`);
-  } else if (["settings", "about", "upload", "check", "forum", "rewards", "tree", "tracker", "ask", "inbox"].includes(route.name)) {
+  } else if (["settings", "about", "upload", "check", "forum", "rewards", "tree", "tracker", "ask", "inbox", "watch"].includes(route.name)) {
     active = sidebar.querySelector(`[data-nav="${route.name}"]`);
   } else if (route.name === "legal") {
     active = sidebar.querySelector('[data-nav="about"]');
@@ -205,6 +214,13 @@ async function refreshEverything() {
   await views.browse.quietRefresh();
   if (currentView === views.tree) await views.tree.poll();
   await updateInboxBadge();
+  await updateWatch();
+}
+
+async function updateWatch() {
+  const fresh = await checkWatchlist({ onChange: () => { if (currentView === views.watch) views.watch.refreshList(); } });
+  ctx.setWatchCount(watchUnseen());
+  if (fresh) await updateInboxBadge();
 }
 
 async function updateInboxBadge() {
@@ -215,6 +231,8 @@ async function updateInboxBadge() {
 }
 
 function startAutoRefresh() {
+  ctx.setWatchCount(watchUnseen());
+  setTimeout(updateWatch, 8000);
   setInterval(refreshEverything, REFRESH_EVERY);
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && Date.now() - lastRefresh > REFRESH_EVERY) refreshEverything();
