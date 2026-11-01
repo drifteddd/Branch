@@ -186,7 +186,10 @@ async fn import_one(state: &AppState, owner: &str, repo: &str, publish: bool, li
     description.push_str(&format!("\n\n*made by [{}](https://github.com/{}). the original is on [github]({}).*", info.owner, info.owner, info.url));
     let tags = listing.map(|l| l.tags.clone()).or_else(|| insights.as_ref().map(|i| i.tags.clone())).unwrap_or_default();
     let category_id: Option<Uuid> = match listing.map(|l| l.category.as_str()).or_else(|| insights.as_ref().and_then(|i| i.category.as_deref())) {
-        Some(slug) => sqlx::query_scalar("select id from categories where slug = $1").bind(slug).fetch_optional(&state.db).await?,
+        Some(slug) => {
+            let fallback = match slug { "maps" => "gameplay", "libraries" => "utilities", other => other };
+            sqlx::query_scalar("select id from categories where slug = $1 or slug = $2 order by (slug = $1) desc limit 1").bind(slug).bind(fallback).fetch_optional(&state.db).await?
+        }
         None => None,
     };
     let mut ai_insights = upload_insights(&report, score, verdict.as_ref(), listing.is_none() && !tags.is_empty(), listing.is_none() && category_id.is_some());
@@ -387,7 +390,8 @@ async fn rewrite_imported(state: &AppState, owner: &str, repo: &str, m: &SeedMod
     let description = format!("{}
 
 *made by [{author}](https://github.com/{author}). the original is on [github]({url}).*", m.description);
-    let category_id: Option<Uuid> = sqlx::query_scalar("select id from categories where slug = $1").bind(&m.category).fetch_optional(&state.db).await?;
+    let fallback = match m.category.as_str() { "maps" => "gameplay", "libraries" => "utilities", other => other };
+    let category_id: Option<Uuid> = sqlx::query_scalar("select id from categories where slug = $1 or slug = $2 order by (slug = $1) desc limit 1").bind(&m.category).bind(fallback).fetch_optional(&state.db).await?;
     sqlx::query(
         "update mods set name = $1, summary = $2, description = $3, category_id = coalesce($4, category_id), updated_at = now(),
             ai_insights = case when ai_insights is null then null else jsonb_set(jsonb_set(ai_insights, '{listing_by_ai}', 'false'), '{tags_by_ai}', 'false') end
