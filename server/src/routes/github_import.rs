@@ -320,18 +320,26 @@ async fn run_seed(state: &AppState) -> Result<(), Skip> {
     if todo.is_empty() {
         return Ok(());
     }
+    loop {
+        let busy = JOB.lock().map(|g| g.as_ref().is_some_and(|j| j.running)).unwrap_or(false);
+        if !busy {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+    }
     {
         let mut guard = JOB.lock().map_err(|e| Skip(e.to_string()))?;
-        if guard.as_ref().is_some_and(|j| j.running) {
-            return Ok(());
-        }
         *guard = Some(Job { running: true, publish: true, items: todo.iter().map(|m| Item { repo: m.repo.clone(), status: "waiting", message: String::new(), slug: None }).collect() });
     }
     tracing::info!(count = todo.len(), "importing the built-in list of github mods");
     for (i, m) in todo.iter().enumerate() {
         let Some((owner, repo)) = parse_repo(&m.repo) else { continue };
         update(i, "working", "checking github", None);
-        let finished = match import_one(state, &owner, &repo, true, Some(m)).await {
+        let result = match rewrite_imported(state, &owner, &repo, m).await? {
+            Some(id) => Ok((id, format!("{} · listing rewritten", m.name))),
+            None => import_one(state, &owner, &repo, true, Some(m)).await,
+        };
+        let finished = match result {
             Ok((id, message)) => {
                 update(i, "done", message, Some(id));
                 true
@@ -359,6 +367,42 @@ async fn run_seed(state: &AppState) -> Result<(), Skip> {
         }
     }
     Ok(())
+}
+
+async fn rewrite_imported(state: &AppState, owner: &str, repo: &str, m: &SeedMod) -> Result<Option<String>, Skip> {
+    let rows: Vec<(Uuid, Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
+        "select id, source_url, project_url, import_info->>'via' from mods where status <> 'archived' and source_url ilike '%github.com/%'",
+    )
+    .fetch_all(&state.db)
+    .await?;
+    let key = repo_key(owner, repo);
+    let Some((id, source_url, _, _)) = rows
+        .into_iter()
+        .find(|(_, s, p, via)| via.as_deref() == Some("github-import") && repo_of(s.as_deref(), p.as_deref()).is_some_and(|(o, r)| repo_key(&o, &r) == key))
+    else {
+        return Ok(None);
+    };
+    let author = repo_of(source_url.as_deref(), None).map(|(o, _)| o).unwrap_or_else(|| owner.to_string());
+    let url = source_url.unwrap_or_else(|| format!("https://github.com/{owner}/{repo}"));
+    let description = format!("{}
+
+*made by [{author}](https://github.com/{author}). the original is on [github]({url}).*", m.description);
+    let category_id: Option<Uuid> = sqlx::query_scalar("select id from categories where slug = $1").bind(&m.category).fetch_optional(&state.db).await?;
+    sqlx::query(
+        "update mods set name = $1, summary = $2, description = $3, category_id = coalesce($4, category_id), updated_at = now(),
+            ai_insights = case when ai_insights is null then null else jsonb_set(jsonb_set(ai_insights, '{listing_by_ai}', 'false'), '{tags_by_ai}', 'false') end
+         where id = $5",
+    )
+    .bind(&m.name)
+    .bind(first_sentence(&m.description))
+    .bind(&description)
+    .bind(category_id)
+    .bind(id)
+    .execute(&state.db)
+    .await?;
+    let mut conn = state.db.acquire().await?;
+    crate::routes::admin::set_tags(&mut conn, id, &m.tags).await?;
+    Ok(Some(id.to_string()))
 }
 
 #[cfg(test)]
