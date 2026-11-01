@@ -5,6 +5,12 @@ import { settings } from "../store.js";
 
 const STEPS = ["Reading the file", "Looking inside", "Checking for warning signs", "Asking the AI"];
 
+let pendingFile = null;
+
+export function checkFileNext(file) {
+  pendingFile = file;
+}
+
 export function createCheckerView() {
   const el = h("section", { class: "view page checker", "aria-labelledby": "checker-title" });
   const usage = h("p", { class: "usage", "aria-live": "polite" });
@@ -169,7 +175,11 @@ export function createCheckerView() {
     title: () => "Mod checker",
     show() {
       aiNote.hidden = !aiOff();
-      if (!busy && !body.querySelector(".result-card")) renderPicker();
+      if (pendingFile && !busy) {
+        const file = pendingFile;
+        pendingFile = null;
+        run(file);
+      } else if (!busy && !body.querySelector(".result-card")) renderPicker();
       loadUsage();
       return 0;
     },

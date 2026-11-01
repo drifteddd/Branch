@@ -249,6 +249,7 @@ const NAV = [
   ["inbox", "Inbox"],
   ["requests", "Requests"],
   ["forum", "Forum"],
+  ["polls", "Polls"],
   ["rewards", "Rewards"],
   ["categories", "Categories & tags"],
   ["activity", "Activity"],
@@ -304,6 +305,7 @@ async function route() {
     else if (section === "requests") await renderRequests();
     else if (section === "import") await renderImport();
     else if (section === "forum") await renderForum();
+    else if (section === "polls") await renderPolls();
     else if (section === "rewards") await renderRewardsAdmin();
     else if (section === "categories") await renderCategories();
     else if (section === "activity") await renderActivity();
@@ -384,7 +386,7 @@ const EMPTY_MOD = {
   name: "", slug: "", summary: "", description: "", author: { name: "", url: "" }, category: null, tags: [],
   compatibility: { status: "unconfirmed", note: "", checked_on: null }, game_versions: "", platforms: [], mod_loader: "",
   dependencies: [], install_instructions: "", known_issues: "", source_url: "", project_url: "", license: { name: "", url: "" },
-  redistribution: "unknown", redistribution_note: "", status: "draft", featured: false, releases: [], screenshots: [], thumbnail_url: null,
+  redistribution: "unknown", redistribution_note: "", video_id: null, status: "draft", featured: false, releases: [], screenshots: [], thumbnail_url: null,
 };
 
 function toForm(mod) {
@@ -396,6 +398,7 @@ function toForm(mod) {
     mod_loader: mod.mod_loader, dependencies: (mod.dependencies || []).map((d) => ({ name: d.name, url: d.url || "", required: Boolean(d.required) })),
     install_instructions: mod.install_instructions, known_issues: mod.known_issues, source_url: mod.source_url || "", project_url: mod.project_url || "",
     license_name: mod.license.name, license_url: mod.license.url || "", redistribution: mod.redistribution, redistribution_note: mod.redistribution_note,
+    video_url: mod.video_id ? `https://youtu.be/${mod.video_id}` : "",
   };
 }
 
@@ -551,6 +554,7 @@ async function renderEditor(id) {
       { class: "grid-2" },
       h("div", null, field("source_url", "Source code", text("source_url", { type: "url", placeholder: "https://github.com/..." })), h("button", { class: "btn btn-quiet", type: "button", onclick: () => openSourceViewer(form.source_url) }, "View source in Branch")),
       field("project_url", "Original project page", text("project_url", { type: "url", placeholder: "https://" })),
+      field("video_url", "YouTube video", text("video_url", { type: "url", placeholder: "https://youtu.be/..." }), { hint: "shown on the mod page. leave empty for none." }),
       field("license_name", "License", text("license_name", { maxlength: "80", placeholder: "e.g. MIT, or unknown" }), { needed: true }),
       field("license_url", "License link", text("license_url", { type: "url", placeholder: "https://" })),
       h("div", { class: "full field", dataset: { field: "redistribution" } }, h("span", { class: "field-label" }, "Can Branch host a copy?", h("span", { class: "req" }, "*")), redistribution, h("p", { class: "error hidden" })),
@@ -1470,6 +1474,64 @@ async function renderInboxAdmin() {
     h("p", { class: "muted" }, "announcements go to everyone. update logs from each new release are added automatically, and your replies to reports appear in the reporter's inbox."),
     form,
     h("div", { class: "card" }, h("h2", null, `Sent (${items.length})`), list),
+  ]);
+}
+
+async function renderPolls() {
+  const { polls } = await api("/api/admin/polls");
+  const question = h("input", { class: "input", id: "poll-question", maxlength: "200", placeholder: "e.g. what should we add next?" });
+  const options = h("textarea", { class: "textarea", id: "poll-options", rows: "5", placeholder: "one option per line (2 to 8)" });
+  const days = h("select", { class: "select", id: "poll-days" }, [["", "Stays open until I close it"], ["1", "1 day"], ["3", "3 days"], ["7", "1 week"], ["14", "2 weeks"], ["30", "1 month"]].map(([v, t]) => h("option", { value: v }, t)));
+  const error = h("p", { class: "form-error hidden", role: "alert" });
+  const send = h("button", { class: "btn btn-primary", type: "submit" }, "Post poll");
+  const form = h(
+    "form",
+    { class: "card form-grid" },
+    h("h2", { class: "full" }, "New poll"),
+    h("div", { class: "full" }, field("poll-question", "Question", question, { required: true })),
+    h("div", { class: "full" }, field("poll-options", "Options", options, { required: true, hint: "everyone sees the poll at the top of the Community tab and can vote once (they can change their vote while it's open)." })),
+    field("poll-days", "Closes", days),
+    h("div", { class: "full" }, error, send),
+  );
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    error.classList.add("hidden");
+    send.disabled = true;
+    try {
+      await api("/api/admin/polls", { method: "POST", body: { question: question.value, options: options.value.split("\n"), days: days.value ? Number(days.value) : null } });
+      toast("Poll posted");
+      renderPolls();
+    } catch (err) {
+      error.textContent = err.message;
+      error.classList.remove("hidden");
+      send.disabled = false;
+    }
+  });
+  const pollCard = (poll) =>
+    h(
+      "div",
+      { class: "card poll-admin" },
+      h("div", { class: "poll-admin-head" }, h("h2", null, poll.question), h("span", { class: `pill ${poll.open ? "published" : "draft"}` }, poll.open ? "open" : "closed")),
+      h("p", { class: "muted small" }, `${poll.total} vote${poll.total === 1 ? "" : "s"} · posted ${fmtTime(poll.created_at)}${poll.closes_at ? ` · closes ${fmtTime(poll.closes_at)}` : ""}`),
+      h(
+        "ul",
+        { class: "poll-admin-options" },
+        poll.options.map((o) => {
+          const pct = poll.total ? Math.round((o.votes / poll.total) * 100) : 0;
+          return h("li", null, h("div", { class: "poll-admin-bar", style: `--pct:${pct}%` }), h("span", null, o.label), h("strong", null, `${pct}% (${o.votes})`));
+        }),
+      ),
+      h(
+        "div",
+        { class: "upload-row" },
+        h("button", { class: "btn", type: "button", onclick: async () => { await api(`/api/admin/polls/${poll.id}`, { method: "POST", body: { closed: poll.open } }); toast(poll.open ? "Poll closed" : "Poll reopened"); renderPolls(); } }, poll.open ? "Close poll" : "Reopen"),
+        h("button", { class: "btn btn-quiet btn-danger", type: "button", onclick: async () => { if (await confirmDialog("Delete this poll?", "the poll and all its votes are removed for everyone.", "Delete")) { await api(`/api/admin/polls/${poll.id}`, { method: "DELETE" }); toast("Poll deleted"); renderPolls(); } } }, "Delete"),
+      ),
+    );
+  shell("polls", [
+    h("div", { class: "page-head" }, h("h1", null, "Polls")),
+    form,
+    polls.length ? h("div", { class: "poll-admin-list" }, polls.map(pollCard)) : h("div", { class: "card" }, h("p", { class: "muted" }, "no polls yet.")),
   ]);
 }
 

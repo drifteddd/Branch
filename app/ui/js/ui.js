@@ -193,3 +193,37 @@ export function setBusy(el, busy) {
 }
 
 export { clear };
+
+export function youtubeId(raw) {
+  const s = String(raw || "").trim();
+  if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  const m = /(?:youtu\.be\/|youtube(?:-nocookie)?\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|live\/))([A-Za-z0-9_-]{11})/.exec(s);
+  return m ? m[1] : null;
+}
+
+export function videoCard(id, title = "Video") {
+  const frame = h(
+    "button",
+    { class: "video-card", type: "button", "aria-label": `Play video: ${title}` },
+    h("img", { class: "video-poster", src: assetUrl(`/api/yt/${id}/thumb`), alt: "", loading: "lazy", decoding: "async" }),
+    h("span", { class: "video-play", "aria-hidden": "true" }, h("span", null)),
+    h("span", { class: "video-note" }, "plays from YouTube when you press play"),
+  );
+  frame.addEventListener("click", () => {
+    const iframe = h("iframe", {
+      class: "video-frame",
+      src: `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1`,
+      title,
+      allow: "autoplay; encrypted-media; picture-in-picture; fullscreen",
+      allowfullscreen: true,
+      referrerpolicy: "strict-origin-when-cross-origin",
+    });
+    frame.replaceWith(iframe);
+  });
+  return h(
+    "div",
+    { class: "video-wrap" },
+    frame,
+    h("a", { class: "video-link small", href: `https://www.youtube.com/watch?v=${id}`, "data-external": true }, "Watch on YouTube", icon("external", "inline-icon")),
+  );
+}

@@ -209,6 +209,8 @@ impl Bot {
                 thumbnail: None,
                 poster_id: None,
                 via: "discord",
+                screenshots: Vec::new(),
+                video_id: None,
                 allow_ai: true,
             },
         )

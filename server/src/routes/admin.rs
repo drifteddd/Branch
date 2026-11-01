@@ -298,6 +298,7 @@ struct ModInput {
     license_url: String,
     redistribution: String,
     redistribution_note: String,
+    video_url: String,
 }
 
 struct CleanMod {
@@ -324,6 +325,7 @@ struct CleanMod {
     license_url: Option<String>,
     redistribution: String,
     redistribution_note: String,
+    video_id: Option<String>,
 }
 
 fn url_field(errors: &mut FieldErrors, field: &str, raw: &str) -> Option<String> {
@@ -415,6 +417,8 @@ fn clean_mod(input: ModInput) -> ApiResult<CleanMod> {
     let redistribution = if input.redistribution.is_empty() { "unknown".to_string() } else { input.redistribution.clone() };
     e.check(REDISTRIBUTION.contains(&redistribution.as_str()), "redistribution", "pick a redistribution option");
     let redistribution_note = text_field(&mut e, "redistribution_note", &input.redistribution_note, 500);
+    let video_id = crate::util::youtube_id(&input.video_url);
+    e.check(input.video_url.trim().is_empty() || video_id.is_some(), "video_url", "paste a youtube link, like https://youtu.be/abc123xyz00");
 
     e.finish()?;
 
@@ -442,13 +446,14 @@ fn clean_mod(input: ModInput) -> ApiResult<CleanMod> {
         license_url,
         redistribution,
         redistribution_note,
+        video_id,
     })
 }
 
 const MOD_COLUMNS: &str = "slug, name, summary, description, author_name, author_url, category_id, compatibility,
     compatibility_note, compatibility_checked_on, game_versions, platforms, mod_loader, dependencies,
     install_instructions, known_issues, source_url, project_url, license_name, license_url, redistribution,
-    redistribution_note";
+    redistribution_note, video_id";
 
 fn bind_mod<'q>(query: SqlQuery<'q, Postgres, PgArguments>, m: &CleanMod) -> SqlQuery<'q, Postgres, PgArguments> {
     query
@@ -474,6 +479,7 @@ fn bind_mod<'q>(query: SqlQuery<'q, Postgres, PgArguments>, m: &CleanMod) -> Sql
         .bind(m.license_url.clone())
         .bind(m.redistribution.clone())
         .bind(m.redistribution_note.clone())
+        .bind(m.video_id.clone())
 }
 
 fn placeholders(from: usize, count: usize) -> String {
@@ -541,7 +547,7 @@ async fn create_mod(State(state): State<AppState>, Admin(admin): Admin, Json(inp
     let id = Uuid::new_v4();
 
     let mut tx = state.db.begin().await?;
-    let sql = format!("insert into mods (id, {MOD_COLUMNS}) values ($1, {})", placeholders(2, 22));
+    let sql = format!("insert into mods (id, {MOD_COLUMNS}) values ($1, {})", placeholders(2, 23));
     let result = bind_mod(sqlx::query(&sql).bind(id), &m).execute(&mut *tx).await;
     if let Err(err) = result {
         return Err(if slug_taken(&err) { AppError::field("slug", "another mod already uses this link name") } else { err.into() });
@@ -561,7 +567,7 @@ async fn update_mod(State(state): State<AppState>, Admin(admin): Admin, Path(id)
     let Some(status) = status else { return Err(AppError::not_found("that mod doesn't exist")) };
 
     let mut tx = state.db.begin().await?;
-    let sql = format!("update mods set ({MOD_COLUMNS}) = ({}), updated_at = now() where id = $1", placeholders(2, 22));
+    let sql = format!("update mods set ({MOD_COLUMNS}) = ({}), updated_at = now() where id = $1", placeholders(2, 23));
     let result = bind_mod(sqlx::query(&sql).bind(id), &m).execute(&mut *tx).await;
     if let Err(err) = result {
         return Err(if slug_taken(&err) { AppError::field("slug", "another mod already uses this link name") } else { err.into() });

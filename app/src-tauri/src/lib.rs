@@ -13,6 +13,8 @@ use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_updater::UpdaterExt;
 use tokio::io::AsyncWriteExt;
 
+mod plugins;
+
 fn base_url() -> &'static str {
     match option_env!("BRANCH_API_URL") {
         Some(url) if !url.trim().is_empty() => url.trim().trim_end_matches('/'),
@@ -356,6 +358,30 @@ async fn stream_to_file(
 }
 
 #[tauri::command]
+async fn plugins_install(
+    app: AppHandle,
+    http: State<'_, Http>,
+    downloads: State<'_, Downloads>,
+    plugins: State<'_, plugins::Plugins>,
+    args: DownloadArgs,
+) -> Result<DownloadResult, CmdError> {
+    let id_ok = !args.release_id.is_empty() && args.release_id.len() <= 64 && args.release_id.chars().all(|c| c.is_ascii_hexdigit() || c == '-');
+    if !id_ok {
+        return Err(CmdError::new("app", "bad release id"));
+    }
+    let dest = plugins::install_target(&plugins, &safe_file_name(&args.file_name))?;
+    let cancel = Arc::new(AtomicBool::new(false));
+    downloads.cancel_flags.lock().unwrap().insert(args.id.clone(), cancel.clone());
+    let result = stream_to_file(&app, &http.files, &args, &dest, &cancel).await;
+    downloads.cancel_flags.lock().unwrap().remove(&args.id);
+    match result {
+        Ok(true) => Ok(DownloadResult::Saved { path: dest.display().to_string() }),
+        Ok(false) => Ok(DownloadResult::Cancelled),
+        Err(err) => Err(err),
+    }
+}
+
+#[tauri::command]
 fn cancel_download(downloads: State<'_, Downloads>, id: String) {
     if let Some(flag) = downloads.cancel_flags.lock().unwrap().get(&id) {
         flag.store(true, Ordering::Relaxed);
@@ -477,6 +503,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Http { api, files })
         .manage(Downloads::default())
+        .manage(plugins::Plugins::default())
         .setup(|app| {
             let material = apply_window_material(app);
             app.manage(Material(material));
@@ -493,7 +520,16 @@ pub fn run() {
             reveal_download,
             open_external,
             update_check,
-            update_install
+            update_install,
+            plugins_install,
+            plugins::plugins_detect,
+            plugins::plugins_set_folder,
+            plugins::plugins_pick_folder,
+            plugins::plugins_list,
+            plugins::plugins_set_enabled,
+            plugins::plugins_remove,
+            plugins::plugins_read,
+            plugins::plugins_open
         ])
         .run(tauri::generate_context!())
         .expect("error while running branch");

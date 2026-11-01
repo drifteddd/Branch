@@ -1,0 +1,2220 @@
+[
+ {
+  "repo": "iimenu/project",
+  "name": "ii Menu Reborn",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "ii"
+  ],
+  "description": "ii Menu Reborn is the official comeback of ii's menu, one of the best known mod menus in Gorilla Tag. This is the real source repository, so it's the place to get genuine builds and report bugs.\n\n- the original ii menu, rebuilt\n- huge list of mods sorted into categories\n- open source"
+ },
+ {
+  "repo": "swdgo/iiPixel-Mod-Menu",
+  "name": "iiPixel Mod Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "ii template"
+  ],
+  "description": "iiPixel is a mod menu for Gorilla Tag built on ii's template, with a big set of movement, fun and visual mods you can switch on and off in game."
+ },
+ {
+  "repo": "modding-hub/nebula-mod-menu",
+  "name": "Nebula Mod Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Nebula is a mod menu for Gorilla Tag made by kman. The author says it's built for public lobbies, which means a high chance of getting banned if you use it there.",
+  "video": "c_6NNZQckWw"
+ },
+ {
+  "repo": "ItsDarkzz/Blossom-Mod-Menu",
+  "name": "Blossom Mod Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Blossom is a Gorilla Tag mod menu with its own Discord community where you can report bugs to the staff."
+ },
+ {
+  "repo": "Wolf-VRgaming/wolfz-pad",
+  "name": "Wolfz Pad",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "pad"
+  ],
+  "description": "Wolfz Pad is a mod menu for Gorilla Tag made by Wolf-VRgaming, shaped like a handheld pad."
+ },
+ {
+  "repo": "GLXYMods/XonnczReborn",
+  "name": "Xonncz Reborn",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "open source"
+  ],
+  "description": "Xonncz Reborn is an open source Gorilla Tag mod menu, made both for playing and for people who want to learn how to code their own mods.",
+  "video": "0zNkQtiym_4"
+ },
+ {
+  "repo": "Pugsluv3r/Breeze",
+  "name": "Breeze Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "open source"
+  ],
+  "description": "Breeze is an open source Gorilla Tag mod menu. Some antivirus programs flag it, so the author points people to the source code to check it themselves."
+ },
+ {
+  "repo": "GLXYMods/Singularity-OS",
+  "name": "Singularity OS",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "open source"
+  ],
+  "description": "Singularity OS is an open source mod menu for Gorilla Tag from GLXYMods.",
+  "video": "Y4ZyiKjUCKo"
+ },
+ {
+  "repo": "WizzyIsDumb/WizzyClient",
+  "name": "Wizzy Client",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "malachi template"
+  ],
+  "description": "Wizzy Client is a Gorilla Tag mod menu coded by WizzyIsDumb on the Malachi template, with mods split into categories and settings you can change."
+ },
+ {
+  "repo": "cloudzvrplayz12121/clouds-client",
+  "name": "Clouds Client",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Clouds Client is a mod menu for Gorilla Tag."
+ },
+ {
+  "repo": "MATTRAX64/UltimateMenu",
+  "name": "Ultimate Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "content creators"
+  ],
+  "description": "Ultimate Menu is a Gorilla Tag mod menu aimed at content creators, with a liquid glass look, support for 18 languages, and controls on PC and in VR."
+ },
+ {
+  "repo": "InoxiGtag/AtlasMenu",
+  "name": "Atlas Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Atlas Menu is a Gorilla Tag mod menu with its own Discord. Download the newest version, put it in your plugins folder and open the game.",
+  "video": "fUY-V_oaTMQ"
+ },
+ {
+  "repo": "Wyvern-Softworks/Rexon-Mod-Menu",
+  "name": "Rexon Mod Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "open source"
+  ],
+  "description": "Rexon is a Gorilla Tag mod menu from Wyvern Softworks. This repo has the full, buildable source code."
+ },
+ {
+  "repo": "Wyvern-Softworks/NXO-Mod-Menu",
+  "name": "NXO Mod Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "overpowered"
+  ],
+  "description": "NXO is a big Gorilla Tag mod menu from Wyvern Softworks with 500+ mods. The authors say this free repo is the only real version, and to avoid paid copies."
+ },
+ {
+  "repo": "PixelCattt/Bark-Menu",
+  "name": "Pixel's Bark Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "bark"
+  ],
+  "description": "A fun mod menu for Gorilla Tag in the style of the classic Bark menu, made by PixelCattt."
+ },
+ {
+  "repo": "PixelCattt/Pixelyth-Menu",
+  "name": "Pixelyth Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "open source"
+  ],
+  "description": "Pixelyth is an open source Gorilla Tag mod menu with over 2000 mods. It was formerly Seralyth, which grew out of ii's Stupid Menu."
+ },
+ {
+  "repo": "Rikimaru3118/RikiModMenu",
+  "name": "Riki Mod Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Riki Mod Menu is a Gorilla Tag mod menu made by Rikimaru3118."
+ },
+ {
+  "repo": "aromagtag/Nexus-Client",
+  "name": "Nexus Client",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "trolling"
+  ],
+  "description": "Nexus Client is a Gorilla Tag mod menu with lots of categories, made for trolling, messing around and having fun."
+ },
+ {
+  "repo": "MMBOOMIN/BOOMINHAXX-Menu",
+  "name": "BOOMINHAXX Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "BOOMINHAXX is a free Gorilla Tag mod menu made by BoominLOL, updated for the latest version of the game."
+ },
+ {
+  "repo": "wendigo849/Wendigo-Pad",
+  "name": "Wendigo Pad",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "pad"
+  ],
+  "description": "Wendigo Pad is a Gorilla Tag mod menu that the author updates often."
+ },
+ {
+  "repo": "Gizmo-Mods/Bark-Grate-Menu",
+  "name": "Bark Grate Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "bark"
+  ],
+  "description": "A small Gorilla Tag menu with 10+ mods and easy access, based on the Bark menu by developer9998. Put it in your BepInEx plugins folder."
+ },
+ {
+  "repo": "GZZ6/StayClient",
+  "name": "Stay Client",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Stay Client is a mod menu for Gorilla Tag."
+ },
+ {
+  "repo": "ImudTrust-Projects/Undefined",
+  "name": "Undefined Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "open source"
+  ],
+  "description": "Undefined is an open source Gorilla Tag mod menu from ImudTrust Projects."
+ },
+ {
+  "repo": "Korpsmenumaker/Korps-menu",
+  "name": "Korps Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Korps Menu is a mod menu for Gorilla Tag."
+ },
+ {
+  "repo": "leafiithecoder/SharpzReborn",
+  "name": "Sharpz Reborn",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "open source"
+  ],
+  "description": "Sharpz Reborn is an open source Gorilla Tag mod menu with 200+ mods, based on the author's older SharpZ menu."
+ },
+ {
+  "repo": "Sniffingtoes/NothingMenu",
+  "name": "Nothing Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Nothing Menu is a fun Gorilla Tag mod menu. Press Y on your left controller to open it and point to pick mods."
+ },
+ {
+  "repo": "niko-tar-gz/Argon",
+  "name": "Argon Menu",
+  "category": "libraries",
+  "tags": [
+   "library",
+   "menu framework"
+  ],
+  "description": "Argon is a simple, lightweight menu that other Gorilla Tag mods can add their own buttons and settings to. Mods like Argon Weather are built on it."
+ },
+ {
+  "repo": "Chara30677/Charas.menu-Reborn-",
+  "name": "Chara's Menu Reborn",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Chara's Menu is a Gorilla Tag mod menu by Chara, designed to be as useful as possible."
+ },
+ {
+  "repo": "Cometmenu/Comet-Menu",
+  "name": "Comet Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Comet Menu is a mod menu for Gorilla Tag."
+ },
+ {
+  "repo": "incharilla1/ShibaGT-Genesis-Reborn",
+  "name": "ShibaGT Genesis Reborn",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "open source"
+  ],
+  "description": "An open source Gorilla Tag menu by Incharilla, reviving ShibaGT Genesis. Drop the dll in BepInEx/plugins and launch the game."
+ },
+ {
+  "repo": "huneterthefirst/Lambda-s-Menu-GTAG-",
+  "name": "Lambda's Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Lambda's Menu is a Gorilla Tag mod menu that the author updates often."
+ },
+ {
+  "repo": "IrisesMods/Irises-Mod-Menu",
+  "name": "Irises Mod Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "ii template"
+  ],
+  "description": "Irises is a Gorilla Tag mod menu made by Ralph and Public on iiDk's template, with its own Discord.",
+  "video": "Xla0JSYYDG4"
+ },
+ {
+  "repo": "phaantomcsharp/Lunar",
+  "name": "Lunar Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Lunar is a Gorilla Tag mod menu written in C# by phaantom."
+ },
+ {
+  "repo": "NahNova7/Novah-Menu",
+  "name": "Novah Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Novah is a Gorilla Tag mod menu by NahNova7 that's still being worked on."
+ },
+ {
+  "repo": "Barretttt/Fatal-Client",
+  "name": "Fatal Client",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Fatal Client is a Gorilla Tag mod menu made by b3arGT."
+ },
+ {
+  "repo": "r2d22-dev/Advantage",
+  "name": "Advantage Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "ii template"
+  ],
+  "description": "Advantage is a Gorilla Tag mod menu built on ii's Stupid Template."
+ },
+ {
+  "repo": "TTTParty/ProjectSerenity",
+  "name": "Project Serenity",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Project Serenity is a mod menu for Gorilla Tag."
+ },
+ {
+  "repo": "fleecewtf/Interstellar",
+  "name": "Interstellar Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "open source"
+  ],
+  "description": "Interstellar is a free, open source mod menu for Gorilla Tag with its own website and Discord."
+ },
+ {
+  "repo": "DeminBoiYT/Sigma-Menu",
+  "name": "Sigma Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Sigma Menu is a Gorilla Tag mod menu by DeminBoiYT."
+ },
+ {
+  "repo": "StarzzzYt/Project-Starzzz",
+  "name": "Project Starzzz",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "open source"
+  ],
+  "description": "Project Starzzz is an open source Gorilla Tag mod menu made by StarszYt."
+ },
+ {
+  "repo": "kidding-kidder/P9-Menu",
+  "name": "P9 Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "P9 Menu is a Gorilla Tag mod menu with its own Discord server."
+ },
+ {
+  "repo": "HELLCTVR/Chicken-Menu",
+  "name": "Chicken Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Chicken Menu is a Gorilla Tag mod menu. Press Y on your left controller to open it.",
+  "video": "oy0kZXikvgk"
+ },
+ {
+  "repo": "Ixy-vr/Icy-Menu",
+  "name": "Icy Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Icy Menu is a Gorilla Tag mod menu with cool and fun mods."
+ },
+ {
+  "repo": "larsblom123/larry-menu",
+  "name": "Larry Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "gamemodes",
+   "open source"
+  ],
+  "description": "Larry Menu is a free, open source Gorilla Tag mod menu with 60+ solo mods, 30 networked gamemodes and real 3D gun models, with no paid tier.\n\n- 60+ mods\n- 30 networked gamemodes\n- BepInEx 5, PC VR"
+ },
+ {
+  "repo": "SwissCh33se/voaks-mod-menu",
+  "name": "Voaks Mod Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Voaks Mod Menu is a Gorilla Tag mod menu made by SwissCh33se."
+ },
+ {
+  "repo": "GeminiSoftwareTM/Gemini",
+  "name": "Gemini Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "trolling"
+  ],
+  "description": "Gemini is a free Gorilla Tag mod menu for trolling or just having fun, made because the authors think mods shouldn't be locked behind paywalls."
+ },
+ {
+  "repo": "tfoethetfoe/TFOEs-Cool-Menu",
+  "name": "TFOE's Cool Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "community"
+  ],
+  "description": "A community-built Gorilla Tag mod menu forked from Seralyth, packed with features."
+ },
+ {
+  "repo": "kingofcrunchyroll/Axiom-Menu",
+  "name": "Axiom Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Axiom is a Gorilla Tag mod menu forked from Seralyth, made to entertain people rather than harm them."
+ },
+ {
+  "repo": "SolixThatOneDev/Quantum",
+  "name": "Quantum Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Quantum is a Gorilla Tag mod menu with over 1000 mods."
+ },
+ {
+  "repo": "icygtag/icy.client",
+  "name": "Icy Client",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Icy Client is a big Gorilla Tag mod menu. It needs Utilla: drag IcyClient.dll into your plugins folder."
+ },
+ {
+  "repo": "elgato-magnet/gv-client",
+  "name": "GV Client",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "GV Client is a mod menu for Gorilla Tag."
+ },
+ {
+  "repo": "GoldOnGtag/Ghost-Troll-Gorilla-Tag-mod-Menu",
+  "name": "Ghost Troll Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "trolling"
+  ],
+  "description": "Ghost Troll Menu is a Gorilla Tag mod menu for trolling."
+ },
+ {
+  "repo": "PAWWWGT/GRATES-LEGAL-MOD-MENU",
+  "name": "Grate's Legal Mod Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "modded lobbies"
+  ],
+  "description": "Grate's Legal Mod Menu is a Gorilla Tag mod menu meant for modded lobbies."
+ },
+ {
+  "repo": "Levithegoatatmods/ViperX1-Coaster-Menu",
+  "name": "ViperX1 Coaster Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "ViperX1 Coaster Menu is a Gorilla Tag mod menu.",
+  "video": "dL5Y-mtvGUg"
+ },
+ {
+  "repo": "krtdev2000/xyfer",
+  "name": "Xyfer Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Xyfer is a free mod menu for Gorilla Tag."
+ },
+ {
+  "repo": "SoldierVRREAL/THE-CLAAIC-MENU-BY-SOLDIER-BEST-MENU",
+  "name": "Soldier's Classic Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "classic mods"
+  ],
+  "description": "A Gorilla Tag menu by Soldier with lots of classic mods, mostly for trolling."
+ },
+ {
+  "repo": "breeezyy111/Subzero-Mod-Menu",
+  "name": "Subzero Mod Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Subzero is a mod menu for Gorilla Tag."
+ },
+ {
+  "repo": "buzzer9k/SkilzMenu",
+  "name": "Skilz Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Skilz Menu is a Gorilla Tag mod menu from 2024."
+ },
+ {
+  "repo": "SkidsVR/Xona",
+  "name": "Xona Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Xona is a mod menu for Gorilla Tag by SkidsVR."
+ },
+ {
+  "repo": "hamburbur-org/hamburbur",
+  "name": "Hamburbur",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "clean"
+  ],
+  "description": "Hamburbur is a simple, clean and easy to use Gorilla Tag mod menu. No clutter, no overcomplication.",
+  "video": "nQhiCJgcfSE"
+ },
+ {
+  "repo": "menker-cs/Elixir",
+  "name": "Elixir Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Elixir is a Gorilla Tag mod menu made to be simple, free forever and always up to date.",
+  "video": "SgzcnCGeE-M"
+ },
+ {
+  "repo": "ASTRA228b/ChudOS",
+  "name": "ChudOS",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "ChudOS is a customizable Gorilla Tag mod menu for PC VR by Astra. Open it with Y in VR or H on your keyboard, with mouse controls on desktop."
+ },
+ {
+  "repo": "BloodbathMonke/BloodbathCheatPanel",
+  "name": "Bloodbath Cheat Panel",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Bloodbath Cheat Panel is a Gorilla Tag mod menu with 45 mods."
+ },
+ {
+  "repo": "kidsthuma/LOl.client-Menu",
+  "name": "lol.client",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "lol.client is a Gorilla Tag mod menu with over 100 mods for customizing the game and having fun."
+ },
+ {
+  "repo": "Sub2ScoutVR/Primal-Client",
+  "name": "Primal Client",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "ii template"
+  ],
+  "description": "Primal Client is a Gorilla Tag mod menu built on ii's Stupid Template."
+ },
+ {
+  "repo": "Mudstud/Mudstuds-client",
+  "name": "Mudstud's Utility",
+  "category": "utilities",
+  "tags": [
+   "casting",
+   "camera",
+   "utility"
+  ],
+  "description": "Mudstud's Utility is a Gorilla Tag mod for casting and quality of life, with multiple camera modes for recording and casting matches."
+ },
+ {
+  "repo": "atticmodmenu/AtticMenu",
+  "name": "Attic Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "The official Attic mod menu for Gorilla Tag."
+ },
+ {
+  "repo": "jaxsonfrank242-cpu/Supernova-Menu",
+  "name": "Supernova Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Supernova is a free Gorilla Tag mod menu made by SFXGamez."
+ },
+ {
+  "repo": "BJBJ785/nitro-client",
+  "name": "Nitro Client",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Nitro Client is a free Gorilla Tag mod menu.",
+  "video": "xKnOaFC6L9Y"
+ },
+ {
+  "repo": "loadedxfiending/SeralythReborn-Menu",
+  "name": "Seralyth Reborn",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "community"
+  ],
+  "description": "Seralyth Reborn is a feature-packed, community-built Gorilla Tag mod menu forked from ii's Stupid Menu."
+ },
+ {
+  "repo": "c0laGT/Strawberry-Client",
+  "name": "Strawberry Client",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Strawberry Client is a free Gorilla Tag mod menu."
+ },
+ {
+  "repo": "PlurpleOnVR/plurple-s-goofy-menu",
+  "name": "Plurple's Goofy Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "funny"
+  ],
+  "description": "Just a goofy mod menu for Gorilla Tag."
+ },
+ {
+  "repo": "hrnrmodz/Visual.cc",
+  "name": "Visual.cc",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Visual.cc is a Gorilla Tag mod menu that's still being worked on, with about 150 mods so far.",
+  "video": "qp1J_wepTGY"
+ },
+ {
+  "repo": "djbrezz/Vantira-Menu",
+  "name": "Vantira Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Vantira is a Gorilla Tag mod menu by DJ, forked from Seralyth."
+ },
+ {
+  "repo": "s3324772-lgtm/Nasa-menu-official",
+  "name": "NASA Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "NASA Menu is a Gorilla Tag mod menu with regular updates and its own unique features."
+ },
+ {
+  "repo": "Greenie1929/P3bbzy-Client-V9.0.0",
+  "name": "P3bbzy Client",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "P3bbzy Client is a mod menu for Gorilla Tag."
+ },
+ {
+  "repo": "J0kerModZ/J0kerClient-GorillaTag-Menu",
+  "name": "J0ker Client",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "J0ker Client is a Gorilla Tag mod menu built with BepInEx.",
+  "video": "WOWQUCuSZS0"
+ },
+ {
+  "repo": "holynovygtag-lang/VortexNova-Menu",
+  "name": "VortexNova Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "VortexNova is a Gorilla Tag mod menu made by Holonova."
+ },
+ {
+  "repo": "Pluma21k/RedVector",
+  "name": "RedVector",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "gui"
+  ],
+  "description": "RedVector is a Gorilla Tag cheat client with an on-screen GUI."
+ },
+ {
+  "repo": "UltimateDev0/Void.Client-Gorilla-Tag",
+  "name": "Void Client",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "ii template"
+  ],
+  "description": "Void Client is a Gorilla Tag mod menu built on the Stupid Template.",
+  "video": "-SyCkrspHSQ"
+ },
+ {
+  "repo": "OrixTheOG/Khaos-Client",
+  "name": "Khaos Client",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Khaos Client is a Gorilla Tag mod menu side project by OrixTheOG."
+ },
+ {
+  "repo": "Smiley-Gorilla/Smile-Client",
+  "name": "Smile Client",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "open source"
+  ],
+  "description": "Smile Client is a free, fully open source Gorilla Tag mod menu."
+ },
+ {
+  "repo": "ReaperVR8/Reapers-Client",
+  "name": "Reaper's Client",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Reaper's Client is a Gorilla Tag mod menu for PC VR, made for fun. Drag the dll into your plugins folder and launch the game."
+ },
+ {
+  "repo": "NotMonk1/NotMonk.Client",
+  "name": "NotMonk Client",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "NotMonk Client is a simple Gorilla Tag mod menu on the iiTemplate, made by the author to learn C#."
+ },
+ {
+  "repo": "gorrilainmodds/gregs-menu",
+  "name": "Greg's Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "soundboard",
+   "private rooms"
+  ],
+  "description": "Greg's Menu is a hand-held Gorilla Tag mod menu for private rooms and offline play, with movement tools like fly and a soundboard."
+ },
+ {
+  "repo": "HighRose-Rosy/Rose-Toy-Mod-Menu",
+  "name": "Rose Toy Mod Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu",
+   "trolling"
+  ],
+  "description": "A fun Gorilla Tag mod menu for trolling your friends."
+ },
+ {
+  "repo": "EPCVR/EveCO",
+  "name": "EveCO Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "EveCO is a Gorilla Tag mod menu made from scratch, with speed boost, fly, ghost monke and more."
+ },
+ {
+  "repo": "AtmosphereGT/Atmospheres-Dumb-Menu",
+  "name": "Atmosphere's Dumb Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Atmosphere's Dumb Menu is a mod menu for Gorilla Tag."
+ },
+ {
+  "repo": "Warninglol/Warning-Menu",
+  "name": "Warning Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Warning Menu is a Gorilla Tag mod menu with 65+ mods."
+ },
+ {
+  "repo": "rynxzy/RYNX-mod-menu-gtag",
+  "name": "RYNX Mod Menu",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "RYNX is a light Gorilla Tag mod menu, made while ii's menu was down."
+ },
+ {
+  "repo": "FiberGtag/Float",
+  "name": "Float",
+  "category": "menus",
+  "tags": [
+   "mod menu"
+  ],
+  "description": "Float is a free Gorilla Tag cheat menu with overpowered mods."
+ },
+ {
+  "repo": "Graicc/PracticeMod",
+  "name": "Practice Mod",
+  "category": "gameplay",
+  "tags": [
+   "practice",
+   "private rooms"
+  ],
+  "description": "Practice Mod lets you practice Gorilla Tag alone. It only works in private matches where you're the only one in the room.\n\n- simulate being tagged and other practice tools\n- needs Computer Interface and Utilla"
+ },
+ {
+  "repo": "ShibaGT/BigAndSmall",
+  "name": "Big And Small",
+  "category": "gameplay",
+  "tags": [
+   "size",
+   "client side"
+  ],
+  "description": "Size yourself up and down, like in those jman videos. Pull the left trigger to grow and the right trigger to shrink. Only you can see the change.",
+  "video": "HvOJTM6LxQM"
+ },
+ {
+  "repo": "7Seventy0/SeventysBananaFiendMod",
+  "name": "Banana Fiend",
+  "category": "gameplay",
+  "tags": [
+   "tycoon",
+   "bananas"
+  ],
+  "description": "Banana Fiend is a tycoon mod for Gorilla Tag from the maker of Seventy's Camera Settings.",
+  "video": "02EDAI4PjjY"
+ },
+ {
+  "repo": "rass1010/GrappleHook",
+  "name": "Grapple Hook",
+  "category": "gameplay",
+  "tags": [
+   "movement",
+   "grapple",
+   "modded lobbies"
+  ],
+  "description": "A grappling hook for Gorilla Tag. Hold the right trigger to grapple."
+ },
+ {
+  "repo": "kinomonke/TimeTab",
+  "name": "Time Tab",
+  "category": "utilities",
+  "tags": [
+   "computer",
+   "time"
+  ],
+  "description": "Brings back the disabled TIME tab on the Gorilla Tag computer. Works with the normal computer and Computer Interface."
+ },
+ {
+  "repo": "struuct/Packet",
+  "name": "Packet",
+  "category": "libraries",
+  "tags": [
+   "library",
+   "networking",
+   "developers"
+  ],
+  "description": "A networking library that lets Gorilla Tag mods send messages over WebSockets, without the risks of Photon RPCs or custom properties."
+ },
+ {
+  "repo": "niko-tar-gz/Potassium",
+  "name": "Potassium",
+  "category": "utilities",
+  "tags": [
+   "performance",
+   "fps"
+  ],
+  "description": "An optimisation mod that tries to fix Gorilla Tag's stutters and lag spikes."
+ },
+ {
+  "repo": "atp892/GorillaSounds",
+  "name": "Gorilla Sounds",
+  "category": "utilities",
+  "tags": [
+   "music",
+   "audio"
+  ],
+  "description": "A simple music player. Load custom songs, shuffle, play, and swap the speaker songs for your own."
+ },
+ {
+  "repo": "rass1010/Focus",
+  "name": "Focus",
+  "category": "gameplay",
+  "tags": [
+   "slow motion"
+  ],
+  "description": "A slow motion mod. Hold B to slow down time, and change how slow it goes in BepInEx/config/slowmotion.cfg.",
+  "video": "2t_de2-nASc"
+ },
+ {
+  "repo": "NullVRGT/Maxwell-On-Locker",
+  "name": "Maxwell On Locker",
+  "category": "cosmetics",
+  "tags": [
+   "maxwell",
+   "funny"
+  ],
+  "description": "Puts Maxwell the cat on your locker. A small, silly first mod by NullVRGT."
+ },
+ {
+  "repo": "pyluadotcode/Info-Pages",
+  "name": "Info Pages",
+  "category": "utilities",
+  "tags": [
+   "computer",
+   "player info"
+  ],
+  "description": "Adds a screen to the computer that shows information about players in your room. Needs Computer Plus Plus."
+ },
+ {
+  "repo": "Jixzy/FPSboosterGTAG",
+  "name": "FPS Booster",
+  "category": "utilities",
+  "tags": [
+   "performance",
+   "fps"
+  ],
+  "description": "A mod that tries to boost your FPS in Gorilla Tag for smoother gameplay."
+ },
+ {
+  "repo": "RusJJ/MonkeRPC",
+  "name": "Monke RPC",
+  "category": "utilities",
+  "tags": [
+   "discord",
+   "status"
+  ],
+  "description": "A simple Discord Rich Presence plugin that shows what you're doing in Gorilla Tag on your Discord profile. The author has paused updates for now."
+ },
+ {
+  "repo": "itsreallyhex/WASD-Fly",
+  "name": "WASD Fly",
+  "category": "gameplay",
+  "tags": [
+   "flying",
+   "keyboard"
+  ],
+  "description": "Fly with WASD, no menu needed. Press F to turn it on and off."
+ },
+ {
+  "repo": "picoskids/Verity",
+  "name": "Verity",
+  "category": "gameplay",
+  "tags": [
+   "ai",
+   "robot",
+   "companion"
+  ],
+  "description": "Verity adds an AI robot that follows you around, listens to you and talks back. A public remake of the author's old private mod.",
+  "video": "70Fsfdsk8mY"
+ },
+ {
+  "repo": "InoxiGtag/RagdollMod",
+  "name": "Ragdoll Mod",
+  "category": "gameplay",
+  "tags": [
+   "ragdoll",
+   "funny"
+  ],
+  "description": "Ragdoll like in Garry's Mod. Click the right joystick in VR, or press B on PC, to go limp. Press P for settings.",
+  "video": "XmzSVfYo14o"
+ },
+ {
+  "repo": "developer9998/UtillaButtonHider",
+  "name": "Utilla Button Hider",
+  "category": "utilities",
+  "tags": [
+   "utilla",
+   "quality of life"
+  ],
+  "description": "Hides the extra buttons Utilla adds. Needs Utilla."
+ },
+ {
+  "repo": "NgbatzYT/AreYouBored",
+  "name": "Are You Bored",
+  "category": "gameplay",
+  "tags": [
+   "secret",
+   "funny"
+  ],
+  "description": "A secret mod made out of boredom. Hold both triggers, both grips and all face buttons for 8 seconds to find out what it does."
+ },
+ {
+  "repo": "ASTRA228b/Gorilla-Time-V2.1",
+  "name": "Gorilla Time V2",
+  "category": "utilities",
+  "tags": [
+   "time",
+   "gui"
+  ],
+  "description": "A time changer with a PC window. Press T to open it and pick the time of day."
+ },
+ {
+  "repo": "RhosynCelyn/JoinPrivateLobby",
+  "name": "Join Private Lobby",
+  "category": "utilities",
+  "tags": [
+   "rooms",
+   "utilla"
+  ],
+  "description": "Join a random private lobby using Utilla's join room feature."
+ },
+ {
+  "repo": "depromo/RandomKick",
+  "name": "Random Kick",
+  "category": "gameplay",
+  "tags": [
+   "funny",
+   "challenge"
+  ],
+  "description": "A silly mod that sometimes kicks you out of your game while you play."
+ },
+ {
+  "repo": "Jackylenn/WhichMap",
+  "name": "Which Map",
+  "category": "utilities",
+  "tags": [
+   "leaderboard",
+   "maps"
+  ],
+  "description": "Shows which map each player is in, right on the leaderboard, without lagging your game."
+ },
+ {
+  "repo": "GorillaDaan/GorillaWatch",
+  "name": "Gorilla Watch",
+  "category": "utilities",
+  "tags": [
+   "watch",
+   "modded lobbies"
+  ],
+  "description": "Puts the hunt watch on your wrist in modded lobbies, filled with lots of mods you can use."
+ },
+ {
+  "repo": "Cheese-CELL/Bas",
+  "name": "Bas",
+  "category": "gameplay",
+  "tags": [
+   "size",
+   "modded lobbies"
+  ],
+  "description": "Turn small and big in modded lobbies. Needs the latest Utilla."
+ },
+ {
+  "repo": "iireborn/LibrePad-Updated",
+  "name": "LibrePad",
+  "category": "utilities",
+  "tags": [
+   "utility pad",
+   "mod checker"
+  ],
+  "description": "LibrePad is a free, open source info and utility tablet for Gorilla Tag, inspired by mods like EIOP and Sakuraa's Utility. Shows player info, and the author promises no backdoors.",
+  "video": "jVOr30ntlIA"
+ },
+ {
+  "repo": "Loafiat/Melontilla",
+  "name": "Melontilla",
+  "category": "libraries",
+  "tags": [
+   "library",
+   "utilla",
+   "gorilla library"
+  ],
+  "description": "A glue library so BepInEx mods that need Utilla can run with Gorilla Library instead."
+ },
+ {
+  "repo": "KyleTheScientist/WalkSimulator",
+  "name": "Walk Simulator (original)",
+  "category": "utilities",
+  "tags": [
+   "no vr",
+   "keyboard"
+  ],
+  "description": "The original Walk Simulator by KyleTheScientist. Play Gorilla Tag with keyboard and mouse: walk, run, climb walls, swim, fly, and ride ziplines, ropes, gliders, broomsticks and hoverboards."
+ },
+ {
+  "repo": "arvabarva/Gorillatag-Minecraft-Passtrough",
+  "name": "Minecraft Passthrough",
+  "category": "gameplay",
+  "tags": [
+   "minecraft",
+   "crossover"
+  ],
+  "description": "Be your Gorilla Tag gorilla in a real Minecraft world, with both games running at the same time, using Fabric and the Essential mod to play with friends."
+ },
+ {
+  "repo": "ThunderLord95/ClearTag",
+  "name": "Clear Tag",
+  "category": "gameplay",
+  "tags": [
+   "infection",
+   "tagging"
+  ],
+  "description": "Press the secondary button on your left controller to clear your tagged status and others'. This changes the game for other players, so expect a ban if you use it in public."
+ },
+ {
+  "repo": "iiDkRemastered/ForeverCosmetxx",
+  "name": "Forever Cosmetx",
+  "category": "cosmetics",
+  "tags": [
+   "cosmetics",
+   "client side"
+  ],
+  "description": "Unlocks every cosmetic locally, so only you can see them. Made by iiDk because many other Cosmetx \"fixes\" were broken or even had malware."
+ },
+ {
+  "repo": "pl2w/FancyNametags",
+  "name": "Fancy Nametags",
+  "category": "cosmetics",
+  "tags": [
+   "nametags"
+  ],
+  "description": "Makes your nametag fancy. Needs BepInEx 5."
+ },
+ {
+  "repo": "elgato-magnet/day-night-manager",
+  "name": "Day Night Manager",
+  "category": "utilities",
+  "tags": [
+   "time"
+  ],
+  "description": "A little mod that lets you change the time of day in game.",
+  "video": "FzEFdgp3k8c"
+ },
+ {
+  "repo": "quoote/FNAFJumpscare",
+  "name": "FNAF Jumpscare",
+  "category": "gameplay",
+  "tags": [
+   "horror",
+   "funny"
+  ],
+  "description": "Has a 1 in 400 chance every second to play a Five Nights at Freddy's jumpscare while you play. Good luck."
+ },
+ {
+  "repo": "BearrenGT/GravityChanger",
+  "name": "Gravity Changer",
+  "category": "gameplay",
+  "tags": [
+   "gravity",
+   "modded lobbies"
+  ],
+  "description": "Switch between zero, high and low gravity in modded lobbies. A for no gravity, X for high, Y for low."
+ },
+ {
+  "repo": "ASTRA228b/Astras-PullMod-Hub",
+  "name": "Astra's PullMod Hub",
+  "category": "gameplay",
+  "tags": [
+   "pull mod",
+   "movement"
+  ],
+  "description": "A collection of classic, modern and experimental pull mod movement systems with customizable inputs. Pull mods are movement cheats, so they can get you banned in public lobbies."
+ },
+ {
+  "repo": "Loafiat/Queuetilla",
+  "name": "Queuetilla",
+  "category": "libraries",
+  "tags": [
+   "library",
+   "queues",
+   "developers"
+  ],
+  "description": "A library for making custom Gorilla Tag queues, working with or without Utilla."
+ },
+ {
+  "repo": "DeezVrOfficial/FortniteEmoteWheel",
+  "name": "Fortnite Emote Wheel",
+  "category": "gameplay",
+  "tags": [
+   "emotes",
+   "fortnite"
+  ],
+  "description": "The emote wheel from Fortnite, ported to Gorilla Tag. Click the right joystick to open it. Forked from iiDk and fixed by DeezVr.",
+  "video": "a552MKii0TQ"
+ },
+ {
+  "repo": "FrostyTagYT/GTagCodeJoiner",
+  "name": "Code Joiner",
+  "category": "utilities",
+  "tags": [
+   "rooms",
+   "pc"
+  ],
+  "description": "Adds a code joiner panel on your screen. Type a room code and click Join, or click Last to rejoin."
+ },
+ {
+  "repo": "lolcaf/GorillaMapTeleporter-GT",
+  "name": "Gorilla Map Teleporter",
+  "category": "utilities",
+  "tags": [
+   "teleport",
+   "maps"
+  ],
+  "description": "Quickly teleport to any map. Only works when you're not in a lobby or in a private modded lobby."
+ },
+ {
+  "repo": "StarryTheMew/Gorilla-Stats",
+  "name": "Gorilla Stats (Starry)",
+  "category": "utilities",
+  "tags": [
+   "stats",
+   "overlay"
+  ],
+  "description": "Shows stats about your gorilla in the top left corner of your screen."
+ },
+ {
+  "repo": "PizzaBander/CrashTag",
+  "name": "Crash Tag",
+  "category": "gameplay",
+  "tags": [
+   "funny",
+   "challenge"
+  ],
+  "description": "Crashes your own game when you get tagged. A challenge: don't get caught."
+ },
+ {
+  "repo": "kinomonke/GorillaAdBlocker",
+  "name": "Gorilla Ad Blocker",
+  "category": "utilities",
+  "tags": [
+   "city",
+   "audio"
+  ],
+  "description": "Mutes all the video screens and adverts in the City map."
+ },
+ {
+  "repo": "Pokruk/SecondLookSkeletonFix",
+  "name": "Second Look Skeleton Fix",
+  "category": "utilities",
+  "tags": [
+   "performance",
+   "fix"
+  ],
+  "description": "Fixes FPS drops in private rooms when someone summons Lucy while you're on a different map."
+ },
+ {
+  "repo": "ASTRA228b/Astras-NameTags-V2",
+  "name": "Astra's NameTags V2",
+  "category": "utilities",
+  "tags": [
+   "nametags",
+   "fps"
+  ],
+  "description": "Shows player names, FPS, colors and a speaker icon when someone talks, above other players, with a clean look."
+ },
+ {
+  "repo": "sebastianxx-dev/GtagClock",
+  "name": "Gtag Clock",
+  "category": "utilities",
+  "tags": [
+   "clock",
+   "time"
+  ],
+  "description": "A lightweight mod that shows your real-world time in game, so you stay on time while you monkey around."
+ },
+ {
+  "repo": "lolcaf/GorillaAchievements",
+  "name": "Gorilla Achievements",
+  "category": "gameplay",
+  "tags": [
+   "achievements"
+  ],
+  "description": "Earn achievements for hitting milestones, rare moments and difficult tasks in the game.",
+  "video": "gODkvULpjv4"
+ },
+ {
+  "repo": "poopoovr/ActionMonke",
+  "name": "Action Monke",
+  "category": "cosmetics",
+  "tags": [
+   "figure",
+   "stump"
+  ],
+  "description": "Places a little action figure of you on the computer table."
+ },
+ {
+  "repo": "lolcaf/HandsFree-GTag",
+  "name": "Hands Free",
+  "category": "utilities",
+  "tags": [
+   "steamvr",
+   "quality of life"
+  ],
+  "description": "Lets your hands be free while you're in your SteamVR menu. SteamVR only."
+ },
+ {
+  "repo": "liamcsharp/Anti-Lag",
+  "name": "Anti Lag",
+  "category": "utilities",
+  "tags": [
+   "performance",
+   "lag"
+  ],
+  "description": "A mod that tries to fix lag in Gorilla Tag."
+ },
+ {
+  "repo": "lolcaf/BringBackBugBabies_GTag",
+  "name": "Bring Back Bug Babies",
+  "category": "cosmetics",
+  "tags": [
+   "nostalgia",
+   "doug"
+  ],
+  "description": "Brings back Doug the bug's babies, with full customizability."
+ },
+ {
+  "repo": "lolcaf/GorillaMusicPad-GT",
+  "name": "Gorilla Music Pad",
+  "category": "utilities",
+  "tags": [
+   "music",
+   "pad"
+  ],
+  "description": "Adds a music player pad to the game. Import your songs and listen while you play."
+ },
+ {
+  "repo": "BearrenGT/ZeroGMod",
+  "name": "Zero G",
+  "category": "gameplay",
+  "tags": [
+   "gravity",
+   "modded lobbies"
+  ],
+  "description": "Zero gravity in modded lobbies. Made with Graicc's template."
+ },
+ {
+  "repo": "taberdeanhary-maker/Gorilla-FOV-Changer",
+  "name": "Gorilla FOV Changer",
+  "category": "utilities",
+  "tags": [
+   "camera",
+   "fov"
+  ],
+  "description": "An in-game control panel for switching between first, second and third person and adjusting your field of view. SteamVR."
+ },
+ {
+  "repo": "DxerkKrexd/NachtsFOV",
+  "name": "Nachts FOV",
+  "category": "utilities",
+  "tags": [
+   "camera",
+   "fov"
+  ],
+  "description": "A field of view changer for your Gorilla Tag camera."
+ },
+ {
+  "repo": "Nicktender/Flooded",
+  "name": "Flooded",
+  "category": "gameplay",
+  "tags": [
+   "water",
+   "maps"
+  ],
+  "description": "Flood the map with water. Turn it on from the Haunted menu or the computer."
+ },
+ {
+  "repo": "poopoovr/PCButtonClick",
+  "name": "PC Button Click",
+  "category": "utilities",
+  "tags": [
+   "pc",
+   "mouse"
+  ],
+  "description": "Click in-game buttons with your mouse."
+ },
+ {
+  "repo": "elligurt/CatClock-Bepinex",
+  "name": "Cat Clock",
+  "category": "cosmetics",
+  "tags": [
+   "clock",
+   "stump"
+  ],
+  "description": "Places a cat clock in Stump. The author has moved to MelonLoader, so this version won't get updates."
+ },
+ {
+  "repo": "poopoovr/WASDFly",
+  "name": "WASD Fly (poopoovr)",
+  "category": "gameplay",
+  "tags": [
+   "flying",
+   "keyboard"
+  ],
+  "description": "Fly using WASD, and press K to turn flying on or off."
+ },
+ {
+  "repo": "lolcaf/Monke-Minimap",
+  "name": "Monke Minimap",
+  "category": "utilities",
+  "tags": [
+   "minimap",
+   "players"
+  ],
+  "description": "A minimap that shows the area around you and other players nearby."
+ },
+ {
+  "repo": "charabii/skeleton-mod",
+  "name": "Skeleton Mod",
+  "category": "cosmetics",
+  "tags": [
+   "halloween",
+   "player model"
+  ],
+  "description": "Makes the skeleton player model from the 2024 Halloween update show up all the time. Needs Banana OS."
+ },
+ {
+  "repo": "poopoovr/DiscordNotifs",
+  "name": "Discord Notifs",
+  "category": "utilities",
+  "tags": [
+   "discord",
+   "notifications"
+  ],
+  "description": "Shows your Discord notifications inside the game. Open the game once with it installed to set it up."
+ },
+ {
+  "repo": "BubblesToGo/GorillaTag-Room-Joiner",
+  "name": "Bubbles Room Joiner",
+  "category": "utilities",
+  "tags": [
+   "rooms"
+  ],
+  "description": "A basic room joiner for quickly getting into rooms."
+ },
+ {
+  "repo": "Pygmeii/GorillaTagCameraMod",
+  "name": "Pygmeii Camera Mod",
+  "category": "utilities",
+  "tags": [
+   "camera"
+  ],
+  "description": "A camera mod for Gorilla Tag, for recording and streaming with better views."
+ },
+ {
+  "repo": "Estati/MinecraftNametags",
+  "name": "Minecraft Nametags",
+  "category": "cosmetics",
+  "tags": [
+   "nametags",
+   "minecraft"
+  ],
+  "description": "Minecraft-style nametags above players."
+ },
+ {
+  "repo": "Sniffingtoes/MegamindNametags",
+  "name": "Megamind Nametags",
+  "category": "cosmetics",
+  "tags": [
+   "nametags"
+  ],
+  "description": "Cool nametags that show info about players above their heads."
+ },
+ {
+  "repo": "ZenthGT/SubscribeBoard",
+  "name": "Subscribe Board",
+  "category": "cosmetics",
+  "tags": [
+   "youtube",
+   "board"
+  ],
+  "description": "A fixed version of the classic subscribe board mod, for YouTubers."
+ },
+ {
+  "repo": "r00ster21714/Gorilla-tag-FULL-BODY-TRACKING",
+  "name": "Full Body Tracking",
+  "category": "utilities",
+  "tags": [
+   "body tracking",
+   "pc"
+  ],
+  "description": "Adds full body tracking to Gorilla Tag on PC."
+ },
+ {
+  "repo": "ShibaGT/RandomSound",
+  "name": "Random Sound",
+  "category": "gameplay",
+  "tags": [
+   "audio",
+   "funny"
+  ],
+  "description": "Plays a random sound every 9 to 30 seconds while you play."
+ },
+ {
+  "repo": "ShibaGT/RigCloner",
+  "name": "Rig Cloner",
+  "category": "gameplay",
+  "tags": [
+   "clones",
+   "client side"
+  ],
+  "description": "Duplicate your gorilla client side to make cool and unique things. Pull the left trigger to make a clone."
+ },
+ {
+  "repo": "PurpleMoonieee-Real/GorillaLegs",
+  "name": "Gorilla Legs",
+  "category": "cosmetics",
+  "tags": [
+   "legs",
+   "arms"
+  ],
+  "description": "Gives your arms and hands a fun, leg-like look."
+ },
+ {
+  "repo": "pl2w/JetpackMonke",
+  "name": "Jetpack Monke",
+  "category": "gameplay",
+  "tags": [
+   "jetpack",
+   "flying"
+  ],
+  "description": "Gives you a jetpack. Needs BepInEx 5."
+ },
+ {
+  "repo": "poopoovr/IsThisALoop",
+  "name": "Is This A Loop",
+  "category": "gameplay",
+  "tags": [
+   "clones",
+   "time loop"
+  ],
+  "description": "Records your movements and creates physical clones of your gorilla that follow your exact past path."
+ },
+ {
+  "repo": "KronoSeptic15/SeventysBlossomKiller_GorillaTag",
+  "name": "Blossom Killer",
+  "category": "utilities",
+  "tags": [
+   "forest",
+   "leaves"
+  ],
+  "description": "Gets rid of the cherry blossoms and leaves in the forest."
+ },
+ {
+  "repo": "FrostyTagYT/UtilityBoard-Community",
+  "name": "Utility Board",
+  "category": "utilities",
+  "tags": [
+   "utility",
+   "client side"
+  ],
+  "description": "A free client-side utility board for PC VR. Pop it open, tweak your session and close it."
+ },
+ {
+  "repo": "F6347/RankedGTAG",
+  "name": "Ranked GTAG",
+  "category": "gameplay",
+  "tags": [
+   "points",
+   "infection"
+  ],
+  "description": "Counts your points when you tag people and survive in infection."
+ },
+ {
+  "repo": "sirkingbinx/BingusNametagsPlusPlus",
+  "name": "Bingus Nametags++",
+  "category": "cosmetics",
+  "tags": [
+   "nametags"
+  ],
+  "description": "A simple, clean and customizable nametag mod."
+ },
+ {
+  "repo": "SonnyModding/PassThrough-Leaderboard",
+  "name": "Pass Through Leaderboard",
+  "category": "utilities",
+  "tags": [
+   "leaderboard"
+  ],
+  "description": "Makes the scoreboard invisible."
+ },
+ {
+  "repo": "poopoovr/NoLeaves",
+  "name": "No Leaves",
+  "category": "utilities",
+  "tags": [
+   "forest",
+   "leaves"
+  ],
+  "description": "Removes the leaves in Gorilla Tag. Put NoLeaves.dll in BepInEx/plugins.",
+  "video": "r_leB6-wWK4"
+ },
+ {
+  "repo": "FrostyTagYT/BibleVerseMOTD",
+  "name": "Bible Verse MOTD",
+  "category": "cosmetics",
+  "tags": [
+   "message board",
+   "bible"
+  ],
+  "description": "Replaces the stump message of the day with a random Bible verse. Client side."
+ },
+ {
+  "repo": "ASTRA228b/Astras-Velocity-Meter",
+  "name": "Astra's Velocity Meter",
+  "category": "utilities",
+  "tags": [
+   "speed",
+   "meter"
+  ],
+  "description": "A lightweight speedometer that shows how fast you're moving."
+ },
+ {
+  "repo": "kinomonke/CodeSaver",
+  "name": "Code Saver",
+  "category": "utilities",
+  "tags": [
+   "rooms",
+   "computer"
+  ],
+  "description": "Join and save room codes on the computer. Works with the normal computer and Computer Interface."
+ },
+ {
+  "repo": "Sniffingtoes/MegamindMedia",
+  "name": "Megamind Media",
+  "category": "utilities",
+  "tags": [
+   "music",
+   "media"
+  ],
+  "description": "A simple media player that shows and controls what's playing on your computer."
+ },
+ {
+  "repo": "kinomonke/NoMoreTracking",
+  "name": "No More Tracking",
+  "category": "utilities",
+  "tags": [
+   "rooms",
+   "privacy"
+  ],
+  "description": "Press Option 3 on the Room tab of the computer to join a random six-character room, so you're harder to follow around."
+ },
+ {
+  "repo": "Ematthew01/GorillaTagDebugger",
+  "name": "Gorilla Tag Debugger",
+  "category": "libraries",
+  "tags": [
+   "developers",
+   "debug"
+  ],
+  "description": "Shows all the information mod makers need while building a Gorilla Tag mod."
+ },
+ {
+  "repo": "FortyyMod/Computer-Interface",
+  "name": "Computer Interface (fixed)",
+  "category": "libraries",
+  "tags": [
+   "library",
+   "computer"
+  ],
+  "description": "Toni Macaroni's Computer Interface, fixed by Fortyy to work with the current Gorilla Tag (Unity 6). Use this if the original no longer loads.",
+  "video": "gNvoMILgcWc"
+ },
+ {
+  "repo": "gorillan0t/Sentinel",
+  "name": "Sentinel",
+  "category": "utilities",
+  "tags": [
+   "mod checker"
+  ],
+  "description": "An open source mod checker that shows which mods other players are using."
+ },
+ {
+  "repo": "TH4MASCODE/Pepsi-Dee-Gtag-Mod-Checker",
+  "name": "Pepsi Dee Mod Checker",
+  "category": "utilities",
+  "tags": [
+   "mod checker"
+  ],
+  "description": "A mod checker that shows which mods other players in your room are running.",
+  "video": "cnq8qiszXhA"
+ },
+ {
+  "repo": "V1nne13/V1nneChecker-V1NNEBOARD",
+  "name": "V1nneBoard Checker",
+  "category": "utilities",
+  "tags": [
+   "mod checker"
+  ],
+  "description": "A mod checker with a 3D hand menu and a laser scanner. The author says it was made mostly with AI, can be glitchy, and gives false positives."
+ },
+ {
+  "repo": "Meltixx-cs/Axiom-Utils",
+  "name": "Axiom Utils",
+  "category": "utilities",
+  "tags": [
+   "mod checker",
+   "utility pad"
+  ],
+  "description": "A mod checker and utility pad for Gorilla Tag."
+ },
+ {
+  "repo": "Shadee-s3/ChillinzTagz",
+  "name": "Chillinz Tagz",
+  "category": "utilities",
+  "tags": [
+   "nametags",
+   "platform"
+  ],
+  "description": "Nametags that show each player's name and platform, even from far away."
+ },
+ {
+  "repo": "SkidsVR/Twilight-s-Pull-Mod",
+  "name": "Twilight's Pull Mod",
+  "category": "gameplay",
+  "tags": [
+   "pull mod",
+   "movement"
+  ],
+  "description": "A movement mod that adds a pull mechanic to boost your movement. Pull mods can get you banned in public lobbies."
+ },
+ {
+  "repo": "Progame-JR/Original-Player-Model-Mod",
+  "name": "Original Player Model",
+  "category": "cosmetics",
+  "tags": [
+   "nostalgia",
+   "player model"
+  ],
+  "description": "Replaces the current gorilla model with the original 2022 model for everyone in your lobby, on your screen."
+ },
+ {
+  "repo": "LapisGit/ComputerLib",
+  "name": "ComputerLib",
+  "category": "libraries",
+  "tags": [
+   "library",
+   "computer",
+   "developers"
+  ],
+  "description": "A tiny library that lets mod makers add custom pages to the Gorilla Tag computer."
+ },
+ {
+  "repo": "VexarVR/Vexar-Cosmetics",
+  "name": "Vexar Cosmetics",
+  "category": "cosmetics",
+  "tags": [
+   "cosmetics",
+   "preview"
+  ],
+  "description": "Try on cosmetics locally to preview how they look on your gorilla. Client side."
+ },
+ {
+  "repo": "Mudstud/BibleBrowser",
+  "name": "Bible Browser",
+  "category": "utilities",
+  "tags": [
+   "bible",
+   "reader"
+  ],
+  "description": "A Bible reader in game, with a daily verse and all 66 books to browse."
+ },
+ {
+  "repo": "Source4Life/ForeverSilence",
+  "name": "Forever Silence",
+  "category": "utilities",
+  "tags": [
+   "mute",
+   "audio"
+  ],
+  "description": "Mute people for good. For when someone is screaming or breathing into their mic like a jet engine."
+ },
+ {
+  "repo": "GreenMnokey/Monke-Phone",
+  "name": "Monke Phone (Green)",
+  "category": "utilities",
+  "tags": [
+   "phone"
+  ],
+  "description": "Adds a virtual phone to your hand with quick access to handy features."
+ },
+ {
+  "repo": "Noujo24/Body-Tracking-for-SteamVR",
+  "name": "Body Tracking for SteamVR",
+  "category": "utilities",
+  "tags": [
+   "body tracking",
+   "steamvr"
+  ],
+  "description": "Brings Gorilla Tag's body tracking to the Steam version using SteamVR trackers, so your gorilla's torso turns with you."
+ },
+ {
+  "repo": "DeezVrOfficial/GorillaMedia",
+  "name": "Gorilla Media",
+  "category": "utilities",
+  "tags": [
+   "music",
+   "media"
+  ],
+  "description": "See and control any media playing on your computer, right in game."
+ },
+ {
+  "repo": "AkiraCuo/Broken-Leaderboard-v1.3",
+  "name": "Broken Leaderboard",
+  "category": "cosmetics",
+  "tags": [
+   "leaderboard",
+   "funny"
+  ],
+  "description": "A silly mod that breaks the look of the leaderboard."
+ },
+ {
+  "repo": "Thyme-crystal/RoomInfoGUI",
+  "name": "Room Info GUI",
+  "category": "utilities",
+  "tags": [
+   "rooms",
+   "player list"
+  ],
+  "description": "Adds a window with the player list and info about your current room, including who is on Steam."
+ },
+ {
+  "repo": "itay123458/MagmarenaRestored",
+  "name": "Magmarena Restored",
+  "category": "maps",
+  "tags": [
+   "nostalgia",
+   "maps"
+  ],
+  "description": "Brings back the old Magmarena through the entrance in the forest. Private rooms only, including modded private rooms."
+ },
+ {
+  "repo": "SkidsVR/Gorilla-SpeedBoost",
+  "name": "Gorilla Speed Boost",
+  "category": "gameplay",
+  "tags": [
+   "speed",
+   "movement"
+  ],
+  "description": "A customizable speed boost to move around the map faster."
+ },
+ {
+  "repo": "SkidsVR/Gorilla-WallWalk",
+  "name": "Gorilla Wall Walk",
+  "category": "gameplay",
+  "tags": [
+   "wall walk",
+   "movement"
+  ],
+  "description": "Walk across walls to explore the map in new ways."
+ },
+ {
+  "repo": "GTSBUBBLEPLAYSGT/The-Bubbles-Camera",
+  "name": "Bubbles Camera",
+  "category": "utilities",
+  "tags": [
+   "camera",
+   "clips"
+  ],
+  "description": "A camera mod made for clips, with smooth first and third person, spectate, handheld and free cam modes on your monitor."
+ },
+ {
+  "repo": "easyax2/gorillacraft",
+  "name": "GorillaCraft",
+  "category": "gameplay",
+  "tags": [
+   "minecraft",
+   "crossover"
+  ],
+  "description": "Your Minecraft world becomes a climbable Gorilla Tag map, with hand mining and building, in VR."
+ },
+ {
+  "repo": "axisGT/MonkeTV-2026-fixed-version-networked-",
+  "name": "MonkeTV 2026",
+  "category": "cosmetics",
+  "tags": [
+   "tv",
+   "videos",
+   "networked"
+  ],
+  "description": "Adds a working networked TV to Stump. Play your own MP4 videos and watch them with friends."
+ },
+ {
+  "repo": "kroxyraun-hub/tiktokbubbes",
+  "name": "TikTok Bubbles",
+  "category": "utilities",
+  "tags": [
+   "tiktok",
+   "streaming"
+  ],
+  "description": "Your TikTok live chat floats in front of you as bubbles in VR. Touch them to pop them. Private and modded lobbies only."
+ },
+ {
+  "repo": "draky123/GTagPCMode-1.3.0",
+  "name": "GTag PC Mode",
+  "category": "utilities",
+  "tags": [
+   "no vr",
+   "keyboard"
+  ],
+  "description": "Play with keyboard and mouse, with an on-screen menu to switch between PC and headset mode, plus fly and a speed boost."
+ },
+ {
+  "repo": "poopoovr/KnifeHoldable",
+  "name": "Knife Holdable",
+  "category": "cosmetics",
+  "tags": [
+   "holdables",
+   "counter strike"
+  ],
+  "description": "Adds the terrorist knife from Counter-Strike 2 as a holdable cosmetic."
+ },
+ {
+  "repo": "AdrienPlaza/ArgonWeather",
+  "name": "Argon Weather",
+  "category": "utilities",
+  "tags": [
+   "weather",
+   "time"
+  ],
+  "description": "Change the time of day and make it rain from an in-game VR menu. Built on the Argon menu."
+ },
+ {
+  "repo": "stridefr/GorillaNextBots",
+  "name": "Gorilla NextBots",
+  "category": "gameplay",
+  "tags": [
+   "nextbots",
+   "ragdoll"
+  ],
+  "description": "Garry's Mod-style nextbots and ragdolls. Spawn nextbots that hunt your friends; when one catches you, you go flying."
+ },
+ {
+  "repo": "ttcrxziOfficial/DisableAmbience",
+  "name": "Disable Ambience",
+  "category": "utilities",
+  "tags": [
+   "audio",
+   "videos"
+  ],
+  "description": "Turns off wind, weather and other ambient sounds and effects. Handy for videos. In beta."
+ },
+ {
+  "repo": "Ssshad0l/PlatformTag",
+  "name": "Platform Tag",
+  "category": "utilities",
+  "tags": [
+   "nametags",
+   "platform"
+  ],
+  "description": "Shows a STEAM or OCULUS label above each player."
+ },
+ {
+  "repo": "pl2w/OfflineFriendNames",
+  "name": "Offline Friend Names",
+  "category": "utilities",
+  "tags": [
+   "friends",
+   "fix"
+  ],
+  "description": "Fixes Gorilla Tag hiding your offline friends' names."
+ },
+ {
+  "repo": "Instel12/InstelsNotifications",
+  "name": "Instel's Notifications",
+  "category": "libraries",
+  "tags": [
+   "library",
+   "notifications"
+  ],
+  "description": "A library that lets other mods show notifications to the player."
+ },
+ {
+  "repo": "bubbl1987/BubblNotifications",
+  "name": "Bubbl Notifications",
+  "category": "libraries",
+  "tags": [
+   "library",
+   "notifications"
+  ],
+  "description": "A notification library mod makers can use to show messages in game."
+ },
+ {
+  "repo": "Coolguy93official/RGBmonke",
+  "name": "RGB Monke",
+  "category": "cosmetics",
+  "tags": [
+   "rainbow",
+   "client side"
+  ],
+  "description": "Makes your gorilla cycle through RGB colors. Client side, so only you see it."
+ },
+ {
+  "repo": "liamcsharp/Liam-Casting-Mod-",
+  "name": "Liam's Casting Mod",
+  "category": "utilities",
+  "tags": [
+   "casting",
+   "camera"
+  ],
+  "description": "A casting mod. Press H to show or hide its window."
+ },
+ {
+  "repo": "Instel12/InstelsCamera",
+  "name": "Instel's Camera",
+  "category": "utilities",
+  "tags": [
+   "camera"
+  ],
+  "description": "A camera mod with most of what the built-in live camera has, but with more freedom. Push both joysticks up to open it."
+ },
+ {
+  "repo": "BoxTroII/PaintballGun",
+  "name": "Paintball Gun",
+  "category": "gameplay",
+  "tags": [
+   "paint",
+   "materials"
+  ],
+  "description": "Change the color, texture and material of objects around the map. Uses Banana OS."
+ },
+ {
+  "repo": "Xenishaa/NightNoRain",
+  "name": "Night No Rain",
+  "category": "utilities",
+  "tags": [
+   "time",
+   "weather"
+  ],
+  "description": "Forces night time with no rain."
+ },
+ {
+  "repo": "codyiscoder/Jetpack",
+  "name": "Jetpack",
+  "category": "gameplay",
+  "tags": [
+   "jetpack",
+   "flying"
+  ],
+  "description": "A simple jetpack that boosts you upward using your controllers, pushing you the way your head is facing."
+ },
+ {
+  "repo": "developer9998/GorillaInvulnerability",
+  "name": "Gorilla Invulnerability",
+  "category": "utilities",
+  "tags": [
+   "afk",
+   "quality of life"
+  ],
+  "description": "Stops the game's overlay behaviour and AFK disconnects from kicking in."
+ },
+ {
+  "repo": "itsreallyhex/GorillaPhone",
+  "name": "Gorilla Phone (hex)",
+  "category": "utilities",
+  "tags": [
+   "phone",
+   "photos"
+  ],
+  "description": "A real phone in the world: grab it, throw it, take photos and selfies, and look through them in a gallery. PC VR."
+ },
+ {
+  "repo": "pl2w/MonkeGameModes",
+  "name": "Monke Game Modes",
+  "category": "gameplay",
+  "tags": [
+   "gamemodes"
+  ],
+  "description": "A collection of custom gamemodes like Team Infection, each as its own mod."
+ },
+ {
+  "repo": "gtgamingcpu-arch/Backflip-mod",
+  "name": "Backflip Mod",
+  "category": "gameplay",
+  "tags": [
+   "flips",
+   "movement"
+  ],
+  "description": "Be cooler than the rest of the monkes and backflip. Drag BackflipMod.dll into your plugins folder."
+ },
+ {
+  "repo": "Toastconcern/HoverboardsAnywhere",
+  "name": "Hoverboards Anywhere",
+  "category": "gameplay",
+  "tags": [
+   "hoverboard",
+   "modded lobbies"
+  ],
+  "description": "Use the hoverboard anywhere in modded lobbies."
+ },
+ {
+  "repo": "carellakidscreate-commits/ZyraCam",
+  "name": "ZyraCam",
+  "category": "utilities",
+  "tags": [
+   "camera",
+   "open source"
+  ],
+  "description": "A free, open source camera mod for PC with customizable controls and a physical camera."
+ },
+ {
+  "repo": "Thyme-crystal/GorillaTimeGUI",
+  "name": "Gorilla Time GUI",
+  "category": "utilities",
+  "tags": [
+   "time",
+   "snow"
+  ],
+  "description": "Switch between night, evening, day and morning, and optionally add snow."
+ },
+ {
+  "repo": "goatgt/MonkeMirror",
+  "name": "Monke Mirror",
+  "category": "cosmetics",
+  "tags": [
+   "mirror",
+   "stump"
+  ],
+  "description": "Adds a mirror to Stump so you can check out your gorilla."
+ },
+ {
+  "repo": "elligurt/GorillaDash",
+  "name": "Gorilla Dash",
+  "category": "gameplay",
+  "tags": [
+   "dash",
+   "movement"
+  ],
+  "description": "Press A on your right controller to dash in the direction your hand is pointing."
+ },
+ {
+  "repo": "kinomonke/MiniModGT",
+  "name": "Mini Mod",
+  "category": "gameplay",
+  "tags": [
+   "size",
+   "modded lobbies"
+  ],
+  "description": "Makes you tiny in modded lobbies."
+ },
+ {
+  "repo": "M4LivesAgain/MonkeWatch",
+  "name": "Monke Watch",
+  "category": "utilities",
+  "tags": [
+   "watch",
+   "computer"
+  ],
+  "description": "A PC VR port of the popular old Quest mod MonkeComputer, as a watch on your wrist."
+ }
+]

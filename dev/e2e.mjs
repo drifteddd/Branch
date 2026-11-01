@@ -1086,6 +1086,101 @@ await test("admin imports mods from github links", async () => {
   await screenshot("admin-github-import");
 });
 
+await test("upload with screenshots and a youtube video shows them on the mod page", async () => {
+  const modFile = join(profile, "ClipMod.dll");
+  writeFileSync(modFile, Buffer.from("MZ clip mod " + Math.random()));
+  await go(`${BASE}/#/upload`);
+  await waitFor(`document.querySelector("input[name=upload-mode][value=advanced]")`, "upload modes");
+  await evaluate(click("input[name=upload-mode][value=advanced]"));
+  await waitFor(`document.querySelector("#up-name") && document.querySelector("#up-shots")`, "media fields");
+  await setFile("#up-file", modFile);
+  await evaluate(type("#up-name", "Clip Mod"));
+  await evaluate(type("#up-description", "a demo mod that shows off screenshots and a video on its page."));
+  await evaluate(`(async () => {
+    const dt = new DataTransfer();
+    for (const color of ["#3a7", "#a37"]) {
+      const c = document.createElement("canvas"); c.width = 1280; c.height = 720;
+      const g = c.getContext("2d"); g.fillStyle = color; g.fillRect(0, 0, 1280, 720);
+      const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+      dt.items.add(new File([blob], color.slice(1) + ".png", { type: "image/png" }));
+    }
+    const input = document.querySelector("#up-shots");
+    input.files = dt.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  })()`);
+  await waitFor(`document.querySelectorAll(".shot-tile").length === 2`, "screenshot previews");
+  await evaluate(type("#up-video", "not a video"));
+  await evaluate(click("#up-confirm"));
+  await evaluate(click(".form-card button[type=submit]"));
+  await waitFor(`!document.querySelector("[data-field=video_url] .error").hidden`, "bad video link error");
+  await evaluate(type("#up-video", "https://www.youtube.com/watch?v=aqz-KE-bpKQ&t=10"));
+  await waitFor(`document.querySelector(".video-preview .video-card")`, "video preview");
+  await screenshot("upload-media");
+  await evaluate(click(".form-card button[type=submit]"));
+  await waitFor(`document.querySelector(".state-block h2")?.textContent === "Your mod is live"`, "uploaded", 8000);
+  const slug = await evaluate(`fetch("/api/mods?sort=newest&per_page=5").then(r => r.json()).then(d => d.items.find(m => m.name === "Clip Mod")?.slug)`);
+  assert(slug, "uploaded mod not listed");
+  await evaluate(`location.hash = "#/mod/" + ${JSON.stringify(slug)}`);
+  await waitFor(`document.querySelector(".video-card") && document.querySelectorAll(".gallery-item").length === 2`, "video and gallery on the mod page");
+  await screenshot("detail-video");
+  await evaluate(click(".video-card"));
+  await waitFor(`document.querySelector("iframe.video-frame")?.src.includes("youtube-nocookie.com/embed/aqz-KE-bpKQ")`, "video plays after a click");
+});
+
+await test("admin posts a poll, people vote in the community tab and see results", async () => {
+  await go(`${BASE}/admin#/polls`);
+  await waitFor(`document.querySelector("#poll-question")`, "admin polls page");
+  await evaluate(type("#poll-question", "what should Branch add next?"));
+  await evaluate(type("#poll-options", "one-click install\nmod packs\ncreator profiles"));
+  await evaluate(click(".card button[type=submit]"));
+  await waitFor(`document.querySelector(".poll-admin h2")?.textContent.includes("add next")`, "poll listed for admin");
+  await go(`${BASE}/#/forum`);
+  await waitFor(`document.querySelector(".poll-teaser .poll-card")`, "poll teaser on the forum");
+  await evaluate(`location.hash = "#/forum/polls"`);
+  await waitFor(`document.querySelectorAll(".poll-list .poll-option").length === 3`, "poll options");
+  await evaluate(clickText(".poll-list .poll-option", "mod packs"));
+  await waitFor(`document.querySelector(".poll-option.mine")?.textContent.includes("mod packs") && document.querySelector(".poll-option.mine .poll-pct")?.textContent === "100%"`, "vote counted with results");
+  await evaluate(clickText(".poll-list .poll-option", "creator profiles"));
+  await waitFor(`document.querySelector(".poll-option.mine")?.textContent.includes("creator profiles") && document.querySelector(".poll-foot").textContent.startsWith("1 vote")`, "vote changed, still one vote");
+  await screenshot("community-polls");
+  await go(`${BASE}/admin#/polls`);
+  await waitFor(`document.querySelector(".poll-admin")?.textContent.includes("1 vote")`, "admin sees the vote");
+  await evaluate(clickText(".poll-admin button", "Close poll"));
+  await waitFor(`document.querySelector(".poll-admin .pill")?.textContent === "closed"`, "poll closed");
+});
+
+await test("mod manager: link the folder, turn mods off and on, scan one and update one", async () => {
+  const { identifier } = await cdp("Page.addScriptToEvaluateOnNewDocument", { source: `window.__branchFakePlugins = { detect: ["C:\\\\Steam\\\\steamapps\\\\common\\\\Gorilla Tag"], game: null, files: [
+    { id: "Utilla.dll", name: "Utilla", file_name: "Utilla.dll", folder: null, size: 52000, modified: 1761900000, enabled: true, sha256: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+    { id: "OldHats.dll", name: "OldHats", file_name: "OldHats.dll", folder: null, size: 18000, modified: 1761900000, enabled: true, sha256: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    { id: "Menus\\\\Fly.dll.disabled", name: "Fly", file_name: "Fly.dll", folder: "Menus", size: 9000, modified: 1761900000, enabled: false, sha256: "" }
+  ] };` });
+  try {
+    await go(`${BASE}/#/manager`);
+    await waitFor(`document.querySelector(".mm-found")`, "detected game folder");
+    await screenshot("mod-manager-setup");
+    await evaluate(click(".mm-found"));
+    await waitFor(`document.querySelectorAll(".mm-row").length === 3`, "installed mods listed");
+    assert(await evaluate(`document.querySelector(".mm-stats").textContent.includes("3 mods") && document.querySelector(".mm-stats").textContent.includes("1 update")`), "stats line");
+    assert(await evaluate(`[...document.querySelectorAll(".mm-row")].find(r => r.dataset.file === "OldHats.dll").textContent.includes("On Branch")`), "branch match missing");
+    await screenshot("mod-manager");
+    await evaluate(`[...document.querySelectorAll(".mm-row")].find(r => r.dataset.file === "Utilla.dll").querySelector(".switch input").click()`);
+    await waitFor(`window.__branchFakePlugins.files.find(f => f.name === "Utilla").enabled === false`, "mod turned off");
+    await evaluate(click("#mm-all"));
+    await waitFor(`window.__branchFakePlugins.files.every(f => !f.enabled) && document.querySelector("#mm-all")?.textContent.includes("Turn all on")`, "all turned off");
+    await evaluate(click("#mm-all"));
+    await waitFor(`window.__branchFakePlugins.files.every(f => f.enabled)`, "all turned on");
+    await evaluate(clickText(".mm-row .btn", "Update to"));
+    await waitFor(`window.__branchFakePlugins.files.length === 3 && !window.__branchFakePlugins.files.some(f => f.name === "OldHats")`, "updated and old file removed");
+    await waitFor(`document.querySelectorAll(".mm-row").length === 3`, "list refreshed");
+    await evaluate(`[...document.querySelectorAll(".mm-row")].find(r => r.dataset.file === "Fly.dll").querySelector(".btn-quiet").click()`);
+    await waitFor(`location.hash === "#/check" && (document.querySelector(".result-card") || document.querySelector(".drop-card.scanning"))`, "file sent to the mod checker");
+  } finally {
+    await cdp("Page.removeScriptToEvaluateOnNewDocument", { identifier });
+  }
+});
+
 ws.close();
 browser.kill();
 server.close();

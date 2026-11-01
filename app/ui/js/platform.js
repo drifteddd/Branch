@@ -225,3 +225,46 @@ export const githubFetch = isDesktop
       }
     }
   : undefined;
+export const canManageMods = isDesktop || Boolean(window.__branchFakePlugins);
+
+function fakePlugins(cmd, args) {
+  const fake = window.__branchFakePlugins;
+  const folder = () => ({ game_dir: fake.game, plugins_dir: `${fake.game}\BepInEx\plugins`, bepinex: true, game_found: true });
+  const find = (id) => {
+    const f = fake.files.find((x) => x.id === id);
+    if (!f) throw new ApiError("that file isn't there anymore. press refresh.", { kind: "app" });
+    return f;
+  };
+  switch (cmd) {
+    case "plugins_detect": return fake.detect || [];
+    case "plugins_set_folder": fake.game = args.path; return folder();
+    case "plugins_pick_folder": fake.game = fake.pick || fake.game; return fake.game ? folder() : null;
+    case "plugins_list": return fake.files.map((f) => ({ ...f }));
+    case "plugins_set_enabled": {
+      const f = find(args.id);
+      f.enabled = args.enabled;
+      f.id = args.enabled ? f.id.replace(/\.disabled$/, "") : f.id.endsWith(".disabled") ? f.id : `${f.id}.disabled`;
+      return f.id;
+    }
+    case "plugins_remove": fake.files = fake.files.filter((x) => x.id !== args.id); return "removed";
+    case "plugins_read": return new TextEncoder().encode("MZ fake plugin " + find(args.id).file_name).buffer;
+    case "plugins_open": fake.opened = args.which; return null;
+    case "plugins_install": {
+      fake.files.push({ id: args.args.fileName, name: args.args.fileName.replace(/\.dll$/i, ""), file_name: args.args.fileName, folder: null, size: 1000, modified: Math.floor(Date.now() / 1000), enabled: true, sha256: args.args.sha256 || "" });
+      return { status: "saved", path: args.args.fileName };
+    }
+    default: throw new ApiError("unknown command", { kind: "app" });
+  }
+}
+
+export async function plugins(cmd, args = {}) {
+  if (!isDesktop) {
+    if (!window.__branchFakePlugins) throw new ApiError("the mod manager only works in the Branch desktop app", { kind: "app" });
+    return fakePlugins(cmd, args);
+  }
+  try {
+    return await tauri.core.invoke(cmd, args);
+  } catch (err) {
+    throw toApiError(err, "the mod manager couldn't do that");
+  }
+}

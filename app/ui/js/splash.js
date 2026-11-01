@@ -19,7 +19,10 @@ export async function runSplash(work) {
   let shown = -1;
 
   await new Promise((resolve) => {
-    const frame = (now) => {
+    let resolved = false;
+    const backup = setInterval(() => frame(performance.now(), true), 250);
+    const frame = (now, fromTimer = false) => {
+      if (resolved) return;
       const elapsed = now - start;
       const timeShare = Math.min(1, elapsed / TARGET_MS);
       const progress = finished ? timeShare : Math.min(timeShare, 0.92);
@@ -35,8 +38,10 @@ export async function runSplash(work) {
       if (done) {
         fill.style.transform = "scaleX(1)";
         detail.textContent = "Ready";
+        resolved = true;
+        clearInterval(backup);
         resolve();
-      } else {
+      } else if (!fromTimer) {
         requestAnimationFrame(frame);
       }
     };

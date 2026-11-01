@@ -54,6 +54,15 @@ const onboardingStats = new Map();
 const githubRepos = new Map();
 const githubImport = { running: false, publish: true, items: [] };
 const creatorNotices = [];
+const polls = [];
+const pollVotes = new Map();
+const VIDEO_THUMB = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360"><rect width="480" height="360" fill="#202124"/><text x="240" y="190" fill="#9aa0a6" font-size="28" text-anchor="middle" font-family="sans-serif">demo video</text></svg>');
+const voterOf = (req) => req.socket.remoteAddress || "local";
+const pollOut = (poll, voter) => {
+  const votes = [...(pollVotes.get(poll.id) || new Map()).entries()];
+  const open = !poll.closed && (!poll.closes_at || new Date(poll.closes_at) > new Date());
+  return { id: poll.id, question: poll.question, open, closes_at: poll.closes_at, created_at: poll.created_at, total: votes.length, my_vote: voter ? (pollVotes.get(poll.id)?.get(voter) || null) : null, options: poll.options.map((o) => ({ id: o.id, label: o.label, votes: votes.filter(([, v]) => v === o.id).length })) };
+};
 const assistantUsage = () => ({ limit: 25, used: assistantCalls.length, remaining: Math.max(0, 25 - assistantCalls.length), window_hours: 5, resets_at: assistantCalls.length ? new Date(assistantCalls[0] + 5 * 3600_000).toISOString() : null });
 
 const trackerCards = (() => {
@@ -164,7 +173,7 @@ function summary(m) {
 
 function parseMultipart(req, body) {
   const boundary = /boundary=(.+)$/.exec(req.headers["content-type"] || "")?.[1];
-  const result = { fields: {}, file: null, files: {} };
+  const result = { fields: {}, file: null, files: {}, lists: {} };
   if (!boundary) return result;
   for (const part of body.toString("latin1").split(`--${boundary}`)) {
     const [head, ...rest] = part.split("\r\n\r\n");
@@ -175,7 +184,8 @@ function parseMultipart(req, body) {
     if (filename != null) {
       const upload = { name: filename, data: Buffer.from(content, "latin1"), type: /content-type:\s*([^\r\n]+)/i.exec(head)?.[1] || "" };
       result.files[name] = upload;
-      if (name !== "thumbnail") result.file = upload;
+      (result.lists[name] ||= []).push(upload);
+      if (name !== "thumbnail" && name !== "screenshots") result.file = upload;
     }
     else if (name) result.fields[name] = content;
   }
@@ -203,6 +213,7 @@ function modPayloadToMod(m, p) {
     game_versions: p.game_versions || "", platforms: p.platforms || [], mod_loader: p.mod_loader || "", dependencies: p.dependencies || [],
     install_instructions: p.install_instructions || "", known_issues: p.known_issues || "", source_url: p.source_url || null, project_url: p.project_url || null,
     license: { name: p.license_name || "", url: p.license_url || null }, redistribution: p.redistribution || "unknown", redistribution_note: p.redistribution_note || "",
+    video_id: /(?:youtu\.be\/|v=|shorts\/|embed\/)([A-Za-z0-9_-]{11})/.exec(p.video_url || "")?.[1] || null,
     updated_at: new Date().toISOString(),
   });
   for (const t of m.tags) if (!tags.has(t)) tags.set(t, { id: randomUUID(), slug: t, name: t });
@@ -453,6 +464,25 @@ async function adminApi(req, res, path, url) {
     if (parts[1] === "reports") forum.reports = forum.reports.filter((r) => r.id !== parts[2]);
     return send(res, 200, { ok: true });
   }
+  if (parts[0] === "polls") {
+    if (!parts[1] && method === "GET") return send(res, 200, { polls: polls.map((x) => pollOut(x)) });
+    if (!parts[1] && method === "POST") {
+      const body = await json(req);
+      const options = (body.options || []).map((o) => o.trim()).filter(Boolean);
+      if ((body.question || "").trim().length < 3) return fail(res, 422, "write a question", { question: "write a question" });
+      if (options.length < 2) return fail(res, 422, "add at least 2 options", { options: "add at least 2 options" });
+      const poll = { id: randomUUID(), question: body.question.trim(), closed: false, closes_at: body.days ? new Date(Date.now() + body.days * 86400000).toISOString() : null, created_at: new Date().toISOString(), options: options.map((label) => ({ id: randomUUID(), label })) };
+      polls.unshift(poll);
+      return send(res, 200, { ok: true, id: poll.id });
+    }
+    const poll = polls.find((x) => x.id === parts[1]);
+    if (!poll) return fail(res, 404, "that poll doesn't exist");
+    if (method === "DELETE") { polls.splice(polls.indexOf(poll), 1); return send(res, 200, { ok: true }); }
+    const body = await json(req);
+    poll.closed = Boolean(body.closed);
+    if (!poll.closed) poll.closes_at = null;
+    return send(res, 200, { ok: true });
+  }
   if (parts[0] === "import" && parts[1] === "github") {
     if (method === "GET") return send(res, 200, githubImport);
     const body = await json(req);
@@ -569,7 +599,7 @@ async function publicApi(req, res, path, url) {
     return send(res, 200, { rating: ratingOf(m), my_rating: stars });
   }
   const modMatch = /^\/api\/mods\/([a-z0-9-]+)$/.exec(path);
-  if (modMatch) {
+  if (modMatch && req.method === "GET") {
     const m = mods.find((x) => x.slug === modMatch[1] && x.status === "published");
     await new Promise((r) => setTimeout(r, 200));
     return m ? send(res, 200, { ...m, featured: topRated().has(m.id), rating: ratingOf(m), my_rating: m.my_rating || null }) : fail(res, 404, "that mod isn't listed");
@@ -685,6 +715,30 @@ async function publicApi(req, res, path, url) {
     }
     return send(res, 200, { results });
   }
+  if (path === "/api/mods/identify" && req.method === "POST") {
+    const { hashes = [] } = await json(req);
+    const matches = {};
+    for (const hash of hashes) {
+      const old = hash === "a".repeat(64);
+      const mod = old ? mods.find((x) => x.status === "published" && x.releases[0]?.kind === "hosted" && x.releases[0]?.available) : mods.find((x) => x.releases.some((r) => r.file?.sha256 === hash));
+      if (!mod) continue;
+      const latest = mod.releases[0];
+      matches[hash] = { slug: mod.slug, name: mod.name, version: old ? "0.9.0" : latest.version, update: old ? { release_id: latest.id, version: latest.version, file_name: latest.file.name, sha256: latest.file.sha256, installable: true } : null };
+    }
+    return send(res, 200, { matches });
+  }
+  if (path.startsWith("/api/yt/")) return send(res, 200, VIDEO_THUMB, { "content-type": "image/svg+xml" });
+  if (path === "/api/polls") return send(res, 200, { polls: polls.map((x) => pollOut(x, voterOf(req))) });
+  if (path.startsWith("/api/polls/") && path.endsWith("/vote") && req.method === "POST") {
+    const poll = polls.find((x) => x.id === path.split("/")[3]);
+    if (!poll) return fail(res, 404, "that poll doesn't exist");
+    const body = await json(req);
+    if (!pollOut(poll).open) return fail(res, 400, "this poll has closed");
+    if (!poll.options.some((o) => o.id === body.option_id)) return fail(res, 400, "that option isn't part of this poll");
+    if (!pollVotes.has(poll.id)) pollVotes.set(poll.id, new Map());
+    pollVotes.get(poll.id).set(voterOf(req), body.option_id);
+    return send(res, 200, { poll: pollOut(poll, voterOf(req)) });
+  }
   if (path === "/api/inbox" && req.method === "POST") {
     const { key } = await json(req);
     const mine = key ? reports.filter((r) => r.reporter_key === key).map((r) => ({ id: r.id, mod_name: r.mod_name, mod_slug: r.mod_slug, reason: r.reason, status: r.status, reply: r.reply || "", created_at: r.created_at, resolved_at: r.resolved_at })) : [];
@@ -799,8 +853,11 @@ async function publicApi(req, res, path, url) {
     }
   }
   if (path === "/api/submissions" && req.method === "POST") {
-    const { file, fields, files: parts } = parseMultipart(req, await readBody(req));
+    const { file, fields, files: parts, lists } = parseMultipart(req, await readBody(req));
     if (fields.website) return send(res, 201, { ok: true });
+    const videoMatch = /(?:youtu\.be\/|v=|shorts\/|embed\/)([A-Za-z0-9_-]{11})/.exec(fields.video_url || "") || /^([A-Za-z0-9_-]{11})$/.exec((fields.video_url || "").trim());
+    if (fields.video_url && !videoMatch) return fail(res, 422, "paste a youtube link", { video_url: "paste a youtube link, like https://youtu.be/abc123xyz00" });
+    if ((lists.screenshots || []).length > 6) return fail(res, 422, "add up to 6 screenshots", { screenshots: "add up to 6 screenshots" });
     const thumb = parts.thumbnail;
     const errors = {};
     const easy = fields.mode === "easy";
@@ -860,6 +917,12 @@ async function publicApi(req, res, path, url) {
       uploadedImages.set(key, thumb.data);
       m.thumbnail_url = `/files/uploaded/${key}`;
     }
+    m.video_id = videoMatch ? videoMatch[1] : null;
+    m.screenshots = (lists.screenshots || []).map((shot, i) => {
+      const key = `${randomUUID()}.jpg`;
+      uploadedImages.set(key, shot.data);
+      return { id: randomUUID(), url: `/files/uploaded/${key}`, caption: "", sort_order: i };
+    });
     files.set(m.id, file.data);
     m.releases.push(refreshRelease({ id: randomUUID(), version: fields.version || "unversioned", released_on: new Date().toISOString().slice(0, 10), changelog: "", game_version: "", kind: "hosted", external_url: null, file: { name: file.name, size: file.data.length, sha256: createHash("sha256").update(file.data).digest("hex"), type: "dll" }, disabled: false, disabled_reason: "", created_at: new Date().toISOString() }));
     files.set(m.releases[0].id, file.data);

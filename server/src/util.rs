@@ -36,6 +36,27 @@ pub fn valid_slug(slug: &str) -> bool {
         && slug.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
+pub fn youtube_id(raw: &str) -> Option<String> {
+    let s = raw.trim();
+    let valid = |id: &str| id.len() == 11 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    if valid(s) {
+        return Some(s.to_string());
+    }
+    let rest = s.strip_prefix("https://").or_else(|| s.strip_prefix("http://")).unwrap_or(s);
+    let rest = rest.strip_prefix("www.").or_else(|| rest.strip_prefix("m.")).unwrap_or(rest);
+    let id = if let Some(r) = rest.strip_prefix("youtu.be/") {
+        r.split(['?', '&', '/', '#']).next()
+    } else if let Some(r) = rest.strip_prefix("youtube.com/watch") {
+        r.trim_start_matches('?').split('&').find_map(|kv| kv.strip_prefix("v="))
+    } else if let Some(r) = rest.strip_prefix("youtube.com/shorts/").or_else(|| rest.strip_prefix("youtube.com/embed/")).or_else(|| rest.strip_prefix("youtube.com/live/")).or_else(|| rest.strip_prefix("youtube-nocookie.com/embed/")) {
+        r.split(['?', '&', '/', '#']).next()
+    } else {
+        None
+    }?;
+    let id = id.split('#').next().unwrap_or(id);
+    valid(id).then(|| id.to_string())
+}
+
 pub fn ai_opted_out(headers: &axum::http::HeaderMap) -> bool {
     headers.get("x-branch-no-ai").and_then(|v| v.to_str().ok()) == Some("1")
 }

@@ -1,10 +1,11 @@
 import { h, clear, formatDate, formatBytes, formatNumber, hostOf } from "../dom.js";
 import { icon } from "../icons.js";
 import { renderMarkdown } from "../../shared/markdown.js";
-import { api, assetUrl, downloadRelease, cancelDownload, revealFile, canRevealFiles, openExternal, outboundUrl, isDesktop, githubFetch } from "../platform.js";
+import { api, assetUrl, downloadRelease, cancelDownload, revealFile, canRevealFiles, openExternal, outboundUrl, isDesktop, githubFetch, canManageMods } from "../platform.js";
+import { savedGameFolder, installToGame } from "./manager.js";
 import { openSourceViewer, parseGithub } from "../../shared/source-viewer.js";
 import { favorites, recent, changes } from "../store.js";
-import { compatBadge, errorBlock, stateBlock, thumbnail, toast, showCompatHelp } from "../ui.js";
+import { compatBadge, errorBlock, stateBlock, thumbnail, toast, showCompatHelp, videoCard } from "../ui.js";
 import { openReportDialog } from "./report.js";
 import { versionLabel } from "./browse.js";
 
@@ -132,6 +133,7 @@ export function createDetailView(ctx) {
     const main = h(
       "div",
       { class: "detail-main" },
+      mod.video_id ? section("Video", videoCard(mod.video_id, mod.name)) : null,
       mod.screenshots.length ? section("Screenshots", gallery(mod)) : null,
       aiSection(mod),
       section("About this mod", mod.description ? markdown(mod.description) : h("p", { class: "muted" }, "the author hasn't added a full description.")),
@@ -219,7 +221,7 @@ export function createDetailView(ctx) {
         s.setAttribute("aria-checked", String(i + 1 === mine));
       });
       summary.replaceChildren(
-        rating.count ? h("strong", null, rating.average.toFixed(1)) : null,
+        rating.count ? h("strong", null, rating.average.toFixed(1)) : "",
         rating.count ? ` · ${rating.count} ${rating.count === 1 ? "rating" : "ratings"}` : "no ratings yet",
         h("span", { class: "muted" }, mine ? ` · you gave ${mine}` : " · tap a star to rate"),
       );
@@ -274,6 +276,26 @@ export function createDetailView(ctx) {
     );
   }
 
+  function installButton(release) {
+    if (!canManageMods || release.file?.type !== "dll") return null;
+    if (!savedGameFolder()) return h("a", { class: "install-setup small", href: "#/manager" }, icon("plug"), "Set up the mod manager to install with one click");
+    const btn = h("button", { class: "btn btn-large install-btn", type: "button" }, icon("plug"), "Install to Gorilla Tag");
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.replaceChildren(h("span", { class: "spinner small-spinner", "aria-hidden": "true" }), "Installing…");
+      try {
+        await installToGame({ id: release.id, sha256: release.file.sha256 }, release.file.name);
+        btn.replaceChildren(icon("check"), "Installed");
+        toast("Installed into your plugins folder. start Gorilla Tag to use it.", { tone: "ok" });
+      } catch (err) {
+        toast(err.message, { tone: "error" });
+        btn.disabled = false;
+        btn.replaceChildren(icon("plug"), "Install to Gorilla Tag");
+      }
+    });
+    return btn;
+  }
+
   function downloadArea(mod, release) {
     const area = h("div", { class: "download-area" });
     if (!release) {
@@ -298,7 +320,7 @@ export function createDetailView(ctx) {
     const status = h("div", { class: "download-status", "aria-live": "polite" });
     const button = h("button", { class: "btn btn-primary btn-large", type: "button" }, icon("download"), /^\d/.test(versionLabel(release.version).replace(/^v/, "")) ? `Download ${versionLabel(release.version)}` : "Download");
     const fileBits = [release.file?.type ? `.${release.file.type} file` : null, release.file ? formatBytes(release.file.size) : null].filter(Boolean).join(", ");
-    area.append(button, h("p", { class: "download-note" }, `direct download from Branch${fileBits ? ` (${fileBits})` : ""}. you pick where it's saved.`), status);
+    area.append(button, installButton(release), h("p", { class: "download-note" }, `direct download from Branch${fileBits ? ` (${fileBits})` : ""}. you pick where it's saved.`), status);
     downloadSlots.set(release.id, { button, status, retry: () => startDownload(mod, release) });
     button.addEventListener("click", () => startDownload(mod, release));
     repaintDownload(release.id);

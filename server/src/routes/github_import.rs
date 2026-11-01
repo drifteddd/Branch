@@ -183,11 +183,14 @@ async fn import_one(state: &AppState, owner: &str, repo: &str, publish: bool, li
     if description.is_empty() {
         description = if info.description.trim().chars().count() >= 10 { info.description.trim().to_string() } else { format!("{name}, a Gorilla Tag mod by {}.", info.owner) };
     }
+    if listing.is_some_and(|l| l.category == "menus") {
+        description.push_str(MENU_NOTE);
+    }
     description.push_str(&format!("\n\n*made by [{}](https://github.com/{}). the original is on [github]({}).*", info.owner, info.owner, info.url));
     let tags = listing.map(|l| l.tags.clone()).or_else(|| insights.as_ref().map(|i| i.tags.clone())).unwrap_or_default();
     let category_id: Option<Uuid> = match listing.map(|l| l.category.as_str()).or_else(|| insights.as_ref().and_then(|i| i.category.as_deref())) {
         Some(slug) => {
-            let fallback = match slug { "maps" => "gameplay", "libraries" => "utilities", other => other };
+            let fallback = category_fallback(slug);
             sqlx::query_scalar("select id from categories where slug = $1 or slug = $2 order by (slug = $1) desc limit 1").bind(slug).bind(fallback).fetch_optional(&state.db).await?
         }
         None => None,
@@ -197,7 +200,7 @@ async fn import_one(state: &AppState, owner: &str, repo: &str, publish: bool, li
     ai_insights["uploaded_via"] = json!("github-import");
 
     let license = info.license.clone().filter(|l| OPEN_LICENSES.iter().any(|o| o.eq_ignore_ascii_case(l)));
-    let hosted = license.is_some();
+    let hosted = true;
     let version: String = if release.version.is_empty() { release.tag.clone() } else { release.version.clone() }.chars().take(40).collect();
     let changelog: String = release.notes.chars().take(4000).collect();
 
@@ -223,7 +226,7 @@ async fn import_one(state: &AppState, owner: &str, repo: &str, publish: bool, li
                 status = case when $4 then 'published' else 'draft' end, published_at = case when $4 then now() else null end,
                 author_url = $5, license_name = $6, license_url = $7, redistribution = $8, redistribution_note = $9,
                 imported_at = now(), import_info = $10, code_fingerprint = $11, unique_status = 'unique', ai_insights = $12,
-                github_tag = $13, github_checked_at = now()
+                github_tag = $13, github_checked_at = now(), video_id = $15
              where id = $14 returning slug",
         )
         .bind(first_sentence(&description))
@@ -236,13 +239,14 @@ async fn import_one(state: &AppState, owner: &str, repo: &str, publish: bool, li
         .bind(if hosted { "allowed" } else { "unknown" })
         .bind(match &license {
             Some(l) => format!("open source under the {l} license, which allows sharing it."),
-            None => "no license on github, so Branch links to the author's download instead of hosting it.".to_string(),
+            None => HOSTED_NOTE.to_string(),
         })
         .bind(&import_info)
         .bind(report.fingerprint())
         .bind(&ai_insights)
         .bind(&release.tag)
         .bind(mod_id)
+        .bind(listing.and_then(|l| l.video.clone()))
         .fetch_one(&state.db)
         .await?;
         if !tags.is_empty() {
@@ -297,6 +301,8 @@ async fn import_one(state: &AppState, owner: &str, repo: &str, publish: bool, li
 #[derive(Deserialize)]
 pub struct SeedMod {
     repo: String,
+    #[serde(default)]
+    video: Option<String>,
     name: String,
     category: String,
     tags: Vec<String>,
@@ -304,6 +310,23 @@ pub struct SeedMod {
 }
 
 const SEED: &str = include_str!("../seed_mods.json");
+const SEED_2: &str = include_str!("../seed_mods_2.json");
+pub const HOSTED_NOTE: &str = "hosted by Branch with credit to the author. the original is on github. creators can ask for it to be removed at any time at drifted1000@outlook.com.";
+const MENU_NOTE: &str = "\n\n**heads up:** mod menus change how the game plays for you and sometimes for others. only use them in private or modded lobbies; using them in public lobbies can get your account banned.";
+
+fn category_fallback(slug: &str) -> &str {
+    match slug {
+        "maps" | "menus" => "gameplay",
+        "libraries" => "utilities",
+        other => other,
+    }
+}
+
+fn seed_list() -> Result<Vec<SeedMod>, serde_json::Error> {
+    let mut mods: Vec<SeedMod> = serde_json::from_str(SEED)?;
+    mods.extend(serde_json::from_str::<Vec<SeedMod>>(SEED_2)?);
+    Ok(mods)
+}
 const SEED_KEY: &str = "github_seed_done";
 
 pub fn spawn_seed(state: AppState) {
@@ -312,11 +335,14 @@ pub fn spawn_seed(state: AppState) {
         if let Err(err) = run_seed(&state).await {
             tracing::warn!(error = %err.0, "the github seed import failed");
         }
+        if let Err(err) = rehost_external(&state).await {
+            tracing::warn!(error = %err.0, "moving github links to hosted downloads failed");
+        }
     });
 }
 
 async fn run_seed(state: &AppState) -> Result<(), Skip> {
-    let mods: Vec<SeedMod> = serde_json::from_str(SEED).map_err(|e| Skip(e.to_string()))?;
+    let mods = seed_list().map_err(|e| Skip(e.to_string()))?;
     let done_value: Option<Value> = sqlx::query_scalar("select value from app_settings where key = $1").bind(SEED_KEY).fetch_optional(&state.db).await?;
     let mut done: Vec<String> = done_value.and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default();
     let todo: Vec<&SeedMod> = mods.iter().filter(|m| !done.contains(&m.repo.to_ascii_lowercase())).collect();
@@ -372,6 +398,80 @@ async fn run_seed(state: &AppState) -> Result<(), Skip> {
     Ok(())
 }
 
+#[derive(sqlx::FromRow)]
+struct ExternalRow {
+    release_id: Uuid,
+    mod_id: Uuid,
+    version: String,
+    source_url: Option<String>,
+    project_url: Option<String>,
+}
+
+async fn rehost_external(state: &AppState) -> Result<(), Skip> {
+    let rows: Vec<ExternalRow> = sqlx::query_as(
+        "select r.id as release_id, m.id as mod_id, r.version, m.source_url, m.project_url
+         from mods m
+         join lateral (select id, version, download_kind, from_github from releases x where x.mod_id = m.id order by released_on desc, created_at desc limit 1) r on true
+         where m.status <> 'archived' and m.import_info->>'via' = 'github-import' and r.download_kind = 'external' and r.from_github",
+    )
+    .fetch_all(&state.db)
+    .await?;
+    if rows.is_empty() {
+        return Ok(());
+    }
+    tracing::info!(count = rows.len(), "turning github links into hosted downloads");
+    let mut moved = 0;
+    for row in rows {
+        let Some((owner, repo)) = repo_of(row.source_url.as_deref(), row.project_url.as_deref()) else { continue };
+        let result: Result<(), String> = async {
+            let release = latest_release(state, &owner, &repo).await?.ok_or("no releases on github")?;
+            if crate::github::normalize_version(&release.version) != crate::github::normalize_version(&row.version) && crate::github::normalize_version(&release.tag) != crate::github::normalize_version(&row.version) {
+                return Err("a newer github release exists; the github sync will add it".into());
+            }
+            let asset = pick_asset(&release.assets).cloned().ok_or("no .dll or .zip file in the release")?;
+            let data = download_asset(&owner, &repo, &asset.url).await?;
+            let name = asset.name.clone();
+            let (checked, report, data) = tokio::task::spawn_blocking(move || {
+                let checked = crate::uploads::check_mod_file(&name, &data)?;
+                let report = crate::scan::scan(&name, &data)?;
+                Ok::<_, String>((checked, report, data))
+            })
+            .await
+            .map_err(|e| e.to_string())??;
+            if report.basic_score() >= 85 && report.has_strong_signals() {
+                return Err("the safety check flagged the file".into());
+            }
+            let key = format!("files/{}/{}", Uuid::new_v4(), checked.name);
+            crate::storage::put(state.store.as_ref(), &key, data).await.map_err(|e| e.to_string())?;
+            let saved = sqlx::query(
+                "update releases set download_kind = 'hosted', external_url = null, file_key = $1, file_name = $2, file_size = $3, file_sha256 = $4, file_type = $5 where id = $6",
+            )
+            .bind(&key)
+            .bind(&checked.name)
+            .bind(checked.size)
+            .bind(&checked.sha256)
+            .bind(checked.kind)
+            .bind(row.release_id)
+            .execute(&state.db)
+            .await;
+            if let Err(err) = saved {
+                crate::storage::delete_quietly(state.store.as_ref(), &key).await;
+                return Err(err.to_string());
+            }
+            sqlx::query("update mods set redistribution = 'allowed', updated_at = now() where id = $1").bind(row.mod_id).execute(&state.db).await.map_err(|e| e.to_string())?;
+            Ok(())
+        }
+        .await;
+        match result {
+            Ok(()) => moved += 1,
+            Err(reason) => tracing::info!(mod_id = %row.mod_id, reason = %reason, "kept the github link"),
+        }
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
+    tracing::info!(moved, "github links turned into hosted downloads");
+    Ok(())
+}
+
 async fn rewrite_imported(state: &AppState, owner: &str, repo: &str, m: &SeedMod) -> Result<Option<String>, Skip> {
     let rows: Vec<(Uuid, Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
         "select id, source_url, project_url, import_info->>'via' from mods where status <> 'archived' and source_url ilike '%github.com/%'",
@@ -387,13 +487,14 @@ async fn rewrite_imported(state: &AppState, owner: &str, repo: &str, m: &SeedMod
     };
     let author = repo_of(source_url.as_deref(), None).map(|(o, _)| o).unwrap_or_else(|| owner.to_string());
     let url = source_url.unwrap_or_else(|| format!("https://github.com/{owner}/{repo}"));
-    let description = format!("{}
+    let note = if m.category == "menus" { MENU_NOTE } else { "" };
+    let description = format!("{}{note}
 
 *made by [{author}](https://github.com/{author}). the original is on [github]({url}).*", m.description);
-    let fallback = match m.category.as_str() { "maps" => "gameplay", "libraries" => "utilities", other => other };
+    let fallback = category_fallback(&m.category);
     let category_id: Option<Uuid> = sqlx::query_scalar("select id from categories where slug = $1 or slug = $2 order by (slug = $1) desc limit 1").bind(&m.category).bind(fallback).fetch_optional(&state.db).await?;
     sqlx::query(
-        "update mods set name = $1, summary = $2, description = $3, category_id = coalesce($4, category_id), updated_at = now(),
+        "update mods set name = $1, summary = $2, description = $3, category_id = coalesce($4, category_id), updated_at = now(), video_id = coalesce(video_id, $6),
             ai_insights = case when ai_insights is null then null else jsonb_set(jsonb_set(ai_insights, '{listing_by_ai}', 'false'), '{tags_by_ai}', 'false') end
          where id = $5",
     )
@@ -402,6 +503,7 @@ async fn rewrite_imported(state: &AppState, owner: &str, repo: &str, m: &SeedMod
     .bind(&description)
     .bind(category_id)
     .bind(id)
+    .bind(&m.video)
     .execute(&state.db)
     .await?;
     let mut conn = state.db.acquire().await?;
@@ -415,11 +517,18 @@ mod tests {
 
     #[test]
     fn built_in_list_is_valid() {
-        let mods: Vec<SeedMod> = serde_json::from_str(SEED).unwrap();
+        let mods = seed_list().unwrap();
         assert!(mods.len() >= 50);
+        let mut seen = std::collections::HashSet::new();
+        for m in &mods {
+            assert!(seen.insert(m.repo.to_ascii_lowercase()), "listed twice: {}", m.repo);
+            if let Some(v) = &m.video {
+                assert!(crate::util::youtube_id(v).as_deref() == Some(v.as_str()), "bad video id for {}", m.repo);
+            }
+        }
         for m in &mods {
             assert!(parse_repo(&m.repo).is_some(), "{}", m.repo);
-            assert!(matches!(m.category.as_str(), "cosmetics" | "gameplay" | "utilities" | "maps" | "libraries"), "{}", m.repo);
+            assert!(matches!(m.category.as_str(), "cosmetics" | "gameplay" | "utilities" | "maps" | "libraries" | "menus"), "{}", m.repo);
             assert!(m.description.chars().count() >= 30 && m.name.chars().count() >= 2, "{}", m.repo);
         }
     }

@@ -71,13 +71,14 @@ pub struct ModRow {
     pub ai_insights: Option<Value>,
     pub rating_sum: i32,
     pub rating_count: i32,
+    pub video_id: Option<String>,
 }
 
 const MOD_SELECT: &str = "select m.id, m.slug, m.name, m.summary, m.description, m.author_name, m.author_url,
     m.category_id, c.slug as category_slug, c.name as category_name, m.status, m.featured, m.thumbnail_key,
     m.compatibility, m.compatibility_note, m.compatibility_checked_on, m.game_versions, m.platforms, m.mod_loader,
     m.dependencies, m.install_instructions, m.known_issues, m.source_url, m.project_url, m.license_name,
-    m.license_url, m.redistribution, m.redistribution_note, m.download_count, m.created_at, m.updated_at, m.published_at, m.source, m.ai_insights, m.rating_sum, m.rating_count
+    m.license_url, m.redistribution, m.redistribution_note, m.download_count, m.created_at, m.updated_at, m.published_at, m.source, m.ai_insights, m.rating_sum, m.rating_count, m.video_id
     from mods m left join categories c on c.id = m.category_id";
 
 #[derive(FromRow, Clone)]
@@ -218,6 +219,7 @@ pub struct ModDetail {
     pub tags: Vec<String>,
     pub thumbnail_url: Option<String>,
     pub screenshots: Vec<ScreenshotOut>,
+    pub video_id: Option<String>,
     pub compatibility: Compatibility,
     pub game_versions: String,
     pub platforms: Vec<String>,
@@ -302,6 +304,7 @@ pub async fn load_detail(db: &PgPool, lookup: Lookup<'_>) -> Result<Option<ModDe
         tags,
         thumbnail_url: m.thumbnail_key.as_deref().map(file_url),
         screenshots,
+        video_id: m.video_id,
         compatibility: Compatibility {
             status: m.compatibility,
             note: m.compatibility_note,

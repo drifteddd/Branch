@@ -5,6 +5,7 @@ pub mod forum;
 pub mod github_import;
 pub mod inbox;
 pub mod onboarding;
+pub mod polls;
 pub mod public;
 pub mod rewards;
 pub mod watch;
@@ -33,13 +34,15 @@ pub fn router(state: AppState) -> Router {
         .route("/api/mods/{slug}", get(public::mod_detail))
         .route("/api/mods/{slug}/rating", post(public::rate_mod))
         .route("/api/tree", get(public::tree))
+        .route("/api/mods/identify", post(public::identify_mods))
         .route("/api/releases/{id}/download", get(public::download))
         .route("/api/releases/{id}/out", get(public::outbound))
         .route("/api/reports", post(public::create_report))
         .route("/api/requests", post(public::create_request))
         .route("/api/check/usage", get(public::check_usage))
         .route("/api/tracker", get(crate::tracker::feed))
-        .route("/api/submissions", post(public::create_submission).layer(DefaultBodyLimit::max(crate::scan::MAX_CHECK_BYTES + crate::uploads::MAX_IMAGE_BYTES + 128 * 1024)))
+        .route("/api/submissions", post(public::create_submission).layer(DefaultBodyLimit::max(crate::scan::MAX_CHECK_BYTES + crate::uploads::MAX_IMAGE_BYTES * (1 + public::MAX_SCREENSHOTS) + 128 * 1024)))
+        .route("/api/yt/{id}/thumb", get(public::youtube_thumb))
         .route("/api/check", post(public::check_mod).layer(DefaultBodyLimit::max(crate::scan::MAX_CHECK_BYTES + 64 * 1024)))
         .route("/files/{*key}", get(public::file));
 
@@ -55,6 +58,7 @@ pub fn router(state: AppState) -> Router {
         .merge(creator::router())
         .merge(watch::router())
         .merge(github_import::router())
+        .merge(polls::router())
         .merge(admin_ui::router())
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit))
         .layer(DefaultBodyLimit::max(256 * 1024))

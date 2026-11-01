@@ -2,7 +2,7 @@ import { h, clear, formatBytes } from "../dom.js";
 import { icon } from "../icons.js";
 import { uploadForm, aiOff } from "../platform.js";
 import { forumKey } from "../forum-identity.js";
-import { stateBlock } from "../ui.js";
+import { stateBlock, youtubeId, videoCard } from "../ui.js";
 import { renderMarkdown } from "../../shared/markdown.js";
 
 const MIN_DESCRIPTION = 30;
@@ -37,6 +37,112 @@ export async function makeThumbnail(blob) {
   const out = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.86));
   if (!out) throw new Error("couldn't make a thumbnail from that image");
   return out;
+}
+
+const MAX_SHOTS = 6;
+
+async function makeScreenshot(blob) {
+  if (!blob || !/^image\//.test(blob.type || "")) throw new Error("screenshots have to be images (png, jpg, webp or gif)");
+  if (blob.size > 25 * 1024 * 1024) throw new Error("that screenshot is too big (25 MB max)");
+  const bitmap = await createImageBitmap(blob).catch(() => null);
+  if (!bitmap) throw new Error("couldn't read one of the screenshots");
+  const scale = Math.min(1, 1920 / bitmap.width, 1080 / bitmap.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const c = canvas.getContext("2d");
+  c.imageSmoothingQuality = "high";
+  c.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  const out = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.86));
+  if (!out) throw new Error("couldn't prepare one of the screenshots");
+  return out;
+}
+
+function mediaFields(prefix) {
+  let shots = [];
+  const shotInput = h("input", { type: "file", accept: "image/*", multiple: true, class: "visually-hidden", id: `${prefix}-shots`, tabindex: "-1" });
+  const grid = h("div", { class: "shot-grid", role: "list" });
+  const shotError = h("p", { class: "error", hidden: true });
+  const video = h("input", { class: "input", id: `${prefix}-video`, type: "url", maxlength: "300", autocomplete: "off", placeholder: "https://youtu.be/…" });
+  const preview = h("div", { class: "video-preview" });
+  const videoError = h("p", { class: "error", hidden: true });
+
+  function draw() {
+    const tiles = shots.map((s, i) =>
+      h(
+        "div",
+        { class: "shot-tile", role: "listitem" },
+        h("img", { src: s.url, alt: `Screenshot ${i + 1}` }),
+        h("button", { class: "shot-remove", type: "button", "aria-label": `Remove screenshot ${i + 1}`, onclick: () => { URL.revokeObjectURL(s.url); shots.splice(i, 1); draw(); } }, icon("close")),
+      ),
+    );
+    if (shots.length < MAX_SHOTS) {
+      tiles.push(h("button", { class: "shot-add", type: "button", onclick: () => shotInput.click() }, icon("image"), shots.length ? "Add more" : "Add screenshots"));
+    }
+    grid.replaceChildren(...tiles);
+  }
+
+  async function add(files) {
+    shotError.hidden = true;
+    for (const file of files) {
+      if (shots.length >= MAX_SHOTS) {
+        shotError.textContent = `you can add up to ${MAX_SHOTS} screenshots`;
+        shotError.hidden = false;
+        break;
+      }
+      try {
+        const blob = await makeScreenshot(file);
+        shots.push({ blob, url: URL.createObjectURL(blob) });
+      } catch (err) {
+        shotError.textContent = err.message;
+        shotError.hidden = false;
+      }
+    }
+    draw();
+  }
+
+  shotInput.addEventListener("change", () => {
+    add([...(shotInput.files || [])]);
+    shotInput.value = "";
+  });
+  video.addEventListener("input", () => {
+    videoError.hidden = true;
+    const id = youtubeId(video.value);
+    preview.replaceChildren(...(id ? [videoCard(id, "Video preview")] : []));
+  });
+  draw();
+
+  return {
+    els: [
+      h(
+        "div",
+        { class: "field", dataset: { field: "screenshots" } },
+        h("label", { for: `${prefix}-shots` }, "Screenshots", h("span", { class: "muted" }, " (optional)")),
+        grid,
+        shotInput,
+        h("p", { class: "hint" }, `up to ${MAX_SHOTS} pictures of your mod in action. they show up in a gallery on your mod's page.`),
+        shotError,
+      ),
+      h(
+        "div",
+        { class: "field", dataset: { field: "video_url" } },
+        h("label", { for: `${prefix}-video` }, "Video", h("span", { class: "muted" }, " (optional)")),
+        video,
+        h("p", { class: "hint" }, "paste a youtube link showing your mod. it plays right on your mod's page."),
+        preview,
+        videoError,
+      ),
+    ],
+    check() {
+      if (video.value.trim() && !youtubeId(video.value)) return "paste a youtube link, like https://youtu.be/abc123xyz00";
+      return null;
+    },
+    append(data) {
+      shots.forEach((s, i) => data.append("screenshots", s.blob, `screenshot-${i + 1}.jpg`));
+      data.append("video_url", video.value.trim());
+    },
+  };
 }
 
 export function createUploadView(ctx) {
@@ -177,6 +283,7 @@ export function createUploadView(ctx) {
     const trap = h("input", { type: "text", name: "website", tabindex: "-1", autocomplete: "off", "aria-hidden": "true" });
     const formError = h("div", { class: "banner danger compact", role: "alert", hidden: true });
     const submit = h("button", { class: "btn btn-primary btn-large", type: "submit" }, "Upload mod");
+    const media = mediaFields("up");
 
     const form = h(
       "form",
@@ -205,6 +312,7 @@ export function createUploadView(ctx) {
         ),
         thumbError,
       ),
+      ...media.els,
       field("tags", "Tags", tagsInput, { optional: true, hint: "separate them with commas, up to 5. leave this empty and Branch's AI picks tags for you." }),
       h(
         "div",
@@ -278,6 +386,7 @@ export function createUploadView(ctx) {
       if (name.value.trim().length < 2) local.name = "give your mod a name";
       if (description.value.trim().length < MIN_DESCRIPTION) local.description = `describe what your mod does (at least ${MIN_DESCRIPTION} characters)`;
       if (!confirm.checked) local.confirm = "you have to confirm that you have the right to share this mod";
+      if (media.check()) local.video_url = media.check();
       if (Object.keys(local).length) return showErrors(local);
 
       const data = new FormData();
@@ -294,6 +403,7 @@ export function createUploadView(ctx) {
       data.append("key", forumKey());
       data.append("file", chosen, chosen.name);
       if (thumbnail) data.append("thumbnail", thumbnail, "thumbnail.jpg");
+      media.append(data);
 
       submit.disabled = true;
       submit.textContent = "Uploading and checking…";
@@ -398,6 +508,7 @@ export function createUploadView(ctx) {
 
     const author = h("input", { class: "input", id: "easy-author", maxlength: "80", autocomplete: "off", placeholder: "leave empty to stay anonymous" });
     const confirm = h("input", { type: "checkbox", id: "easy-confirm" });
+    const easyMedia = mediaFields("easy");
     const confirmError = h("p", { class: "error", hidden: true });
     const trap = h("input", { type: "text", name: "website", tabindex: "-1", autocomplete: "off", "aria-hidden": "true" });
     const formError = h("div", { class: "banner danger compact", role: "alert", hidden: true });
@@ -413,6 +524,7 @@ export function createUploadView(ctx) {
       fileInput,
       fileError,
       h("div", { class: "field" }, h("label", { for: "easy-author" }, "Your name", h("span", { class: "muted" }, " (optional)")), author),
+      h("details", { class: "more-details easy-media" }, h("summary", null, "Add screenshots or a video (optional)"), h("div", { class: "easy-media-body" }, ...easyMedia.els)),
       h(
         "div",
         { class: "field" },
@@ -454,6 +566,7 @@ export function createUploadView(ctx) {
       data.append("website", trap.value);
       data.append("key", forumKey());
       data.append("file", chosen, chosen.name);
+      easyMedia.append(data);
       submit.disabled = true;
       submit.lastChild.textContent = "Working on it…";
       stepList.hidden = false;

@@ -181,6 +181,9 @@ export function createForumView(ctx) {
       list,
       foot,
     );
+    latestPoll().then((teaser) => {
+      if (teaser && el.contains(tabs)) tabs.before(teaser);
+    });
     list.append(...Array.from({ length: 4 }, () => h("li", { class: "thread-row skeleton-row", "aria-hidden": "true" }, h("div", { class: "row-main" }, h("div", { class: "skeleton sk-title" }), h("div", { class: "skeleton sk-line" })))));
 
     try {
@@ -264,6 +267,90 @@ export function createForumView(ctx) {
   }
 
   let chatTimer = null;
+
+  function pollCard(poll, onChange) {
+    const voted = Boolean(poll.my_vote);
+    const card = h("article", { class: `poll-card${poll.open ? "" : " closed"}`, dataset: { poll: poll.id } });
+    const draw = (p) => {
+      const results = Boolean(p.my_vote) || !p.open;
+      card.replaceChildren(
+        h("div", { class: "poll-head" }, h("span", { class: "poll-icon", "aria-hidden": "true" }, icon("poll")), h("h2", null, p.question), h("span", { class: `poll-state ${p.open ? "open" : ""}` }, p.open ? "Open" : "Closed")),
+        h(
+          "ul",
+          { class: "poll-options", role: "list" },
+          p.options.map((o) => {
+            const pct = p.total ? Math.round((o.votes / p.total) * 100) : 0;
+            const mine = p.my_vote === o.id;
+            const btn = h(
+              "button",
+              { class: `poll-option${mine ? " mine" : ""}${results ? " results" : ""}`, type: "button", disabled: !p.open, "aria-pressed": mine ? "true" : "false", style: results ? `--pct:${pct}%` : null },
+              h("span", { class: "poll-fill", "aria-hidden": "true" }),
+              h("span", { class: "poll-label" }, mine ? icon("check") : null, o.label),
+              results ? h("span", { class: "poll-pct" }, `${pct}%`) : null,
+            );
+            btn.addEventListener("click", async () => {
+              if (!p.open || mine) return;
+              for (const b of card.querySelectorAll(".poll-option")) b.disabled = true;
+              try {
+                const res = await api(`/api/polls/${p.id}/vote`, { method: "POST", body: { option_id: o.id } });
+                if (res.poll) {
+                  draw(res.poll);
+                  onChange?.(res.poll);
+                }
+                toast(voted || p.my_vote ? "Vote changed" : "Thanks for voting!", { tone: "ok" });
+              } catch (err) {
+                toast(err.message, { tone: "error" });
+                draw(p);
+              }
+            });
+            return h("li", null, btn);
+          }),
+        ),
+        h("p", { class: "muted small poll-foot" }, `${p.total} vote${p.total === 1 ? "" : "s"}${p.open ? (p.closes_at ? ` · closes ${formatDate(p.closes_at)}` : "") : " · voting has ended"}${results && p.open ? " · tap another option to change your vote" : ""}`),
+      );
+    };
+    draw(poll);
+    return card;
+  }
+
+  async function renderPolls() {
+    clear(el).append(
+      h("header", { class: "view-head forum-head" }, h("h1", { class: "view-title", id: "forum-title" }, "Community")),
+      communityTabs("polls"),
+      h("div", { class: "skeleton sk-title" }),
+    );
+    let data;
+    try {
+      data = await api("/api/polls");
+    } catch (err) {
+      el.lastChild.replaceWith(errorBlock(err, renderPolls));
+      return;
+    }
+    const open = data.polls.filter((x) => x.open);
+    const closed = data.polls.filter((x) => !x.open);
+    el.lastChild.replaceWith(
+      h(
+        "div",
+        { class: "poll-list" },
+        h("p", { class: "muted forum-intro" }, "polls from the Branch team. vote to help decide what happens next. you can change your vote while a poll is open."),
+        data.polls.length ? null : stateBlock({ iconName: "poll", title: "No polls yet", message: "when the Branch team asks the community something, the poll shows up here." }),
+        ...open.map((x) => pollCard(x)),
+        closed.length ? h("h2", { class: "poll-section" }, "Ended") : null,
+        ...closed.map((x) => pollCard(x)),
+      ),
+    );
+  }
+
+  async function latestPoll() {
+    try {
+      const data = await api("/api/polls");
+      const open = data.polls.find((x) => x.open);
+      if (!open) return null;
+      return h("div", { class: "poll-teaser" }, pollCard(open), h("a", { class: "poll-more small", href: "#/forum/polls" }, "See all polls", icon("chevronRight")));
+    } catch {
+      return null;
+    }
+  }
 
   function stopChat() {
     clearInterval(chatTimer);
@@ -362,6 +449,7 @@ export function createForumView(ctx) {
     show(params) {
       stopChat();
       if (params.thread === "chat") renderChat();
+      else if (params.thread === "polls") renderPolls();
       else if (params.thread) renderThread(params.thread);
       else {
         board = params.board || board;
@@ -381,5 +469,6 @@ function communityTabs(active) {
     { class: "community-tabs", "aria-label": "Community" },
     h("a", { href: "#/forum", "aria-current": active === "forum" ? "page" : null }, icon("inbox"), "Forum"),
     h("a", { href: "#/forum/chat", "aria-current": active === "chat" ? "page" : null }, icon("chat"), "Chat"),
+    h("a", { href: "#/forum/polls", "aria-current": active === "polls" ? "page" : null }, icon("poll"), "Polls"),
   );
 }

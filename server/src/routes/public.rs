@@ -810,6 +810,8 @@ pub(crate) struct NewUpload {
     pub tags: Vec<String>,
     pub source_url: Option<String>,
     pub thumbnail: Option<crate::uploads::ProcessedImage>,
+    pub screenshots: Vec<crate::uploads::ProcessedImage>,
+    pub video_id: Option<String>,
     pub poster_id: Option<Uuid>,
     pub via: &'static str,
     pub allow_ai: bool,
@@ -827,6 +829,8 @@ pub(crate) struct Published {
     pub overview: Value,
     pub reward: (i32, &'static str, i64),
 }
+
+pub const MAX_SCREENSHOTS: usize = 6;
 
 pub(crate) async fn uploads_today(state: &AppState, uploader: &str) -> Result<i64, sqlx::Error> {
     sqlx::query_scalar("select count(*) from mods where uploader = $1 and created_at > now() - interval '1 day'")
@@ -866,7 +870,7 @@ pub(crate) fn name_from_file(file_name: &str) -> String {
 }
 
 pub(crate) async fn publish_upload(state: &AppState, upload: NewUpload) -> ApiResult<Published> {
-    let NewUpload { uploader, file_name, data, mut name, mut description, author, version, category_id, tags: user_tags, source_url, thumbnail, poster_id, via, allow_ai } = upload;
+    let NewUpload { uploader, file_name, data, mut name, mut description, author, version, category_id, tags: user_tags, source_url, thumbnail, screenshots, video_id, poster_id, via, allow_ai } = upload;
     let (checked, report, data) = tokio::task::spawn_blocking(move || {
         let checked = crate::uploads::check_mod_file(&file_name, &data)?;
         let report = crate::scan::scan(&file_name, &data)?;
@@ -994,13 +998,21 @@ pub(crate) async fn publish_upload(state: &AppState, upload: NewUpload) -> ApiRe
         None => None,
     };
 
+    let mut shot_keys: Vec<String> = Vec::new();
+    for shot in screenshots {
+        let shot_key = format!("images/{}.{}", Uuid::new_v4(), shot.ext);
+        if crate::storage::put(state.store.as_ref(), &shot_key, shot.bytes).await.is_ok() {
+            shot_keys.push(shot_key);
+        }
+    }
+
     let saved: Result<String, sqlx::Error> = async {
         let slug: String = sqlx::query_scalar(
             "update mods set summary = $1, description = $2, category_id = $3, status = 'published', published_at = now(),
                 source = 'community', uploader = $4, redistribution = 'allowed',
                 redistribution_note = 'the uploader confirmed that they made this mod or have permission to share it.',
                 import_info = $5, code_fingerprint = $7, unique_status = 'unique', uploader_poster = $8, thumbnail_key = $9,
-                ai_insights = $10
+                ai_insights = $10, video_id = $11
              where id = $6 returning slug",
         )
         .bind(first_sentence(&description))
@@ -1013,8 +1025,18 @@ pub(crate) async fn publish_upload(state: &AppState, upload: NewUpload) -> ApiRe
         .bind(poster_id)
         .bind(&thumbnail_key)
         .bind(&ai_insights)
+        .bind(&video_id)
         .fetch_one(&state.db)
         .await?;
+        for (i, shot_key) in shot_keys.iter().enumerate() {
+            sqlx::query("insert into screenshots (id, mod_id, image_key, sort_order) values ($1, $2, $3, $4)")
+                .bind(Uuid::new_v4())
+                .bind(mod_id)
+                .bind(shot_key)
+                .bind(i as i32)
+                .execute(&state.db)
+                .await?;
+        }
         if !tags.is_empty() {
             let mut conn = state.db.acquire().await?;
             crate::routes::admin::set_tags(&mut conn, mod_id, &tags).await?;
@@ -1066,6 +1088,9 @@ pub(crate) async fn publish_upload(state: &AppState, upload: NewUpload) -> ApiRe
             if let Some(image_key) = &thumbnail_key {
                 crate::storage::delete_quietly(state.store.as_ref(), image_key).await;
             }
+            for shot_key in &shot_keys {
+                crate::storage::delete_quietly(state.store.as_ref(), shot_key).await;
+            }
             let _ = sqlx::query("delete from mods where id = $1").bind(mod_id).execute(&state.db).await;
             Err(err.into())
         }
@@ -1083,6 +1108,7 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
 
     let mut file: Option<(String, bytes::Bytes)> = None;
     let mut thumbnail: Option<bytes::Bytes> = None;
+    let mut shots: Vec<bytes::Bytes> = Vec::new();
     let mut fields: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     loop {
         let field = match multipart.next_field().await {
@@ -1098,6 +1124,17 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
             }
             if !data.is_empty() {
                 thumbnail = Some(data);
+            }
+        } else if name == "screenshots" {
+            let data = field.bytes().await.map_err(|_| AppError::field("screenshots", "a screenshot is too big or the upload was cut off"))?;
+            if data.len() > crate::uploads::MAX_IMAGE_BYTES {
+                return Err(AppError::field("screenshots", "screenshots can be up to 8 MB each"));
+            }
+            if !data.is_empty() {
+                if shots.len() >= MAX_SCREENSHOTS {
+                    return Err(AppError::field("screenshots", "add up to 6 screenshots"));
+                }
+                shots.push(data);
             }
         } else if name == "file" {
             let file_name = field.file_name().unwrap_or("mod.dll").to_string();
@@ -1146,6 +1183,8 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
             None
         }
     };
+    let video_id = crate::util::youtube_id(&get("video_url"));
+    errors.check(get("video_url").is_empty() || video_id.is_some(), "video_url", "paste a youtube link, like https://youtu.be/abc123xyz00");
     let category_id: Option<Uuid> = if category.is_empty() {
         None
     } else {
@@ -1164,6 +1203,14 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
         ),
         None => None,
     };
+    let mut screenshots = Vec::new();
+    for data in shots {
+        let image = tokio::task::spawn_blocking(move || crate::uploads::process_image(&data, crate::uploads::ImageKind::Screenshot))
+            .await
+            .map_err(AppError::internal)?
+            .map_err(|message| AppError::field("screenshots", &message))?;
+        screenshots.push(image);
+    }
     let community_key = get("key");
     let poster_id = if community_key.is_empty() {
         None
@@ -1185,6 +1232,8 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
             tags: user_tags,
             source_url,
             thumbnail,
+            screenshots,
+            video_id,
             poster_id,
             via: if easy { "app-easy" } else { "app" },
             allow_ai,
@@ -1236,4 +1285,72 @@ mod tests {
         assert_eq!(image_key_type("images/../files/x.jpg"), None);
         assert_eq!(image_key_type("images/abc.exe"), None);
     }
+}
+
+pub async fn youtube_thumb(State(state): State<AppState>, Path(id): Path<String>) -> ApiResult<Response> {
+    let id = crate::util::youtube_id(&id).ok_or_else(|| AppError::not_found("that video doesn't exist"))?;
+    let response = state
+        .http
+        .get(format!("https://i.ytimg.com/vi/{id}/hqdefault.jpg"))
+        .timeout(Duration::from_secs(10))
+        .send()
+        .await
+        .map_err(|_| AppError::not_found("couldn't load the video picture"))?;
+    if !response.status().is_success() {
+        return Err(AppError::not_found("couldn't load the video picture"));
+    }
+    let bytes = response.bytes().await.map_err(|_| AppError::not_found("couldn't load the video picture"))?;
+    if bytes.len() > 2 * 1024 * 1024 {
+        return Err(AppError::not_found("couldn't load the video picture"));
+    }
+    Ok(([(header::CONTENT_TYPE, "image/jpeg"), (header::CACHE_CONTROL, "public, max-age=86400")], bytes).into_response())
+}
+
+#[derive(Deserialize)]
+pub struct IdentifyInput {
+    hashes: Vec<String>,
+}
+
+#[derive(FromRow)]
+struct IdentifyRow {
+    file_sha256: String,
+    slug: String,
+    name: String,
+    version: String,
+    latest_id: Uuid,
+    latest_version: String,
+    latest_file_name: Option<String>,
+    latest_sha256: Option<String>,
+    latest_kind: String,
+    redistribution: String,
+}
+
+pub async fn identify_mods(State(state): State<AppState>, Json(input): Json<IdentifyInput>) -> ApiResult<Json<Value>> {
+    let hashes: Vec<String> = input.hashes.iter().map(|h| h.trim().to_ascii_lowercase()).filter(|h| h.len() == 64 && h.chars().all(|c| c.is_ascii_hexdigit())).take(500).collect();
+    let rows: Vec<IdentifyRow> = sqlx::query_as(
+        "select r.file_sha256, m.slug, m.name, r.version, lr.id as latest_id, lr.version as latest_version, lr.file_name as latest_file_name,
+                lr.file_sha256 as latest_sha256, lr.download_kind as latest_kind, m.redistribution
+         from releases r join mods m on m.id = r.mod_id
+         join lateral (select id, version, file_name, file_sha256, download_kind from releases x where x.mod_id = m.id and not x.download_disabled order by released_on desc, created_at desc limit 1) lr on true
+         where lower(r.file_sha256) = any($1) and m.status = 'published'",
+    )
+    .bind(&hashes)
+    .fetch_all(&state.db)
+    .await?;
+    let mut out = serde_json::Map::new();
+    for r in rows {
+        let update = r.latest_sha256.as_deref().map(str::to_ascii_lowercase) != Some(r.file_sha256.to_ascii_lowercase());
+        out.insert(
+            r.file_sha256.to_ascii_lowercase(),
+            json!({
+                "slug": r.slug,
+                "name": r.name,
+                "version": r.version,
+                "update": if update {
+                    json!({ "release_id": r.latest_id, "version": r.latest_version, "file_name": r.latest_file_name, "sha256": r.latest_sha256, "installable": r.latest_kind == "hosted" && r.redistribution == "allowed" })
+                } else { Value::Null },
+            }),
+        );
+    }
+    Ok(Json(json!({ "matches": out })))
 }
