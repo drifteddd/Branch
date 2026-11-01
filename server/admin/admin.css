@@ -208,3 +208,6 @@ dialog.preview { width: min(980px, calc(100vw - 32px)); }
 .stat-track { height: 8px; border-radius: 980px; background: var(--surface-2); overflow: hidden; }
 .stat-fill { display: block; height: 100%; border-radius: inherit; background: var(--text); }
 .stat-count { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); }
+
+#gh-import-repos { width: 100%; margin-bottom: 10px; font-family: var(--font-mono, ui-monospace, monospace); font-size: 12.5px; }
+.gh-import-progress { margin-top: 12px; }

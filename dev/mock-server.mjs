@@ -52,6 +52,7 @@ const assistantCalls = [];
 const announcements = [];
 const onboardingStats = new Map();
 const githubRepos = new Map();
+const githubImport = { running: false, publish: true, items: [] };
 const creatorNotices = [];
 const assistantUsage = () => ({ limit: 25, used: assistantCalls.length, remaining: Math.max(0, 25 - assistantCalls.length), window_hours: 5, resets_at: assistantCalls.length ? new Date(assistantCalls[0] + 5 * 3600_000).toISOString() : null });
 
@@ -450,6 +451,27 @@ async function adminApi(req, res, path, url) {
     if (parts[1] === "threads") Object.assign(forum.threads.find((t) => t.id === parts[2]) || {}, Object.fromEntries(Object.entries(body).filter(([, v]) => v != null)));
     if (parts[1] === "posters") for (const p of forum.posters.values()) if (p.id === parts[2]) p.banned = body.banned;
     if (parts[1] === "reports") forum.reports = forum.reports.filter((r) => r.id !== parts[2]);
+    return send(res, 200, { ok: true });
+  }
+  if (parts[0] === "import" && parts[1] === "github") {
+    if (method === "GET") return send(res, 200, githubImport);
+    const body = await json(req);
+    const repos = [...new Set((body.repos || "").split(/[\s,]+/).map((r) => /(?:github\.com\/)?([A-Za-z0-9-]+\/[A-Za-z0-9._-]+)/.exec(r)?.[1]).filter(Boolean))];
+    if (!repos.length) return fail(res, 422, "paste at least one github link", { repos: "paste at least one github link, one per line" });
+    githubImport.running = true;
+    githubImport.items = repos.map((repo) => ({ repo, status: "waiting", message: "", slug: null }));
+    setTimeout(() => {
+      for (const item of githubImport.items) {
+        if (/nobody/i.test(item.repo)) { item.status = "skipped"; item.message = "no releases on github"; continue; }
+        const [owner, name] = item.repo.split("/");
+        const id = randomUUID();
+        mods.unshift({ ...mods[0], id, slug: "gh-" + name.toLowerCase(), name, summary: "demo: imported from github.", author: { name: owner, url: "https://github.com/" + owner }, source_url: "https://github.com/" + item.repo, status: body.publish ? "published" : "draft", community: false, releases: [] });
+        item.status = "done";
+        item.slug = id;
+        item.message = name + " 1.0.0 · hosted on Branch · safety 6/100";
+      }
+      githubImport.running = false;
+    }, 600);
     return send(res, 200, { ok: true });
   }
   if (parts[0] === "import" && method === "POST") {

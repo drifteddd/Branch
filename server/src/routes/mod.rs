@@ -2,6 +2,7 @@ pub mod admin;
 pub mod assistant;
 pub mod creator;
 pub mod forum;
+pub mod github_import;
 pub mod inbox;
 pub mod onboarding;
 pub mod public;
@@ -53,6 +54,7 @@ pub fn router(state: AppState) -> Router {
         .merge(onboarding::router())
         .merge(creator::router())
         .merge(watch::router())
+        .merge(github_import::router())
         .merge(admin_ui::router())
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit))
         .layer(DefaultBodyLimit::max(256 * 1024))

@@ -1,0 +1,292 @@
+use std::sync::Mutex;
+
+use axum::extract::State;
+use axum::routing::get;
+use axum::{Json, Router};
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use uuid::Uuid;
+
+use crate::auth::{audit, Admin};
+use crate::error::{ApiResult, AppError};
+use crate::github::{download_asset, latest_release, parse_repo, pick_asset, repo_info, repo_key, repo_of};
+use crate::routes::public::{bump_usage, first_sentence, name_from_file, upload_insights, usage_today, AI_CALLS_KEY};
+use crate::state::AppState;
+
+pub fn router() -> Router<AppState> {
+    Router::new().route("/api/admin/import/github", get(status).post(start))
+}
+
+#[derive(Clone, Serialize)]
+struct Item {
+    repo: String,
+    status: &'static str,
+    message: String,
+    slug: Option<String>,
+}
+
+#[derive(Clone, Serialize, Default)]
+struct Job {
+    running: bool,
+    publish: bool,
+    items: Vec<Item>,
+}
+
+static JOB: Mutex<Option<Job>> = Mutex::new(None);
+
+fn update(i: usize, status: &'static str, message: impl Into<String>, slug: Option<String>) {
+    if let Ok(mut guard) = JOB.lock() {
+        if let Some(item) = guard.as_mut().and_then(|j| j.items.get_mut(i)) {
+            item.status = status;
+            item.message = message.into();
+            item.slug = slug;
+        }
+    }
+}
+
+async fn status(Admin(_): Admin) -> ApiResult<Json<Value>> {
+    let job = JOB.lock().ok().and_then(|g| g.clone()).unwrap_or_default();
+    Ok(Json(json!(job)))
+}
+
+#[derive(Deserialize)]
+struct StartInput {
+    repos: String,
+    #[serde(default)]
+    publish: bool,
+}
+
+async fn start(State(state): State<AppState>, Admin(admin): Admin, Json(input): Json<StartInput>) -> ApiResult<Json<Value>> {
+    let mut seen = std::collections::HashSet::new();
+    let repos: Vec<(String, String)> = input
+        .repos
+        .split(|c: char| c.is_whitespace() || c == ',')
+        .filter_map(parse_repo)
+        .filter(|(o, r)| seen.insert(repo_key(o, r)))
+        .take(200)
+        .collect();
+    if repos.is_empty() {
+        return Err(AppError::field("repos", "paste at least one github link, one per line"));
+    }
+    {
+        let mut guard = JOB.lock().map_err(AppError::internal)?;
+        if guard.as_ref().is_some_and(|j| j.running) {
+            return Err(AppError::bad_request("an import is already running. wait for it to finish."));
+        }
+        *guard = Some(Job {
+            running: true,
+            publish: input.publish,
+            items: repos.iter().map(|(o, r)| Item { repo: format!("{o}/{r}"), status: "waiting", message: String::new(), slug: None }).collect(),
+        });
+    }
+    audit(&state.db, &admin, "github_import", &format!("{} repos", repos.len()), if input.publish { "publish" } else { "drafts" }).await;
+    let publish = input.publish;
+    tokio::spawn(async move {
+        for (i, (owner, repo)) in repos.iter().enumerate() {
+            update(i, "working", "checking github", None);
+            match import_one(&state, owner, repo, publish).await {
+                Ok((slug, message)) => update(i, "done", message, Some(slug)),
+                Err(Skip(message)) => update(i, "skipped", message, None),
+            }
+        }
+        if let Ok(mut guard) = JOB.lock() {
+            if let Some(job) = guard.as_mut() {
+                job.running = false;
+            }
+        }
+    });
+    Ok(Json(json!({ "ok": true })))
+}
+
+struct Skip(String);
+
+impl From<sqlx::Error> for Skip {
+    fn from(err: sqlx::Error) -> Self {
+        Skip(format!("database error: {err}"))
+    }
+}
+
+impl From<AppError> for Skip {
+    fn from(err: AppError) -> Self {
+        Skip(err.message)
+    }
+}
+
+const OPEN_LICENSES: &[&str] = &[
+    "MIT", "Apache-2.0", "GPL-2.0", "GPL-3.0", "LGPL-2.1", "LGPL-3.0", "AGPL-3.0", "BSD-2-Clause", "BSD-3-Clause", "MPL-2.0", "ISC", "Unlicense", "CC0-1.0", "0BSD", "Zlib", "WTFPL",
+];
+
+async fn already_listed(state: &AppState, owner: &str, repo: &str) -> Result<Option<String>, Skip> {
+    let rows: Vec<(String, Option<String>, Option<String>)> = sqlx::query_as(
+        "select slug, source_url, project_url from mods where status <> 'archived' and (source_url ilike '%github.com/%' or project_url ilike '%github.com/%')",
+    )
+    .fetch_all(&state.db)
+    .await?;
+    let key = repo_key(owner, repo);
+    Ok(rows.into_iter().find(|(_, s, p)| repo_of(s.as_deref(), p.as_deref()).is_some_and(|(o, r)| repo_key(&o, &r) == key)).map(|(slug, _, _)| slug))
+}
+
+async fn import_one(state: &AppState, owner: &str, repo: &str, publish: bool) -> Result<(String, String), Skip> {
+    if let Some(slug) = already_listed(state, owner, repo).await? {
+        return Err(Skip(format!("already on Branch as {slug}")));
+    }
+    let info = repo_info(state, owner, repo).await.map_err(Skip)?.ok_or_else(|| Skip("github couldn't find this repo".into()))?;
+    let release = latest_release(state, &info.owner, &info.name).await.map_err(Skip)?.ok_or_else(|| Skip("no releases on github".into()))?;
+    let asset = pick_asset(&release.assets).cloned().ok_or_else(|| Skip("the newest release has no .dll or .zip file".into()))?;
+    let data = download_asset(&info.owner, &info.name, &asset.url).await.map_err(Skip)?;
+    let file_name = asset.name.clone();
+    let (checked, report, data) = tokio::task::spawn_blocking(move || {
+        let checked = crate::uploads::check_mod_file(&file_name, &data)?;
+        let report = crate::scan::scan(&file_name, &data)?;
+        Ok::<_, String>((checked, report, data))
+    })
+    .await
+    .map_err(|e| Skip(e.to_string()))?
+    .map_err(Skip)?;
+    let exact: Option<String> = sqlx::query_scalar("select m.name from releases r join mods m on m.id = r.mod_id where r.file_sha256 = $1 and m.status <> 'archived' limit 1")
+        .bind(&checked.sha256)
+        .fetch_optional(&state.db)
+        .await?;
+    if let Some(name) = exact {
+        return Err(Skip(format!("the same file is already on Branch as {name}")));
+    }
+
+    let mut score = report.basic_score();
+    let mut verdict: Option<crate::ai::AiVerdict> = None;
+    if state.config.ai_api_key.is_some() && usage_today(state, AI_CALLS_KEY).await? < state.config.ai_daily_global {
+        bump_usage(state, AI_CALLS_KEY).await?;
+        let existing_tags: Vec<String> = sqlx::query_scalar("select name from tags order by name limit 200").fetch_all(&state.db).await?;
+        let categories: Vec<String> = sqlx::query_scalar("select slug from categories order by sort_order, name").fetch_all(&state.db).await?;
+        let claim = crate::ai::Claim { name: &info.name, description: &info.description, existing_tags: &existing_tags, categories: &categories, write_listing: true };
+        match crate::ai::ask(&state.http, &state.config, &report, Some(&claim)).await {
+            Ok(v) => {
+                score = report.final_score(v.score);
+                verdict = Some(v);
+            }
+            Err(err) => tracing::warn!(error = %err, repo = %info.full_name, "ai failed during a github import, using the basic scan"),
+        }
+    }
+    if score >= 85 && report.has_strong_signals() {
+        return Err(Skip(format!("the safety check flagged this file ({score}/100)")));
+    }
+
+    let insights = verdict.as_ref().and_then(|v| v.insights.clone());
+    let name: String = insights
+        .as_ref()
+        .map(|i| i.suggested_name.trim().to_string())
+        .filter(|n| n.chars().count() >= 2)
+        .unwrap_or_else(|| name_from_file(&info.name))
+        .chars()
+        .take(80)
+        .collect();
+    let mut description = insights.as_ref().map(|i| i.suggested_description.trim().to_string()).filter(|d| d.chars().count() >= 30).unwrap_or_default();
+    if description.is_empty() {
+        description = if info.description.trim().chars().count() >= 10 { info.description.trim().to_string() } else { format!("{name}, a Gorilla Tag mod by {}.", info.owner) };
+    }
+    description.push_str(&format!("\n\n*made by [{}](https://github.com/{}). the original is on [github]({}).*", info.owner, info.owner, info.url));
+    let tags = insights.as_ref().map(|i| i.tags.clone()).unwrap_or_default();
+    let category_id: Option<Uuid> = match insights.as_ref().and_then(|i| i.category.as_deref()) {
+        Some(slug) => sqlx::query_scalar("select id from categories where slug = $1").bind(slug).fetch_optional(&state.db).await?,
+        None => None,
+    };
+    let mut ai_insights = upload_insights(&report, score, verdict.as_ref(), !tags.is_empty(), category_id.is_some());
+    ai_insights["listing_by_ai"] = json!(verdict.is_some());
+    ai_insights["uploaded_via"] = json!("github-import");
+
+    let license = info.license.clone().filter(|l| OPEN_LICENSES.iter().any(|o| o.eq_ignore_ascii_case(l)));
+    let hosted = license.is_some();
+    let version: String = if release.version.is_empty() { release.tag.clone() } else { release.version.clone() }.chars().take(40).collect();
+    let changelog: String = release.notes.chars().take(4000).collect();
+
+    let mod_id = crate::routes::admin::insert_draft(&state.db, &name, &info.owner, Some(info.url.clone()), None).await?;
+    let key = format!("files/{}/{}", Uuid::new_v4(), checked.name);
+    if hosted {
+        if let Err(err) = crate::storage::put(state.store.as_ref(), &key, data).await {
+            let _ = sqlx::query("delete from mods where id = $1").bind(mod_id).execute(&state.db).await;
+            return Err(Skip(format!("couldn't store the file: {err}")));
+        }
+    }
+    let import_info = json!({
+        "file_name": checked.name,
+        "scan_score": score,
+        "ai_used": verdict.is_some(),
+        "via": "github-import",
+        "signals": report.indicators.iter().map(|i| i.label).collect::<Vec<_>>(),
+        "mod_markers": report.mod_markers,
+    });
+    let saved: Result<String, sqlx::Error> = async {
+        let slug: String = sqlx::query_scalar(
+            "update mods set summary = $1, description = $2, category_id = $3,
+                status = case when $4 then 'published' else 'draft' end, published_at = case when $4 then now() else null end,
+                author_url = $5, license_name = $6, license_url = $7, redistribution = $8, redistribution_note = $9,
+                imported_at = now(), import_info = $10, code_fingerprint = $11, unique_status = 'unique', ai_insights = $12,
+                github_tag = $13, github_checked_at = now()
+             where id = $14 returning slug",
+        )
+        .bind(first_sentence(&description))
+        .bind(&description)
+        .bind(category_id)
+        .bind(publish)
+        .bind(format!("https://github.com/{}", info.owner))
+        .bind(license.clone().unwrap_or_default())
+        .bind(license.as_ref().map(|l| format!("https://spdx.org/licenses/{l}.html")))
+        .bind(if hosted { "allowed" } else { "unknown" })
+        .bind(match &license {
+            Some(l) => format!("open source under the {l} license, which allows sharing it."),
+            None => "no license on github, so Branch links to the author's download instead of hosting it.".to_string(),
+        })
+        .bind(&import_info)
+        .bind(report.fingerprint())
+        .bind(&ai_insights)
+        .bind(&release.tag)
+        .bind(mod_id)
+        .fetch_one(&state.db)
+        .await?;
+        if !tags.is_empty() {
+            let mut conn = state.db.acquire().await?;
+            crate::routes::admin::set_tags(&mut conn, mod_id, &tags).await?;
+        }
+        if hosted {
+            sqlx::query(
+                "insert into releases (id, mod_id, version, released_on, changelog, download_kind, file_key, file_name, file_size, file_sha256, file_type, from_github)
+                 values ($1, $2, $3, current_date, $4, 'hosted', $5, $6, $7, $8, $9, true)",
+            )
+            .bind(Uuid::new_v4())
+            .bind(mod_id)
+            .bind(&version)
+            .bind(&changelog)
+            .bind(&key)
+            .bind(&checked.name)
+            .bind(checked.size)
+            .bind(&checked.sha256)
+            .bind(checked.kind)
+            .execute(&state.db)
+            .await?;
+        } else {
+            sqlx::query(
+                "insert into releases (id, mod_id, version, released_on, changelog, download_kind, external_url, file_sha256, from_github)
+                 values ($1, $2, $3, current_date, $4, 'external', $5, $6, true)",
+            )
+            .bind(Uuid::new_v4())
+            .bind(mod_id)
+            .bind(&version)
+            .bind(&changelog)
+            .bind(&release.url)
+            .bind(&checked.sha256)
+            .execute(&state.db)
+            .await?;
+        }
+        Ok(slug)
+    }
+    .await;
+    match saved {
+        Ok(_) => Ok((mod_id.to_string(), format!("{name} {version} · {} · safety {score}/100", if hosted { "hosted on Branch" } else { "links to github" }))),
+        Err(err) => {
+            if hosted {
+                crate::storage::delete_quietly(state.store.as_ref(), &key).await;
+            }
+            let _ = sqlx::query("delete from mods where id = $1").bind(mod_id).execute(&state.db).await;
+            Err(err.into())
+        }
+    }
+}

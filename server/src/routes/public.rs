@@ -744,7 +744,7 @@ pub async fn check_mod(State(state): State<AppState>, visitor: Visitor, headers:
 
 const UPLOADS_PER_DAY: i64 = 10;
 
-fn first_sentence(text: &str) -> String {
+pub(crate) fn first_sentence(text: &str) -> String {
     let line = text.lines().map(str::trim).find(|l| !l.is_empty()).unwrap_or("");
     let end = line.find(". ").map(|i| i + 1).unwrap_or(line.len());
     let sentence: String = line[..end].chars().take(200).collect();
@@ -770,7 +770,7 @@ pub(crate) fn parse_tags(raw: &str) -> Result<Vec<String>, &'static str> {
     Ok(tags)
 }
 
-fn upload_insights(report: &crate::scan::ScanReport, score: u8, verdict: Option<&crate::ai::AiVerdict>, tags_by_ai: bool, category_by_ai: bool) -> Value {
+pub(crate) fn upload_insights(report: &crate::scan::ScanReport, score: u8, verdict: Option<&crate::ai::AiVerdict>, tags_by_ai: bool, category_by_ai: bool) -> Value {
     let insights = verdict.and_then(|v| v.insights.as_ref());
     let requirements: Vec<String> = match insights {
         Some(i) if !i.requirements.is_empty() => i.requirements.clone(),
@@ -846,7 +846,7 @@ fn fallback_description(insights: &crate::ai::UploadInsights) -> String {
     text.trim().to_string()
 }
 
-fn name_from_file(file_name: &str) -> String {
+pub(crate) fn name_from_file(file_name: &str) -> String {
     let stem = file_name.rsplit_once('.').map(|(s, _)| s).unwrap_or(file_name);
     let stem = stem
         .split(|c: char| c == '_' || c == '-' || c == ' ')

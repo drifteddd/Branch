@@ -828,7 +828,7 @@ await test("admin bulk-imports mods into a private drafts list", async () => {
   await waitFor(`document.querySelector("#import-files")`, "import page");
   await setFile("#import-files", [a, b]);
   await waitFor(`[...document.querySelectorAll(".import-queue li")].filter(li => li.textContent.includes("added 1 draft")).length === 2`, "both imported", 8000);
-  await waitFor(`document.querySelector(".import-heading")?.textContent.includes("(2)")`, "imported drafts list");
+  await waitFor(`[...document.querySelectorAll(".import-heading")].some((e) => e.textContent.includes("(2)"))`, "imported drafts list");
   assert(await evaluate(`document.body.textContent.includes("Gorilla Hats")`), "name not taken from the file name");
   await screenshot("admin-import");
   assert((await evaluate(`fetch("/api/mods?q=Gorilla%20Hats").then(r => r.json()).then(d => d.total)`)) === 0, "imported drafts must not be public");
@@ -1073,6 +1073,17 @@ await test("watchlist: find a mod from a github link, watch it, and get told abo
   await waitFor(`document.querySelector(".wt-card.is-new")`, "watch page again");
   await evaluate(clickText(".wt-card button", "Mark as seen"));
   await waitFor(`!document.querySelector(".wt-card.is-new") && document.querySelector("#watch-count").hidden`, "marked seen");
+});
+
+await test("admin imports mods from github links", async () => {
+  await go(`${BASE}/admin#/import`);
+  await waitFor(`document.querySelector("#gh-import-repos")`, "github import card");
+  await evaluate(clickText(".card button", "Use suggested list"));
+  assert(await evaluate(`document.querySelector("#gh-import-repos").value.split("\\n").length >= 50`), "suggested list should have 50+ mods");
+  await evaluate(type("#gh-import-repos", "https://github.com/demo/ImportedHat\nnobody/nothing"));
+  await evaluate(clickText(".card button", "Import from GitHub"));
+  await waitFor(`document.querySelector(".gh-import-progress")?.textContent.includes("finished. 1 added, 1 skipped")`, "import finished");
+  await screenshot("admin-github-import");
 });
 
 ws.close();

@@ -38,6 +38,7 @@ pub struct RepoInfo {
     pub description: String,
     pub stars: Option<i64>,
     pub url: String,
+    pub license: Option<String>,
 }
 
 fn valid_owner(s: &str) -> bool {
@@ -292,6 +293,7 @@ pub async fn repo_info(state: &AppState, owner: &str, repo: &str) -> Result<Opti
             Some(RepoInfo {
                 description: r.get("description").and_then(|d| d.as_str()).unwrap_or("").to_string(),
                 stars: r.get("stargazers_count").and_then(|s| s.as_i64()),
+                license: r.get("license").and_then(|l| l.get("spdx_id")).and_then(|s| s.as_str()).filter(|s| *s != "NOASSERTION").map(String::from),
                 url: format!("https://github.com/{o}/{n}"),
                 full_name: format!("{o}/{n}"),
                 owner: o,
@@ -309,7 +311,7 @@ pub async fn repo_info(state: &AppState, owner: &str, repo: &str) -> Result<Opti
                         if d.starts_with("Contribute to ") { String::new() } else { d }
                     })
                     .unwrap_or_default();
-                Some(RepoInfo { owner: owner.to_string(), name: repo.to_string(), full_name: format!("{owner}/{repo}"), description, stars: None, url: format!("https://github.com/{owner}/{repo}") })
+                Some(RepoInfo { owner: owner.to_string(), name: repo.to_string(), full_name: format!("{owner}/{repo}"), description, stars: None, url: format!("https://github.com/{owner}/{repo}"), license: None })
             }
         },
     };

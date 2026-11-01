@@ -1130,6 +1130,79 @@ function renderAccount() {
   }
 })();
 
+
+const SUGGESTED_GITHUB_MODS = ["legoandmars/Utilla","legoandmars/GorillaCosmetics","ToniMacaroni/ComputerInterface","AHauntedArmy/PowerArms","legoandmars/SpaceMonke","AHauntedArmy/SolidMonkeys","sheakelso/RisingLava","Vadix88/MonkeMapLoader","AHauntedArmy/BrokenController","Waulta/MonkeBazooka","LIV/GorillaTagLIV","fchb1239/AirJump","Monosphere/Mono-Sandbox-Mod","7Seventy0/SeventysCameraSettingsMod","floh-bhaptics/GorillaTag_bhaptics","gamer115671/Gorilla-Tag-Spectator","developer9998/HoldablePad","developer9998/GorillaShirts","Chin0303/Monke-Dimensions","NachoEngine/PlayerModel","Rateix/EditYourArmLengthMod","Ernest326/RainbowMonke","ZlothY29IQ/WalkSimulator","hamburbur-org/Gorilla-Notifications","NachoEngine/GorillaTagGhostEntity","defaultuser0-nerd/NoMoreWind","sevvy-wevvy/Gorilla-Optimizer","sevvy-wevvy/Sevs-Better-Nametags","KyukoVR/FastMonke","developer9998/WardrobeEnhancements","rass1010/UpSide-Down","developer9998/GorillaCustomTime","BasilLmao/Size-Monke","Frogrilla/MonkeTunes","Veloc1tyIsCrazy/Vels-Camera-Mod","sirkingbinx/OculusReportMenu","LEPHROGFISH/GSabers","struuct/CosmeticNames","chazzy-b/Banana-Dispenser","wryser/CustomCosmetics","auralius-dev/SmoothMonke","developer9998/GorillaTierList","Ernest326/RainbowKeyboard","developer9998/GorillaHistoricalTeleporter","ToniMacaroni/VoiceAmp","ToniMacaroni/MovementSound","fchb1239/CustomMOTD","struuct/GorillaComputer","developer9998/DevTrampolineMod","struuct/LegacyMic","developer9998/GorillaLegacyAdventCalendar","Monosphere/Australian-Summer-Mod","developer9998/DevColourInterface","developer9998/GorillaInfoWatch","bjrsinge/GorillaEntertainmentSystem","zhdyn3/Weather-time","RusJJ/ScoreboardTweaks","rass1010/SpiderMonke","ShinyGorilla/StreamOverlaysV2","bjrsinge/GorillaSteps","developer9998/EnthusiastHeadphones","struuct/ColorScreen","JUNEISEPIC/GorillaStartUpSounds","codyiscoder/GorillaAcrobatics","developer9998/MonkePhone","Striker-67/StrikerCamModV2","Zinlyy/High-FOV-Camera","Graicc/GorillaKZ","cs14gaming/GorillaCaster","arielthemonke/MonkeMusic","struuct/CosmeticTweaks","developer9998/SlipperyWater","developer-cody/GorillaInfo","struuct/OutfitSwap","LIV/SpatialGorilla","developer9998/GorillaPronouns","zaynethedev/GorillaMirror","developer9998/GorillaShotForce","JUNEISEPIC/GorillaMusicPlayer","AHauntedArmy/WaterFight","pl2w/CustomSky","larsl2005/GTAG-NotificationLib","quoote/QuickLeave","developer9998/GorillaSigns","CrafterBotOfficial/GorillaHands","Striker-67/Gorilla-Cars","rass1010/GorillatagTwitchIntegration","arielthemonke/GorillaStats","RusJJ/GorillaFriends","drowsiiii/MonkeDraw-Drawing-Pad","CrafterBotOfficial/FallMonke","zaynethedev/GorillaReplay","drowsiiii/Gorilla-Info-Board","GorillaTagModdingHub/GorillaLibrary","picoskids/VisibleGorilla","defaultuser0-nerd/DisableBackgroundNoise","CrafterBotOfficial/MonkeNotificationLib","ShinyGorilla/MuteLavaWarning","Olibobs81/RoomCodeDisplay","developer9998/GorillaHeadpats","TFSDemon/Gorilla-Tag-Discord-RPC","MonkeFrames/MonkeFrames","liamcsharp/AceFPSCounter","floh-bhaptics/GorillaTag_OWO","LapisGit/GorillaTrials"];
+
+function githubImportCard() {
+  const area = h("textarea", { class: "input", id: "gh-import-repos", rows: "6", placeholder: "https://github.com/someone/their-mod (one per line)" });
+  const publish = h("input", { type: "checkbox", id: "gh-import-publish", checked: true });
+  const start = h("button", { class: "btn btn-primary", type: "button" }, "Import from GitHub");
+  const progress = h("div", { class: "gh-import-progress" });
+  let timer = null;
+
+  function draw(job) {
+    if (!job.items?.length) {
+      progress.replaceChildren();
+      return;
+    }
+    const done = job.items.filter((i) => i.status === "done").length;
+    const skipped = job.items.filter((i) => i.status === "skipped").length;
+    progress.replaceChildren(
+      h("p", { class: "muted small" }, `${job.running ? "importing…" : "finished."} ${done} added, ${skipped} skipped, ${job.items.length - done - skipped} left`),
+      h(
+        "ul",
+        { class: "import-queue", role: "list" },
+        job.items.map((i) =>
+          h(
+            "li",
+            null,
+            h("span", null, i.slug ? h("a", { href: `#/mods/${encodeURIComponent(i.slug)}` }, i.repo) : i.repo, i.message ? h("span", { class: "muted small" }, ` · ${i.message}`) : null),
+            h("span", { class: `pill ${i.status === "done" ? "published" : i.status === "skipped" ? "open" : "draft"}` }, i.status),
+          ),
+        ),
+      ),
+    );
+    start.disabled = job.running;
+  }
+
+  async function poll() {
+    clearTimeout(timer);
+    if (!document.body.contains(progress)) return;
+    try {
+      const job = await api("/api/admin/import/github");
+      draw(job);
+      if (job.running) timer = setTimeout(poll, 2500);
+    } catch {}
+  }
+
+  start.addEventListener("click", async () => {
+    try {
+      await api("/api/admin/import/github", { method: "POST", body: { repos: area.value, publish: publish.checked } });
+      toast("Import started");
+      poll();
+    } catch (err) {
+      toast(err.message, "error");
+    }
+  });
+  setTimeout(poll, 50);
+
+  return h(
+    "section",
+    { class: "card" },
+    h("h2", { class: "import-heading" }, "Import from GitHub"),
+    h("p", { class: "card-intro" }, "paste github links, one per line. Branch downloads each newest release, runs the safety check, has Branch AI write the name, description and tags, and credits the github author. mods with an open-source license are hosted on Branch; the rest link to the author's github download. mods already on Branch, or flagged by the safety check, are skipped. imported mods update themselves when a new github release comes out."),
+    area,
+    h(
+      "div",
+      { class: "upload-row" },
+      start,
+      h("button", { class: "btn", type: "button", onclick: () => { area.value = SUGGESTED_GITHUB_MODS.map((r) => `https://github.com/${r}`).join("\n"); } }, `Use suggested list (${SUGGESTED_GITHUB_MODS.length} mods)`),
+    ),
+    h("label", { class: "checks", for: "gh-import-publish" }, publish, "publish them right away (untick to keep them as private drafts)"),
+    progress,
+  );
+}
+
 async function renderImport() {
   const filesInput = h("input", { type: "file", multiple: true, accept: ".dll,.zip", class: "hidden", id: "import-files" });
   const folderInput = h("input", { type: "file", multiple: true, webkitdirectory: true, class: "hidden", id: "import-folder" });
@@ -1228,6 +1301,7 @@ async function renderImport() {
       h("label", { class: "checks import-split", for: "import-split" }, split, "a zip full of mods: make each .dll or .zip inside it its own draft"),
       queue,
     ),
+    githubImportCard(),
     listArea,
   ]);
   await drawImported();
