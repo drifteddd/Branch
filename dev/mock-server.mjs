@@ -637,7 +637,7 @@ async function publicApi(req, res, path, url) {
   if (modMatch && req.method === "GET") {
     const m = mods.find((x) => x.slug === modMatch[1] && x.status === "published");
     await new Promise((r) => setTimeout(r, 200));
-    return m ? send(res, 200, { ...m, featured: topRated().has(m.id), rating: ratingOf(m), my_rating: m.my_rating || null }) : fail(res, 404, "that mod isn't listed");
+    return m ? send(res, 200, { ...m, featured: topRated().has(m.id), rating: ratingOf(m), my_rating: m.my_rating || null, code_review: m.community ? null : { verdict: mods.indexOf(m) % 5 === 1 ? "caution" : "clean", notes: mods.indexOf(m) % 5 === 1 ? "the author hasn't published the source code for this mod, so it couldn't be reviewed." : "nothing in the source reads your passwords, accounts or personal files, or runs other programs.", source_url: m.source_url || null, reviewed_at: "2026-11-02T03:00:00Z" } }) : fail(res, 404, "that mod isn't listed");
   }
   const dl = /^\/api\/releases\/([0-9a-f-]+)\/(download|out)$/.exec(path);
   if (dl) {

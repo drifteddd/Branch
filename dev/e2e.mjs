@@ -258,6 +258,13 @@ await test("favorites are saved and survive a reload", async () => {
   await waitFor(`${rows}.length === 1 && ${rows}[0].dataset.slug === ${JSON.stringify(first)}`, "favorite after reload");
 });
 
+await test("mod pages show the source code review", async () => {
+  const slug = await evaluate(`fetch("/api/mods").then(r => r.json()).then(d => d.items.find(m => !m.community).slug)`);
+  await go(`${BASE}/#/mod/${slug}`);
+  await waitFor(`[...document.querySelectorAll(".detail-side h2, .detail-side h3")].some(h => h.textContent.includes("Source code review")) && document.querySelector(".av-result")`, "review card");
+  await screenshot("code-review");
+});
+
 await test("hosted download shows progress and finishes", async () => {
   await go(`${BASE}/#/mod/demo-lantern-trail`);
   await waitFor(`document.querySelector('.detail-title')`, "mod page");
