@@ -93,7 +93,7 @@ export function createDetailView(ctx) {
       ? h("button", { class: "btn btn-quiet", type: "button", onclick: () => openSourceViewer(mod.source_url, { fetchJson: githubFetch, openLink: (u) => openExternal(u) }) }, icon("code"), "View source code")
       : null;
 
-    const editButton = h("a", { class: "btn btn-quiet", href: `#/edit/${encodeURIComponent(mod.slug)}`, hidden: !ownsMod(mod.slug) }, icon("edit"), "Edit listing");
+    const editButton = h("a", { class: "btn btn-quiet edit-listing", href: `#/edit/${encodeURIComponent(mod.slug)}`, hidden: !ownsMod(mod.slug) }, icon("edit"), "Edit listing");
     myAccount().then(() => { editButton.hidden = !ownsMod(mod.slug); }).catch(() => {});
 
     const head = h(
@@ -556,6 +556,12 @@ export function createDetailView(ctx) {
       else {
         recent.add(currentMod.slug);
         ctx.setTitle(currentMod.name);
+        const editButton = el.querySelector(".edit-listing");
+        if (editButton) {
+          const slug = currentMod.slug;
+          editButton.hidden = !ownsMod(slug);
+          myAccount().then(() => { editButton.hidden = !ownsMod(slug); }).catch(() => {});
+        }
       }
       return 0;
     },

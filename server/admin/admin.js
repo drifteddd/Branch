@@ -1207,6 +1207,28 @@ function githubImportCard() {
   );
 }
 
+function importOwnerCard() {
+  const username = h("input", { class: "input", id: "import-owner", maxlength: "20", autocomplete: "off", placeholder: "creator account username" });
+  const link = h("button", { class: "btn btn-primary", type: "button" }, "Show them in this creator hub");
+  link.addEventListener("click", async () => {
+    link.disabled = true;
+    try {
+      const result = await api("/api/admin/import/owner", { method: "POST", body: { username: username.value } });
+      toast(`${result.linked} imported mods added to ${username.value.trim()}'s creator hub`);
+    } catch (err) {
+      toast(err.fields?.username || err.message, "error");
+    }
+    link.disabled = false;
+  });
+  return h(
+    "section",
+    { class: "card" },
+    h("h2", null, "Imported mods in your creator hub"),
+    h("p", { class: "card-intro" }, "make a creator account in the Branch app (Creator hub), then enter its username here. every mod imported from github shows up in that creator hub, where you can edit it. the mod pages still credit the original authors. run it again after new imports."),
+    h("div", { class: "upload-row" }, username, link),
+  );
+}
+
 async function renderImport() {
   const filesInput = h("input", { type: "file", multiple: true, accept: ".dll,.zip", class: "hidden", id: "import-files" });
   const folderInput = h("input", { type: "file", multiple: true, webkitdirectory: true, class: "hidden", id: "import-folder" });
@@ -1306,6 +1328,7 @@ async function renderImport() {
       queue,
     ),
     githubImportCard(),
+    importOwnerCard(),
     listArea,
   ]);
   await drawImported();

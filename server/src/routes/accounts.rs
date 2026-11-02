@@ -222,7 +222,7 @@ mod tests {
 
     #[test]
     fn usernames_are_checked() {
-        assert!(username_problem("Drifted_Fan").is_none());
+        assert!(username_problem("Hat_Maker").is_none());
         assert!(username_problem("ab").is_some());
         assert!(username_problem("has space").is_some());
         assert!(username_problem("BranchAdmin").is_some());

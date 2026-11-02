@@ -14,7 +14,9 @@ use crate::routes::public::{bump_usage, first_sentence, name_from_file, upload_i
 use crate::state::AppState;
 
 pub fn router() -> Router<AppState> {
-    Router::new().route("/api/admin/import/github", get(status).post(start))
+    Router::new()
+        .route("/api/admin/import/github", get(status).post(start))
+        .route("/api/admin/import/owner", axum::routing::post(link_owner))
 }
 
 #[derive(Clone, Serialize)]
@@ -396,6 +398,29 @@ async fn run_seed(state: &AppState) -> Result<(), Skip> {
         }
     }
     Ok(())
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct OwnerInput {
+    username: String,
+}
+
+async fn link_owner(State(state): State<AppState>, Admin(admin): Admin, Json(input): Json<OwnerInput>) -> ApiResult<Json<Value>> {
+    let poster: Option<Uuid> = sqlx::query_scalar("select poster_id from creator_accounts where username_lower = $1")
+        .bind(input.username.trim().to_lowercase())
+        .fetch_optional(&state.db)
+        .await?;
+    let Some(poster) = poster else {
+        return Err(AppError::field("username", "there's no creator account with that username. make it in the app first (Creator hub)."));
+    };
+    let linked = sqlx::query("update mods set uploader_poster = $1 where import_info->>'via' = 'github-import' and status <> 'archived' and uploader_poster is distinct from $1")
+        .bind(poster)
+        .execute(&state.db)
+        .await?
+        .rows_affected();
+    audit(&state.db, &admin, "link_imported_mods", input.username.trim(), &format!("{linked} mods")).await;
+    Ok(Json(json!({ "ok": true, "linked": linked })))
 }
 
 #[derive(sqlx::FromRow)]
