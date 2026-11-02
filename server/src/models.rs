@@ -243,6 +243,7 @@ pub struct ModDetail {
     pub updated_at: DateTime<Utc>,
     pub published_at: Option<DateTime<Utc>>,
     pub releases: Vec<ReleaseOut>,
+    pub code_review: Option<Value>,
 }
 
 pub enum Lookup<'a> {
@@ -288,6 +289,12 @@ pub async fn load_detail(db: &PgPool, lookup: Lookup<'_>) -> Result<Option<ModDe
     .fetch_all(db)
     .await?;
 
+    let code_review: Option<(String, String, Option<String>, DateTime<Utc>)> = match releases.first().and_then(|r| r.file_sha256.clone()) {
+        Some(sha) => sqlx::query_as("select verdict, notes, source_url, reviewed_at from code_reviews where sha256 = $1").bind(sha).fetch_optional(db).await?,
+        None => None,
+    };
+    let code_review = code_review.map(|(verdict, notes, source_url, reviewed_at)| serde_json::json!({ "verdict": verdict, "notes": notes, "source_url": source_url, "reviewed_at": reviewed_at }));
+
     let category = match (m.category_id, m.category_slug, m.category_name) {
         (Some(id), Some(slug), Some(name)) => Some(CategoryRef { id, slug, name }),
         _ => None,
@@ -332,5 +339,6 @@ pub async fn load_detail(db: &PgPool, lookup: Lookup<'_>) -> Result<Option<ModDe
         updated_at: m.updated_at,
         published_at: m.published_at,
         releases: releases.iter().map(ReleaseOut::from).collect(),
+        code_review,
     }))
 }

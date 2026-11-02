@@ -1406,3 +1406,11 @@ svg.thumb, svg.hero-img, svg.ch-thumb, svg.wt-branch-thumb, svg.ob-pick-thumb { 
 .popup-results li.mine .popup-result-bar { background: var(--accent-soft, var(--selected)); box-shadow: inset 3px 0 0 var(--accent); }
 .popup-yours { display: inline-flex; align-items: center; gap: 4px; margin-left: 8px; font-size: 12px; color: var(--text-2); }
 .popup-yours svg { width: 12px; height: 12px; }
+
+.av-result { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 10px 12px; border-radius: var(--r-m); background: var(--surface-2); }
+.av-result svg { width: 20px; height: 20px; margin-top: 1px; }
+.av-result p { margin: 2px 0 0; }
+.av-result.clean svg { color: #1fa889; }
+.av-result.caution svg { color: #c46a00; }
+.av-result.flagged { background: rgba(214, 60, 40, 0.12); }
+.av-result.flagged svg { color: #c4392b; }

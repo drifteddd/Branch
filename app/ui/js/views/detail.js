@@ -156,7 +156,7 @@ export function createDetailView(ctx) {
       mod.known_issues ? section("Known issues", markdown(mod.known_issues)) : null,
     );
 
-    const side = h("aside", { class: "detail-side", "aria-label": "Mod details" }, detailsCard(mod, latest), requirementsCard(mod), fileCard(latest), licenseCard(mod), linksCard(mod), tagsCard(mod));
+    const side = h("aside", { class: "detail-side", "aria-label": "Mod details" }, detailsCard(mod, latest), requirementsCard(mod), fileCard(latest), reviewCard(mod), licenseCard(mod), linksCard(mod), tagsCard(mod));
 
     return h("article", { class: "detail-page", "aria-labelledby": "detail-title" }, warnings, head, h("div", { class: "detail-body" }, main, side));
   }
@@ -506,6 +506,21 @@ export function createDetailView(ctx) {
       ]),
       release.file.sha256 ? h("div", { class: "checksum" }, h("span", { class: "muted" }, "SHA-256"), copy, h("code", null, release.file.sha256)) : null,
       isDesktop ? h("p", { class: "muted small" }, "Branch checks the checksum after downloading.") : null,
+    );
+  }
+
+  function reviewCard(mod) {
+    const review = mod.code_review;
+    if (!review) return null;
+    const look = {
+      clean: ["shield", "Nothing harmful found", "the source code was reviewed and nothing in it looks harmful to your PC or account."],
+      caution: ["info", "Use with care", "nothing in the source looks like malware, but it does things worth knowing about."],
+      flagged: ["alert", "Be careful", "the source code does something that could be harmful."],
+    }[review.verdict] || ["info", "Reviewed", ""];
+    return card(
+      "Source code review",
+      h("div", { class: `av-result ${review.verdict}` }, icon(look[0]), h("div", null, h("strong", null, look[1]), h("p", { class: "muted small" }, review.notes || look[2]))),
+      h("p", { class: "muted small" }, `reviewed ${formatDate(review.reviewed_at)}. a review checks the published source, not every possible build, so still only use files you trust.`),
     );
   }
 

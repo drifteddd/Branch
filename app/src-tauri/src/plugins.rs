@@ -284,9 +284,10 @@ mod tests {
 
     #[test]
     fn plugins_or_bepinex_folders_lead_back_to_the_game() {
-        assert_eq!(game_from(Path::new(r"C:\Games\Gorilla Tag\BepInEx\plugins")), PathBuf::from(r"C:\Games\Gorilla Tag"));
-        assert_eq!(game_from(Path::new(r"C:\Games\Gorilla Tag\BepInEx")), PathBuf::from(r"C:\Games\Gorilla Tag"));
-        assert_eq!(game_from(Path::new(r"C:\Games\Gorilla Tag")), PathBuf::from(r"C:\Games\Gorilla Tag"));
+        let game = Path::new("Games").join("Gorilla Tag");
+        assert_eq!(game_from(&game.join("BepInEx").join("plugins")), game);
+        assert_eq!(game_from(&game.join("BepInEx")), game);
+        assert_eq!(game_from(&game), game);
     }
 
     #[test]
