@@ -467,6 +467,7 @@ async fn full_flow() {
     let thumb = png_bytes();
     let r = c.form_files("/api/submissions", &upload_fields, &[("file", "TinyHats_v2.1.dll", &b"MZ BepInEx hats"[..]), ("thumbnail", "thumb.png", &thumb[..])]).await;
     assert_eq!(r.status, StatusCode::CREATED, "{}", r.json);
+    assert_eq!(r.json["reward"]["reason"], "no account", "uploading without an account works, but earns nothing");
     let slug = r.json["slug"].as_str().unwrap().to_string();
     let r = c.get(&format!("/api/mods/{slug}")).await;
     assert_eq!(r.status, StatusCode::OK, "community uploads go live right away");
@@ -509,6 +510,15 @@ async fn full_flow() {
     let r = c.form("/api/submissions", &[("name", "Tiny Hats Again"), ("description", description), ("confirm", "true")], Some(("copy.dll", &b"MZ BepInEx hats"[..]))).await;
     assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "the exact same file can't be uploaded twice");
     assert!(r.json["fields"]["file"].as_str().unwrap().contains("already on Branch"), "{}", r.json);
+    let r = c.json("POST", "/api/rewards/me", json!({ "key": member_key })).await;
+    assert_eq!(r.status, StatusCode::FORBIDDEN, "rewards need a creator account: {}", r.json);
+    assert_eq!(c.json("POST", "/api/creator/me", json!({ "key": member_key })).await.status, StatusCode::FORBIDDEN, "the creator hub needs an account");
+    assert!(c.json("POST", "/api/account/me", json!({ "key": member_key })).await.json["account"].is_null());
+    let r = c.json("POST", "/api/account/signup", json!({ "key": member_key, "username": "a", "password": "short" })).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(r.json["fields"]["username"].is_string() && r.json["fields"]["password"].is_string(), "{}", r.json);
+    let r = c.json("POST", "/api/account/signup", json!({ "key": member_key, "username": "Hat_Maker", "password": "jungle gym 42" })).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
     for n in 2..=10 {
         let name = format!("Hat Pack {n}");
         let bytes = format!("MZ BepInEx pack number {n}");
@@ -519,6 +529,39 @@ async fn full_flow() {
     }
     let r = c.form("/api/submissions", &[("name", "One Too Many"), ("description", description), ("confirm", "true")], Some(("pack.dll", &b"MZ BepInEx one too many"[..]))).await;
     assert_eq!(r.status, StatusCode::TOO_MANY_REQUESTS, "10 uploads a day");
+
+    let r = c.json("POST", "/api/account/me", json!({ "key": member_key })).await;
+    assert_eq!(r.json["account"]["username"], "Hat_Maker");
+    assert!(r.json["mods"].as_array().unwrap().len() >= 9, "uploads from this computer join the new account: {}", r.json);
+    let mine = r.json["mods"][0].as_str().unwrap().to_string();
+    assert_eq!(c.json("POST", "/api/creator/me", json!({ "key": member_key })).await.json["name"], "Hat_Maker");
+
+    let other_key = "cd34".repeat(16);
+    let r = c.form(&format!("/api/creator/mods/{mine}/edit"), &[("key", other_key.as_str()), ("name", "Stolen"), ("description", description)], None).await;
+    assert_eq!(r.status, StatusCode::FORBIDDEN, "only the owner's account can edit: {}", r.json);
+    let r = c.json("POST", &format!("/api/creator/mods/{mine}/listing"), json!({ "key": member_key })).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    let r = c.form(
+        &format!("/api/creator/mods/{mine}/edit"),
+        &[("key", member_key.as_str()), ("name", "Hat Pack Deluxe"), ("description", description), ("tags", "hats, deluxe"), ("video_url", "https://youtu.be/dQw4w9WgXcQ")],
+        None,
+    )
+    .await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    let r = c.get(&format!("/api/mods/{mine}")).await;
+    assert_eq!(r.json["name"], "Hat Pack Deluxe", "the listing was edited");
+    assert_eq!(r.json["video_id"], "dQw4w9WgXcQ");
+    let r = c.form(&format!("/api/creator/mods/{mine}/release"), &[("key", member_key.as_str()), ("version", "3.0"), ("changelog", "bigger hats")], Some(("pack.dll", &b"MZ BepInEx pack deluxe three"[..]))).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    assert_eq!(c.get(&format!("/api/mods/{mine}")).await.json["releases"][0]["version"], "3.0", "the new version is the latest");
+
+    let r = c.json("POST", "/api/account/login", json!({ "key": other_key, "username": "hat_maker", "password": "wrong password" })).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY);
+    let r = c.json("POST", "/api/account/login", json!({ "key": other_key, "username": "hat_maker", "password": "jungle gym 42" })).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    assert_eq!(c.json("POST", "/api/creator/me", json!({ "key": other_key })).await.json["name"], "Hat_Maker", "another computer can log in");
+    c.json("POST", "/api/account/logout", json!({ "key": other_key })).await;
+    assert_eq!(c.json("POST", "/api/creator/me", json!({ "key": other_key })).await.status, StatusCode::FORBIDDEN, "logging out ends it");
 
     let r = c.json("POST", "/api/rewards/me", json!({ "key": member_key })).await;
     assert_eq!(r.status, StatusCode::OK, "{}", r.json);

@@ -42,11 +42,11 @@ fn tag_for(key_hash: &str) -> String {
     key_hash.chars().take(4).collect()
 }
 
-fn valid_key(key: &str) -> bool {
+pub(crate) fn valid_key(key: &str) -> bool {
     key.len() == 64 && key.chars().all(|c| c.is_ascii_hexdigit())
 }
 
-fn name_problem(name: &str) -> Option<&'static str> {
+pub(crate) fn name_problem(name: &str) -> Option<&'static str> {
     let len = name.chars().count();
     if !(3..=24).contains(&len) {
         return Some("names are 3 to 24 characters");
@@ -91,10 +91,13 @@ pub(crate) async fn poster_for(state: &AppState, key: &str, visitor: &Visitor, c
         return Err(AppError::bad_request("the community key on this computer is broken. clear it in settings and try again."));
     }
     let key_hash = sha256_hex(key.as_bytes());
-    let existing: Option<Poster> = sqlx::query_as("select id, key_hash, name, banned from forum_posters where key_hash = $1")
-        .bind(&key_hash)
-        .fetch_optional(&state.db)
-        .await?;
+    let existing: Option<Poster> = sqlx::query_as(
+        "select id, key_hash, name, banned from forum_posters
+         where id = coalesce((select poster_id from creator_logins where key_hash = $1), (select id from forum_posters where key_hash = $1))",
+    )
+    .bind(&key_hash)
+    .fetch_optional(&state.db)
+    .await?;
     let poster = match existing {
         Some(p) => {
             sqlx::query("update forum_posters set last_seen_at = now() where id = $1").bind(p.id).execute(&state.db).await?;

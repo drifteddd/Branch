@@ -132,6 +132,10 @@ const reports = [];
 const requests = [];
 const forum = { posters: new Map(), threads: [], reports: [], chat: [] };
 const rewards = { enabled: true, members: new Map(), nextEvent: 1 };
+const accounts = new Map();
+const logins = new Map();
+const ownerOf = (key) => logins.get(key) || key;
+const accountOf = (key) => [...accounts.values()].find((a) => a.owner === ownerOf(key)) || null;
 const checkUsage = new Map();
 const CHECK_LIMIT = 20;
 const audit = [];
@@ -641,10 +645,103 @@ async function publicApi(req, res, path, url) {
     }).sort((a, b) => b.score - a.score).slice(0, 4);
     return send(res, 200, { source: "ai", picks: list.map(({ m, hits }) => ({ slug: m.slug, name: m.name, summary: m.summary, category: m.category?.name || null, thumbnail_url: m.thumbnail_url, rating: ratingOf(m), reason: hits.length ? `you said you like ${hits.join(" and ")}, and people love this one.` : "one of the most popular mods on Branch." })) });
   }
+  if (path === "/api/account/me" && req.method === "POST") {
+    const { key } = await json(req);
+    const acct = accountOf(key);
+    return send(res, 200, acct ? { account: { username: acct.username, created_at: acct.created_at }, mods: mods.filter((x) => x.uploader_key === acct.owner && x.status !== "archived").map((x) => x.slug) } : { account: null, mods: [] });
+  }
+  if (path === "/api/account/signup" && req.method === "POST") {
+    const { key, username = "", password = "" } = await json(req);
+    const name = username.trim();
+    const errors = {};
+    if (!/^[A-Za-z0-9_]{3,20}$/.test(name)) errors.username = "usernames are 3 to 20 letters, numbers or _";
+    if (password.length < 8) errors.password = "use at least 8 characters";
+    else if (name && password.toLowerCase().includes(name.toLowerCase())) errors.password = "don't put your username in your password";
+    if (Object.keys(errors).length) return fail(res, 422, Object.values(errors)[0], errors);
+    if (accounts.has(name.toLowerCase())) return fail(res, 422, "that username is taken", { username: "that username is taken" });
+    if (accountOf(key)) return fail(res, 403, "this computer is already logged in to a creator account. log out first.");
+    accounts.set(name.toLowerCase(), { username: name, password, owner: ownerOf(key), created_at: new Date().toISOString() });
+    return send(res, 200, { ok: true, username: name });
+  }
+  if (path === "/api/account/login" && req.method === "POST") {
+    const { key, username = "", password = "" } = await json(req);
+    const acct = accounts.get(username.trim().toLowerCase());
+    if (!acct || acct.password !== password) return fail(res, 422, "wrong username or password", { password: "wrong username or password" });
+    if (!accountOf(key)) for (const m of mods) if (m.uploader_key === key) m.uploader_key = acct.owner;
+    logins.set(key, acct.owner);
+    return send(res, 200, { ok: true, username: acct.username });
+  }
+  if (path === "/api/account/logout" && req.method === "POST") {
+    const { key } = await json(req);
+    logins.delete(key);
+    return send(res, 200, { ok: true });
+  }
+  if (path === "/api/account/password" && req.method === "POST") {
+    const { key, current, password = "" } = await json(req);
+    const acct = accountOf(key);
+    if (!acct) return fail(res, 403, "make a free creator account (just a username and password) to do this.");
+    if (acct.password !== current) return fail(res, 422, "that's not your current password", { current: "that's not your current password" });
+    if (password.length < 8) return fail(res, 422, "use at least 8 characters", { password: "use at least 8 characters" });
+    acct.password = password;
+    return send(res, 200, { ok: true });
+  }
+  const creatorUpload = /^\/api\/creator\/mods\/([^/]+)\/(edit|release)$/.exec(path);
+  if (creatorUpload && req.method === "POST") {
+    const { file, fields, files: parts, lists } = parseMultipart(req, await readBody(req));
+    const acct = accountOf(fields.key);
+    if (!acct) return fail(res, 403, "make a free creator account (just a username and password) to do this.");
+    const m = mods.find((x) => x.slug === decodeURIComponent(creatorUpload[1]) && x.uploader_key === acct.owner);
+    if (!m) return fail(res, 404, "you can only change mods you uploaded with your creator account");
+    const now = new Date().toISOString();
+    if (creatorUpload[2] === "release") {
+      if (!file) return fail(res, 422, "attach the new version of your mod (.dll or .zip)", { file: "attach the new version of your mod (.dll or .zip)" });
+      if (!["MZ", "PK"].includes(file.data.subarray(0, 2).toString("latin1"))) return fail(res, 422, "this .dll doesn't look like a real windows dll", { file: "this .dll doesn't look like a real windows dll" });
+      const version = (fields.version || "").trim() || now.slice(0, 10).replace(/-/g, ".");
+      const release = refreshRelease({ id: randomUUID(), version, released_on: now.slice(0, 10), changelog: fields.changelog || "", game_version: "", kind: "hosted", external_url: null, file: { name: file.name, size: file.data.length, sha256: createHash("sha256").update(file.data).digest("hex"), type: "dll" }, disabled: false, disabled_reason: "", created_at: now });
+      m.releases.unshift(release);
+      files.set(release.id, file.data);
+      m.updated_at = now;
+      return send(res, 200, { ok: true, version, name: m.name });
+    }
+    const errors = {};
+    if ((fields.name || "").trim().length < 2) errors.name = "give your mod a name";
+    if ((fields.description || "").trim().length < 30) errors.description = "describe what your mod does (at least 30 characters)";
+    const videoMatch = /(?:youtu\.be\/|v=|shorts\/|embed\/)([A-Za-z0-9_-]{11})/.exec(fields.video_url || "") || /^([A-Za-z0-9_-]{11})$/.exec((fields.video_url || "").trim());
+    if (fields.video_url && !videoMatch) errors.video_url = "paste a youtube link, like https://youtu.be/abc123xyz00";
+    if (Object.keys(errors).length) return fail(res, 422, Object.values(errors)[0], errors);
+    const category = categories.find((c) => c.slug === fields.category);
+    const keep = (fields.keep_screenshots || "").split(",").filter(Boolean);
+    Object.assign(m, {
+      name: fields.name.trim(),
+      description: fields.description.trim(),
+      summary: fields.description.trim().split(". ")[0].slice(0, 200),
+      author: { name: (fields.author || "").trim() || "Anonymous", url: null },
+      tags: [...new Set((fields.tags || "").split(",").map((t) => t.trim().toLowerCase()).filter(Boolean))].slice(0, 5),
+      category: category ? { id: category.id, slug: category.slug, name: category.name } : null,
+      source_url: (fields.source_url || "").trim() || null,
+      video_id: videoMatch ? videoMatch[1] : null,
+      status: fields.status === "unpublished" ? "unpublished" : "published",
+      updated_at: now,
+    });
+    m.screenshots = m.screenshots.filter((shot) => keep.includes(shot.id)).concat((lists.screenshots || []).map((shot, i) => {
+      const key = `${randomUUID()}.jpg`;
+      uploadedImages.set(key, shot.data);
+      return { id: randomUUID(), url: `/files/uploaded/${key}`, caption: "", sort_order: 100 + i };
+    }));
+    if (fields.remove_thumbnail === "true") m.thumbnail_url = null;
+    if (parts.thumbnail) {
+      const key = `${randomUUID()}.jpg`;
+      uploadedImages.set(key, parts.thumbnail.data);
+      m.thumbnail_url = `/files/uploaded/${key}`;
+    }
+    return send(res, 200, { ok: true, slug: m.slug });
+  }
   if (path === "/api/creator/me" && req.method === "POST") {
     const { key } = await json(req);
+    const acct = accountOf(key);
+    if (!acct) return fail(res, 403, "make a free creator account (just a username and password) to do this.");
     const top = topRated();
-    const mine = mods.filter((x) => x.community && x.uploader_key && x.uploader_key === key && x.status !== "archived");
+    const mine = mods.filter((x) => x.community && x.uploader_key && x.uploader_key === acct.owner && x.status !== "archived");
     const ghOf = (m) => {
       const match = /github\.com\/([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+)/.exec(m.source_url || "");
       return match ? { repo: `${match[1]}/${match[2]}`, url: `https://github.com/${match[1]}/${match[2]}`, sync: m.github_sync !== false, tag: m.github_tag || null, checked_at: m.github_tag ? new Date().toISOString() : null, updates: 0 } : null;
@@ -654,7 +751,7 @@ async function publicApi(req, res, path, url) {
     const downloads = published.reduce((s, m) => s + m.downloads, 0);
     const ratings = published.reduce((s, m) => s + m.rating.count, 0);
     return send(res, 200, {
-      name: forum.posters.get(key)?.name || "Demo Creator",
+      name: acct.username,
       mods: list,
       totals: { uploads: published.length, downloads, week_downloads: published.reduce((s, m) => s + m.week_downloads, 0), ratings, average: ratings ? 4.5 : null, featured: published.filter((m) => m.featured).length, five_star: 0, github_linked: published.filter((m) => m.github?.sync).length, clean: published.length > 0 },
       daily: [0, 1, 0, 2, 1, 3, 2, 1, 4, 2, 3, 5, 2, 4],
@@ -664,9 +761,14 @@ async function publicApi(req, res, path, url) {
   }
   if (path.startsWith("/api/creator/mods/") && req.method === "POST") {
     const body = await json(req);
+    const acct = accountOf(body.key);
+    if (!acct) return fail(res, 403, "make a free creator account (just a username and password) to do this.");
     const slug = decodeURIComponent(path.split("/")[4]);
-    const m = mods.find((x) => x.slug === slug && x.uploader_key === body.key);
+    const m = mods.find((x) => x.slug === slug && x.uploader_key === acct.owner);
     if (!m) return fail(res, 404, "you can only change mods you uploaded");
+    if (path.endsWith("/listing")) {
+      return send(res, 200, { slug: m.slug, name: m.name, author: m.author?.name || "Anonymous", description: m.description, category: m.category?.slug || null, tags: m.tags || [], source_url: m.source_url || null, video_id: m.video_id || null, thumbnail_url: m.thumbnail_url, screenshots: m.screenshots.map((shot) => ({ id: shot.id, url: shot.url })), status: m.status, latest_version: m.releases[0]?.version || null });
+    }
     if (typeof body.url === "string") {
       if (body.url && !/github\.com\/[A-Za-z0-9-]+\/[A-Za-z0-9._-]+/.test(body.url)) return fail(res, 422, "paste a github link", { url: "paste a github link, like https://github.com/you/your-mod" });
       m.source_url = body.url || null;
@@ -756,8 +858,10 @@ async function publicApi(req, res, path, url) {
   }
   if (path.startsWith("/api/rewards/")) {
     const body = await json(req);
-    const uploads = mods.filter((x) => x.community && x.uploader_key === body.key).length;
-    const member = rewards.members.get(body.key);
+    if (!accountOf(body.key)) return fail(res, 403, "make a free creator account (just a username and password) to do this.");
+    const owner = ownerOf(body.key);
+    const uploads = mods.filter((x) => x.community && x.uploader_key === owner).length;
+    const member = rewards.members.get(owner);
     if (path === "/api/rewards/apply") {
       const errors = {};
       if (!/^[A-Za-z0-9_]{3,20}$/.test(body.roblox_username || "")) errors.roblox_username = "enter your exact roblox username (3 to 20 letters, numbers or _)";
@@ -765,7 +869,7 @@ async function publicApi(req, res, path, url) {
       if (!body.confirm) errors.confirm = "you have to agree to the rewards program rules";
       if (Object.keys(errors).length) return fail(res, 422, Object.values(errors)[0], errors);
       if (uploads < 10) return fail(res, 403, `upload ${10 - uploads} more unique mods before applying.`);
-      rewards.members.set(body.key, { id: randomUUID(), key: body.key, roblox_username: body.roblox_username, payout_item_url: body.payout_item_url, status: "pending", applied_at: new Date().toISOString(), decided_at: null, events: [], ai_review: { approve: true, summary: "demo: the uploads look like distinct mods.", reasons: [], flagged: [], by: "ai" } });
+      rewards.members.set(owner, { id: randomUUID(), key: owner, roblox_username: body.roblox_username, payout_item_url: body.payout_item_url, status: "pending", applied_at: new Date().toISOString(), decided_at: null, events: [], ai_review: { approve: true, summary: "demo: the uploads look like distinct mods.", reasons: [], flagged: [], by: "ai" } });
       return send(res, 201, { status: "pending", summary: null, reasons: [] });
     }
     const sum = (f) => (member?.events || []).filter(f).reduce((s, e) => s + e.amount, 0);
@@ -885,7 +989,7 @@ async function publicApi(req, res, path, url) {
     const sha = createHash("sha256").update(file.data).digest("hex");
     const copy = mods.find((x) => x.releases.some((r) => r.file?.sha256 === sha));
     if (copy) return fail(res, 422, `this exact file is already on Branch as "${copy.name}". only new, unique mods can be uploaded.`, { file: `this exact file is already on Branch as "${copy.name}". only new, unique mods can be uploaded.` });
-    const m = { id: randomUUID(), status: "draft", featured: false, releases: [], screenshots: [], thumbnail_url: null, downloads: 0, created_at: new Date().toISOString(), published_at: new Date().toISOString(), open_reports: 0, community: true, uploader_key: fields.key || null };
+    const m = { id: randomUUID(), status: "draft", featured: false, releases: [], screenshots: [], thumbnail_url: null, downloads: 0, created_at: new Date().toISOString(), published_at: new Date().toISOString(), open_reports: 0, community: true, uploader_key: fields.key ? ownerOf(fields.key) : null };
     const author = fields.anonymous === "true" ? "Anonymous" : (fields.author || "").trim() || "Anonymous";
     modPayloadToMod(m, { name, slug: `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}-${mods.length}`, author_name: author, description, summary: description.split(". ")[0].slice(0, 200), redistribution: "allowed" });
     m.status = "published";
@@ -938,7 +1042,8 @@ async function publicApi(req, res, path, url) {
     }
     const uploads = mods.filter((x) => x.community && x.uploader_key && x.uploader_key === m.uploader_key).length;
     m.ai.listing_by_ai = wroteListing;
-    return send(res, 201, { ok: true, slug: m.slug, name: m.name, reward: { earned, reason: earned ? "earned" : "not in the rewards program", uploads, threshold: 10 }, ai: { overview: m.ai.overview, tags: m.ai.tags_by_ai ? m.tags : [], category: guessedCategory?.name || null, risk_score: 8, wrote_listing: wroteListing, description: wroteListing ? description : null } });
+    const signedIn = Boolean(fields.key && accountOf(fields.key));
+    return send(res, 201, { ok: true, slug: m.slug, name: m.name, reward: signedIn ? { earned, reason: earned ? "earned" : "not in the rewards program", uploads, threshold: 10 } : { earned: 0, reason: "no account", uploads: 0, threshold: 10 }, ai: { overview: m.ai.overview, tags: m.ai.tags_by_ai ? m.tags : [], category: guessedCategory?.name || null, risk_score: 8, wrote_listing: wroteListing, description: wroteListing ? description : null } });
   }
   if (path === "/api/requests" && req.method === "POST") {
     const body = await json(req);

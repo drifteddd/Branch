@@ -140,11 +140,21 @@ async fn github_api(http: State<'_, Http>, path: String) -> Result<serde_json::V
 
 const MAX_UPLOAD_BYTES: usize = 60 * 1024 * 1024;
 
+fn upload_path_allowed(path: &str) -> bool {
+    if path == "/api/check" || path == "/api/submissions" {
+        return true;
+    }
+    let Some(rest) = path.strip_prefix("/api/creator/mods/") else { return false };
+    let Some((slug, action)) = rest.split_once('/') else { return false };
+    let slug_ok = !slug.is_empty() && slug.len() <= 120 && slug.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+    slug_ok && (action == "edit" || action == "release")
+}
+
 #[tauri::command]
 async fn api_upload(request: tauri::ipc::Request<'_>, http: State<'_, Http>) -> Result<serde_json::Value, CmdError> {
     let header = |name: &str| request.headers().get(name).and_then(|v| v.to_str().ok()).map(str::to_owned);
     let path = header("x-branch-path").unwrap_or_default();
-    if path != "/api/check" && path != "/api/submissions" {
+    if !upload_path_allowed(&path) {
         return Err(CmdError::new("app", "bad upload path"));
     }
     let content_type = header("x-branch-content-type").filter(|t| t.starts_with("multipart/form-data; boundary="));
@@ -538,6 +548,16 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_known_upload_paths_are_allowed() {
+        assert!(upload_path_allowed("/api/submissions"));
+        assert!(upload_path_allowed("/api/creator/mods/long-arms/edit"));
+        assert!(upload_path_allowed("/api/creator/mods/long-arms-2/release"));
+        assert!(!upload_path_allowed("/api/creator/mods/../admin/edit"));
+        assert!(!upload_path_allowed("/api/creator/mods/x/github"));
+        assert!(!upload_path_allowed("/api/admin/mods"));
+    }
 
     #[test]
     fn file_names_are_cleaned() {

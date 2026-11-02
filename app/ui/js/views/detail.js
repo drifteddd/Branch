@@ -8,6 +8,7 @@ import { favorites, recent, changes } from "../store.js";
 import { compatBadge, errorBlock, stateBlock, thumbnail, toast, showCompatHelp, videoCard } from "../ui.js";
 import { openReportDialog } from "./report.js";
 import { versionLabel } from "./browse.js";
+import { myAccount, ownsMod } from "../forum-identity.js";
 
 const PLATFORM_LABELS = { steam: "Steam (PC VR)", oculus_pc: "Meta / Oculus PC (PC VR)", quest: "Quest standalone" };
 const REDISTRIBUTION_TEXT = {
@@ -92,6 +93,9 @@ export function createDetailView(ctx) {
       ? h("button", { class: "btn btn-quiet", type: "button", onclick: () => openSourceViewer(mod.source_url, { fetchJson: githubFetch, openLink: (u) => openExternal(u) }) }, icon("code"), "View source code")
       : null;
 
+    const editButton = h("a", { class: "btn btn-quiet", href: `#/edit/${encodeURIComponent(mod.slug)}`, hidden: !ownsMod(mod.slug) }, icon("edit"), "Edit listing");
+    myAccount().then(() => { editButton.hidden = !ownsMod(mod.slug); }).catch(() => {});
+
     const head = h(
       "header",
       { class: "detail-head" },
@@ -112,7 +116,7 @@ export function createDetailView(ctx) {
         ),
         ratingWidget(mod),
         downloadArea(mod, latest),
-        h("div", { class: "hero-secondary" }, favButton, sourceButton, reportButton),
+        h("div", { class: "hero-secondary" }, editButton, favButton, sourceButton, reportButton),
       ),
     );
 

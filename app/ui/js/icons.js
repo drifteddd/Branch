@@ -46,6 +46,8 @@ export const ICONS = {
   trend: '<path d="M3.5 17 9 11.5l3.5 3.5 8-8"/><path d="M15 7h5.5v5.5"/>',
   plug: '<path d="M9 3.5v4M15 3.5v4"/><path d="M6.5 7.5h11v3a5.5 5.5 0 0 1-11 0z"/><path d="M12 16v4.5"/>',
   poll: '<rect x="4" y="5" width="16" height="14" rx="2.5"/><path d="M8 9.5h5M8 12.5h8M8 15.5h3"/>',
+  user: '<circle cx="12" cy="8.5" r="4"/><path d="M4.5 20c.8-3.9 3.8-6 7.5-6s6.7 2.1 7.5 6"/>',
+  edit: '<path d="M4.5 19.5h4l10-10a2.8 2.8 0 0 0-4-4l-10 10z"/><path d="m13 7 4 4"/>',
   hub: '<path d="M12 20.5v-7"/><circle cx="12" cy="8.5" r="5"/><path d="m12 6.4.7 1.4 1.5.2-1.1 1 .3 1.6-1.4-.7-1.4.7.3-1.6-1.1-1 1.5-.2z"/><path d="M8 20.5h8"/>',
 };
 

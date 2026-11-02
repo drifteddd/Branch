@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::auth::{audit, Admin};
 use crate::error::{ApiResult, AppError};
-use crate::routes::forum::poster_for;
+use crate::routes::accounts::account_poster;
 use crate::routes::public::take_ai_budget;
 use crate::scan::similarity;
 use crate::state::AppState;
@@ -115,6 +115,9 @@ pub async fn award_for_upload(state: &AppState, poster_id: Uuid, mod_id: Uuid, m
         .fetch_optional(&state.db)
         .await?;
     let Some(member_id) = member else { return Ok((0, "not in the rewards program")) };
+    if crate::routes::accounts::username_of(state, poster_id).await?.is_none() {
+        return Ok((0, "make a creator account to earn rewards"));
+    }
 
     let mut tx = state.db.begin().await?;
     sqlx::query("select id from reward_members where id = $1 for update").bind(member_id).execute(&mut *tx).await?;
@@ -179,7 +182,7 @@ struct KeyInput {
 }
 
 async fn me(State(state): State<AppState>, visitor: Visitor, Json(input): Json<KeyInput>) -> ApiResult<Json<Value>> {
-    let poster = poster_for(&state, &input.key, &visitor, true).await?;
+    let (poster, _) = account_poster(&state, &input.key, &visitor).await?;
     let uploads = unique_upload_count(&state, poster.id).await?;
     let member: Option<MemberRow> = sqlx::query_as(
         "select id, roblox_username, payout_item_url, status, ai_review, applied_at, decided_at from reward_members where poster_id = $1",
@@ -258,7 +261,7 @@ async fn apply(State(state): State<AppState>, visitor: Visitor, headers: axum::h
     if !rewards_enabled(&state).await? {
         return Err(AppError::forbidden("rewards_off", "the rewards program isn't running right now."));
     }
-    let poster = poster_for(&state, &input.key, &visitor, true).await?;
+    let (poster, _) = account_poster(&state, &input.key, &visitor).await?;
     let username = input.roblox_username.trim().to_string();
     let mut errors = crate::error::FieldErrors::default();
     errors.check(

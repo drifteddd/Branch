@@ -48,4 +48,40 @@ export function resetIdentity() {
   }
   cached = null;
   me = null;
+  account = null;
+}
+
+let account = null;
+
+export async function myAccount(force = false) {
+  if (account && !force) return account;
+  account = await api("/api/account/me", { method: "POST", body: { key: forumKey() } });
+  return account;
+}
+
+export function ownsMod(slug) {
+  return Boolean(account?.account && account.mods.includes(slug));
+}
+
+export async function signUp(username, password) {
+  const result = await api("/api/account/signup", { method: "POST", body: { key: forumKey(), username, password } });
+  me = null;
+  await myAccount(true);
+  return result;
+}
+
+export async function logIn(username, password) {
+  const result = await api("/api/account/login", { method: "POST", body: { key: forumKey(), username, password } });
+  me = null;
+  await myAccount(true);
+  return result;
+}
+
+export async function logOut() {
+  await api("/api/account/logout", { method: "POST", body: { key: forumKey() } }).catch(() => null);
+  resetIdentity();
+}
+
+export async function changePassword(current, password) {
+  return api("/api/account/password", { method: "POST", body: { key: forumKey(), current, password } });
 }

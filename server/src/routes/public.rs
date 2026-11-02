@@ -1062,7 +1062,12 @@ pub(crate) async fn publish_upload(state: &AppState, upload: NewUpload) -> ApiRe
     match saved {
         Ok(slug) => {
             tracing::info!(via, "new community upload");
+            let has_account = match poster_id {
+                Some(pid) => crate::routes::accounts::username_of(state, pid).await.ok().flatten().is_some(),
+                None => false,
+            };
             let reward = match poster_id {
+                Some(_) if !has_account => (0, "no account", 0),
                 Some(pid) => {
                     let (earned, reason) = crate::routes::rewards::award_for_upload(state, pid, mod_id, &name).await.unwrap_or((0, "couldn't add the reward"));
                     let uploads = crate::routes::rewards::unique_upload_count(state, pid).await.unwrap_or(0);

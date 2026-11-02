@@ -1,7 +1,8 @@
 import { h, clear, formatDate, formatNumber, plural } from "../dom.js";
 import { icon } from "../icons.js";
 import { api, openExternal } from "../platform.js";
-import { forumKey } from "../forum-identity.js";
+import { forumKey, myAccount } from "../forum-identity.js";
+import { accountGate, accountBar } from "../account.js";
 import { errorBlock, toast, thumbnail } from "../ui.js";
 import { settings } from "../store.js";
 
@@ -471,6 +472,7 @@ export function createRewardsView(ctx) {
           mod.featured ? h("span", { class: "ch-tag gold" }, icon("award"), "Featured") : null,
           mod.status !== "published" ? h("span", { class: "ch-tag" }, "Hidden") : null,
           score != null && score <= 40 ? h("span", { class: "ch-tag ok" }, icon("scan"), "Looks clean") : null,
+          h("a", { class: "btn btn-small ch-edit", href: `#/edit/${encodeURIComponent(mod.slug)}` }, icon("edit"), "Edit"),
         ),
         h(
           "div",
@@ -492,7 +494,7 @@ export function createRewardsView(ctx) {
         { class: "rw-card ch-empty" },
         h("span", { class: "ch-empty-icon" }, icon("sprout")),
         h("h2", null, "No uploads yet"),
-        h("p", { class: "muted" }, "mods you upload from this computer show up here with their downloads, ratings and automatic github updates."),
+        h("p", { class: "muted" }, "mods you upload while logged in show up here. you can edit them, post new versions and link them to github."),
         h("a", { class: "btn btn-primary", href: "#/upload" }, icon("upload"), "Upload a mod"),
       );
     }
@@ -522,6 +524,7 @@ export function createRewardsView(ctx) {
   let tab = "overview";
   let hub = null;
   let rewards = null;
+  let account = null;
   const TABS = [["overview", "Overview"], ["mods", "My mods"], ["rewards", "Robux rewards"]];
 
   function switchTab(next) {
@@ -544,12 +547,20 @@ export function createRewardsView(ctx) {
         h("label", null, h("input", { type: "radio", name: "hub-tab", value, checked: tab === value, onchange: () => switchTab(value) }), h("span", null, label, value === "mods" && hub.mods.length ? h("span", { class: "inbox-tab-count ch-tab-count" }, String(hub.mods.length)) : null)),
       ),
     );
-    clear(el).append(hubHero(hub, level), tabs, host);
+    clear(el).append(hubHero(hub, level), accountBar(account, { onLogout: () => { hub = null; rewards = null; render(); } }), tabs, host);
   }
 
   async function render() {
     if (!hub) clear(el).append(h("div", { class: "ch-hero skeleton rw-hero-skeleton" }), h("div", { class: "skeleton sk-line" }));
     try {
+      const me = await myAccount(true);
+      if (!me.account) {
+        account = null;
+        hub = null;
+        clear(el).append(accountGate({ onDone: render }));
+        return;
+      }
+      account = me.account;
       const [mine, rw] = await Promise.all([
         api("/api/creator/me", { method: "POST", body: { key: forumKey() } }),
         api("/api/rewards/me", { method: "POST", body: { key: forumKey() } }).catch(() => null),

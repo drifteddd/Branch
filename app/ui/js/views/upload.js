@@ -1,7 +1,7 @@
 import { h, clear, formatBytes } from "../dom.js";
 import { icon } from "../icons.js";
 import { uploadForm, aiOff } from "../platform.js";
-import { forumKey } from "../forum-identity.js";
+import { forumKey, myAccount } from "../forum-identity.js";
 import { stateBlock, youtubeId, videoCard } from "../ui.js";
 import { renderMarkdown } from "../../shared/markdown.js";
 
@@ -59,8 +59,8 @@ async function makeScreenshot(blob) {
   return out;
 }
 
-function mediaFields(prefix) {
-  let shots = [];
+export function mediaFields(prefix, { existing = [], videoId = "" } = {}) {
+  let shots = existing.map((shot) => ({ id: shot.id, url: shot.url }));
   const shotInput = h("input", { type: "file", accept: "image/*", multiple: true, class: "visually-hidden", id: `${prefix}-shots`, tabindex: "-1" });
   const grid = h("div", { class: "shot-grid", role: "list" });
   const shotError = h("p", { class: "error", hidden: true });
@@ -74,7 +74,7 @@ function mediaFields(prefix) {
         "div",
         { class: "shot-tile", role: "listitem" },
         h("img", { src: s.url, alt: `Screenshot ${i + 1}` }),
-        h("button", { class: "shot-remove", type: "button", "aria-label": `Remove screenshot ${i + 1}`, onclick: () => { URL.revokeObjectURL(s.url); shots.splice(i, 1); draw(); } }, icon("close")),
+        h("button", { class: "shot-remove", type: "button", "aria-label": `Remove screenshot ${i + 1}`, onclick: () => { if (!s.id) URL.revokeObjectURL(s.url); shots.splice(i, 1); draw(); } }, icon("close")),
       ),
     );
     if (shots.length < MAX_SHOTS) {
@@ -111,6 +111,10 @@ function mediaFields(prefix) {
     const id = youtubeId(video.value);
     preview.replaceChildren(...(id ? [videoCard(id, "Video preview")] : []));
   });
+  if (videoId) {
+    video.value = `https://youtu.be/${videoId}`;
+    preview.replaceChildren(videoCard(videoId, "Video preview"));
+  }
   draw();
 
   return {
@@ -139,7 +143,8 @@ function mediaFields(prefix) {
       return null;
     },
     append(data) {
-      shots.forEach((s, i) => data.append("screenshots", s.blob, `screenshot-${i + 1}.jpg`));
+      shots.filter((s) => !s.id).forEach((s, i) => data.append("screenshots", s.blob, `screenshot-${i + 1}.jpg`));
+      data.append("keep_screenshots", shots.filter((s) => s.id).map((s) => s.id).join(","));
       data.append("video_url", video.value.trim());
     },
   };
@@ -423,10 +428,34 @@ export function createUploadView(ctx) {
     return form;
   }
 
+  const noteSlot = h("div");
+
+  function accountNote() {
+    const note = h("div", { class: "acct-note", "aria-live": "polite" });
+    myAccount(true)
+      .then((me) => {
+        if (me.account) {
+          note.classList.add("signed-in");
+          note.append(icon("user"), h("p", null, "uploading as ", h("strong", null, me.account.username), ". you can edit this mod and post new versions later from your ", h("a", { href: "#/rewards?tab=mods" }, "creator hub"), "."));
+        } else {
+          note.append(
+            icon("info"),
+            h("p", null, "you're not logged in. you can still upload, but you won't be able to edit this mod later or earn rewards for it."),
+            h("a", { class: "btn btn-small", href: "#/rewards" }, "Create a free account"),
+          );
+        }
+      })
+      .catch(() => note.remove());
+    return note;
+  }
+
   function showSuccess(result) {
+    myAccount(true).catch(() => {});
     const reward = result.reward;
     const rewardNote = !reward
       ? null
+      : reward.reason === "no account"
+        ? h("a", { class: "reward-note", href: "#/rewards" }, icon("user"), "make a free creator account to edit your uploads and earn rewards")
       : reward.earned > 0
         ? h("a", { class: "reward-note earned", href: "#/rewards" }, h("span", { class: "robux-mark" }, "R$"), `+${reward.earned} R$ added to your rewards`)
         : reward.uploads < reward.threshold
@@ -592,6 +621,7 @@ export function createUploadView(ctx) {
   }
 
   function render() {
+    noteSlot.replaceChildren(accountNote());
     let mode = "easy";
     try { mode = localStorage.getItem("branch.uploadMode") === "advanced" ? "advanced" : "easy"; } catch {}
     const host = h("div");
@@ -616,6 +646,7 @@ export function createUploadView(ctx) {
         h("p", null, "share a mod you made with everyone on Branch. drop the file and let the AI set it up, or fill everything in yourself."),
         switcher,
       ),
+      noteSlot,
       host,
     );
     show(mode);
@@ -626,6 +657,7 @@ export function createUploadView(ctx) {
     title: () => "Upload a mod",
     show() {
       if (!el.querySelector("form")) render();
+      else noteSlot.replaceChildren(accountNote());
       document.addEventListener("paste", handlePaste);
       return 0;
     },

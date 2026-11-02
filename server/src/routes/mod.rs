@@ -1,3 +1,4 @@
+pub mod accounts;
 pub mod admin;
 pub mod assistant;
 pub mod creator;
@@ -55,6 +56,7 @@ pub fn router(state: AppState) -> Router {
         .merge(assistant::router())
         .merge(inbox::router())
         .merge(onboarding::router())
+        .merge(accounts::router())
         .merge(creator::router())
         .merge(watch::router())
         .merge(github_import::router())

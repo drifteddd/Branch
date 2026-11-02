@@ -836,6 +836,24 @@ await test("admin bulk-imports mods into a private drafts list", async () => {
   await waitFor(`document.querySelector(".notice-box")?.textContent.includes("imported from")`, "import note in editor");
 });
 
+await test("creator account: the hub asks you to sign up, checks the details, then opens", async () => {
+  await go(`${BASE}/#/upload`);
+  await waitFor(`document.querySelector(".acct-note")?.textContent.includes("not logged in")`, "not logged in note on upload");
+  await go(`${BASE}/#/rewards`);
+  await waitFor(`document.querySelector(".acct-gate #acct-username")`, "account gate");
+  await screenshot("creator-account-gate");
+  await evaluate(type("#acct-username", "x"));
+  await evaluate(type("#acct-password", "short"));
+  await evaluate(click(".acct-form button[type=submit]"));
+  await waitFor(`!document.querySelector('[data-error="username"]').hidden && !document.querySelector('[data-error="password"]').hidden`, "signup validation");
+  await evaluate(type("#acct-username", "Hat_Maker"));
+  await evaluate(type("#acct-password", "jungle gym 42"));
+  await evaluate(click(".acct-form button[type=submit]"));
+  await waitFor(`document.querySelector(".acct-bar")?.textContent.includes("Hat_Maker") && document.querySelector(".ch-hero h1")`, "hub after signup");
+  await go(`${BASE}/#/upload`);
+  await waitFor(`document.querySelector(".acct-note.signed-in")?.textContent.includes("Hat_Maker")`, "signed in note on upload");
+});
+
 await test("rewards: reach 10 unique uploads, apply, get accepted, earn and get paid", async () => {
   await go(`${BASE}/#/rewards?tab=rewards`);
   await waitFor(`document.querySelector(".rw-hero-title")?.textContent.includes("Earn Robux")`, "rewards page");
@@ -1044,6 +1062,59 @@ await test("creator hub: level, stats, badges, and linking a mod to github", asy
   await screenshot("creator-hub-mods");
   await evaluate(click(".ch-gh.linked .switch input"));
   await waitFor(`document.querySelector(".toast")?.textContent.includes("off")`, "sync off toast");
+});
+
+await test("creator account: edit a listing, post a new version, log out and log back in", async () => {
+  await go(`${BASE}/#/rewards?tab=mods`);
+  await waitFor(`document.querySelector(".ch-mod .ch-edit")`, "edit button on my mods");
+  const slug = await evaluate(`decodeURIComponent(document.querySelector(".ch-mod .ch-edit").getAttribute("href").split("/").pop())`);
+  await evaluate(click(".ch-mod .ch-edit"));
+  await waitFor(`document.querySelector("#ed-form #ed-name")`, "edit form");
+  await evaluate(type("#ed-description", "short"));
+  await evaluate(click("#ed-form button[type=submit]"));
+  await waitFor(`!document.querySelector('#ed-form [data-field="description"] .error').hidden`, "description error");
+  await evaluate(type("#ed-name", "Edited Hat Mod"));
+  await evaluate(type("#ed-description", "this hat mod was edited by its creator from the creator hub."));
+  await evaluate(type("#ed-video", "https://youtu.be/dQw4w9WgXcQ"));
+  await screenshot("edit-listing");
+  await evaluate(click("#ed-form button[type=submit]"));
+  await waitFor(`document.querySelector(".toast")?.textContent.includes("live")`, "saved toast");
+  const modFile = join(profile, "EditedHat_v2.dll");
+  writeFileSync(modFile, Buffer.from("MZ edited hat version two " + Date.now()));
+  await waitFor(`document.querySelector("#ed-release #ed-file")`, "release form");
+  await setFile("#ed-file", modFile);
+  await evaluate(type("#ed-version", "2.0.0"));
+  await evaluate(click("#ed-release button[type=submit]"));
+  await waitFor(`[...document.querySelectorAll(".toast")].some((t) => t.textContent.includes("2.0.0"))`, "new version toast");
+  await go(`${BASE}/#/mod/${encodeURIComponent(slug)}`);
+  await waitFor(`document.querySelector(".detail-title")?.textContent === "Edited Hat Mod"`, "edited name on the mod page");
+  await waitFor(`[...document.querySelectorAll(".hero-secondary a")].some((a) => a.textContent.includes("Edit listing") && !a.hidden)`, "edit listing button for the owner");
+  assert(await evaluate(`document.querySelector(".hero-facts").textContent.includes("2.0.0")`), "new version not shown");
+  assert(await evaluate(`Boolean(document.querySelector(".detail-main .video-card"))`), "video not shown");
+
+  await go(`${BASE}/#/rewards`);
+  await waitFor(`document.querySelector("#acct-logout")`, "logout button");
+  await evaluate(click("#acct-logout"));
+  await waitFor(`document.querySelector("dialog[open]")`, "logout confirm");
+  await evaluate(clickText("dialog[open] button", "Log out"));
+  await waitFor(`document.querySelector(".acct-gate #acct-username")`, "gate after logout");
+  await go(`${BASE}/#/mod/${encodeURIComponent(slug)}`);
+  await waitFor(`document.querySelector(".detail-title")`, "mod page");
+  await sleep(400);
+  assert(await evaluate(`![...document.querySelectorAll(".hero-secondary a")].some((a) => a.textContent.includes("Edit listing") && !a.hidden)`), "edit button should be hidden after logout");
+
+  await go(`${BASE}/#/rewards`);
+  await waitFor(`document.querySelector(".acct-gate #acct-username")`, "gate");
+  await evaluate(clickText(".acct-tabs label", "Log in"));
+  await evaluate(type("#acct-username", "hat_maker"));
+  await evaluate(type("#acct-password", "wrong password"));
+  await evaluate(click(".acct-form button[type=submit]"));
+  await waitFor(`document.querySelector('[data-error="password"]')?.textContent.includes("wrong")`, "wrong password error");
+  await evaluate(type("#acct-password", "jungle gym 42"));
+  await evaluate(click(".acct-form button[type=submit]"));
+  await waitFor(`document.querySelector(".acct-bar")?.textContent.includes("Hat_Maker")`, "logged back in");
+  await evaluate(clickText(".ch-tabs label", "My mods"));
+  await waitFor(`[...document.querySelectorAll(".ch-mod-name")].some((a) => a.textContent === "Edited Hat Mod")`, "my mods after logging back in");
 });
 
 await test("watchlist: find a mod from a github link, watch it, and get told about a new version", async () => {
