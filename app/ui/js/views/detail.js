@@ -9,6 +9,7 @@ import { compatBadge, errorBlock, stateBlock, thumbnail, toast, showCompatHelp, 
 import { openReportDialog } from "./report.js";
 import { versionLabel } from "./browse.js";
 import { myAccount, ownsMod } from "../forum-identity.js";
+import { recordDownload, markRated } from "../rate-prompt.js";
 
 const PLATFORM_LABELS = { steam: "Steam (PC VR)", oculus_pc: "Meta / Oculus PC (PC VR)", quest: "Quest standalone" };
 const REDISTRIBUTION_TEXT = {
@@ -244,6 +245,7 @@ export function createDetailView(ctx) {
         rating = data.rating;
         mod.rating = data.rating;
         mod.my_rating = value;
+        markRated(mod.slug);
         paint();
         toast(before ? "Rating updated" : "Thanks for rating!", { tone: "ok" });
         ctx.refreshLists?.();
@@ -280,7 +282,7 @@ export function createDetailView(ctx) {
     );
   }
 
-  function installButton(release) {
+  function installButton(release, mod) {
     if (!canManageMods || release.file?.type !== "dll") return null;
     if (!savedGameFolder()) return h("a", { class: "install-setup small", href: "#/manager" }, icon("plug"), "Set up the mod manager to install with one click");
     const btn = h("button", { class: "btn btn-large install-btn", type: "button" }, icon("plug"), "Install to Gorilla Tag");
@@ -290,6 +292,7 @@ export function createDetailView(ctx) {
       try {
         await installToGame({ id: release.id, sha256: release.file.sha256 }, release.file.name);
         btn.replaceChildren(icon("check"), "Installed");
+        recordDownload(mod);
         toast("Installed into your plugins folder. start Gorilla Tag to use it.", { tone: "ok" });
       } catch (err) {
         toast(err.message, { tone: "error" });
@@ -324,7 +327,7 @@ export function createDetailView(ctx) {
     const status = h("div", { class: "download-status", "aria-live": "polite" });
     const button = h("button", { class: "btn btn-primary btn-large", type: "button" }, icon("download"), /^\d/.test(versionLabel(release.version).replace(/^v/, "")) ? `Download ${versionLabel(release.version)}` : "Download");
     const fileBits = [release.file?.type ? `.${release.file.type} file` : null, release.file ? formatBytes(release.file.size) : null].filter(Boolean).join(", ");
-    area.append(button, installButton(release), h("p", { class: "download-note" }, `direct download from Branch${fileBits ? ` (${fileBits})` : ""}. you pick where it's saved.`), status);
+    area.append(button, installButton(release, mod), h("p", { class: "download-note" }, `direct download from Branch${fileBits ? ` (${fileBits})` : ""}. you pick where it's saved.`), status);
     downloadSlots.set(release.id, { button, status, retry: () => startDownload(mod, release) });
     button.addEventListener("click", () => startDownload(mod, release));
     repaintDownload(release.id);
@@ -359,6 +362,7 @@ export function createDetailView(ctx) {
       } else {
         job.state = "done";
         job.path = result.path;
+        recordDownload(mod);
         toast(`Saved ${release.file?.name || "the file"}`, { tone: "ok" });
       }
     } catch (err) {

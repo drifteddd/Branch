@@ -1252,6 +1252,20 @@ await test("mod manager: link the folder, turn mods off and on, scan one and upd
   }
 });
 
+await test("two days after a download, a small prompt asks you to rate the mod", async () => {
+  await go(`${BASE}/#/browse`);
+  const mod = await evaluate(`fetch("/api/mods").then(r => r.json()).then(d => d.items[0])`);
+  await evaluate(`localStorage.setItem("branch.ratePrompts", JSON.stringify({ ${JSON.stringify(mod.slug)}: { name: ${JSON.stringify(mod.name)}, at: Date.now() - 3 * 24 * 3600 * 1000, done: false }, "fresh-one": { name: "Fresh", at: Date.now(), done: false } }))`);
+  await go(`${BASE}/#/browse`);
+  await waitFor(`typeof window.__branchRatePrompt === "function"`, "rate prompt hook");
+  await evaluate(`window.__branchRatePrompt()`);
+  await waitFor(`document.querySelector(".rate-prompt")?.textContent.includes(${JSON.stringify(mod.name)})`, "rate prompt");
+  await screenshot("rate-prompt");
+  await evaluate(click('.rate-prompt [data-stars="4"]'));
+  await waitFor(`[...document.querySelectorAll(".toast")].some((t) => t.textContent.includes("Thanks for rating")) && !document.querySelector(".rate-prompt:not(.leaving)")`, "rating saved");
+  assert(await evaluate(`JSON.parse(localStorage.getItem("branch.ratePrompts"))[${JSON.stringify(mod.slug)}].done === true && JSON.parse(localStorage.getItem("branch.ratePrompts"))["fresh-one"].done === false`), "only the old download is asked about, once");
+});
+
 ws.close();
 browser.kill();
 server.close();

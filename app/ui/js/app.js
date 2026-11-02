@@ -23,6 +23,7 @@ import { createInboxView, inboxUnread } from "./views/inbox.js";
 import { createWatchView, checkWatchlist, watchUnseen } from "./views/watch.js";
 import { createManagerView } from "./views/manager.js";
 import { createEditView } from "./views/edit.js";
+import { checkRatePrompt } from "./rate-prompt.js";
 
 const root = document.documentElement;
 const main = document.getElementById("main");
@@ -241,11 +242,16 @@ async function updateInboxBadge() {
 function startAutoRefresh() {
   ctx.setWatchCount(watchUnseen());
   setTimeout(updateWatch, 8000);
+  setTimeout(checkRatePrompt, 15000);
+  setInterval(checkRatePrompt, 30 * 60 * 1000);
   setInterval(refreshEverything, REFRESH_EVERY);
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && Date.now() - lastRefresh > REFRESH_EVERY) refreshEverything();
   });
-  if (!isDesktop) window.__branchRefresh = refreshEverything;
+  if (!isDesktop) {
+    window.__branchRefresh = refreshEverything;
+    window.__branchRatePrompt = checkRatePrompt;
+  }
 }
 
 function applyTheme(theme) {
