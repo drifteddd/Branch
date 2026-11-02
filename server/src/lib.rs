@@ -64,8 +64,12 @@ pub async fn run(config: Config) -> anyhow::Result<()> {
     spawn_cleanup(state.clone());
     tracker::spawn(state.clone());
     discord_uploads::spawn(state.clone());
-    github::spawn(state.clone());
-    routes::github_import::spawn_seed(state.clone());
+    if github::background_jobs_enabled() {
+        github::spawn(state.clone());
+        routes::github_import::spawn_seed(state.clone());
+    } else {
+        tracing::warn!("BRANCH_BACKGROUND_JOBS is off, so github syncing and imports won't run");
+    }
 
     let app = routes::router(state);
     let addr = SocketAddr::from((Ipv6Addr::UNSPECIFIED, port));

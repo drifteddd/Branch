@@ -135,6 +135,7 @@ async fn import_one(state: &AppState, owner: &str, repo: &str, publish: bool, li
     let info = repo_info(state, owner, repo).await.map_err(Skip)?.ok_or_else(|| Skip("github couldn't find this repo".into()))?;
     let release = latest_release(state, &info.owner, &info.name).await.map_err(Skip)?.ok_or_else(|| Skip("no releases on github".into()))?;
     let asset = pick_asset(&release.assets).cloned().ok_or_else(|| Skip("the newest release has no .dll or .zip file".into()))?;
+    let _heavy = crate::github::heavy_work().await;
     let data = download_asset(&info.owner, &info.name, &asset.url).await.map_err(Skip)?;
     let file_name = asset.name.clone();
     let (checked, report, data) = tokio::task::spawn_blocking(move || {
@@ -497,6 +498,7 @@ async fn rehost_external(state: &AppState) -> Result<(), Skip> {
                 return Err("a newer github release exists; the github sync will add it".into());
             }
             let asset = pick_asset(&release.assets).cloned().ok_or("no .dll or .zip file in the release")?;
+            let _heavy = crate::github::heavy_work().await;
             let data = download_asset(&owner, &repo, &asset.url).await?;
             let name = asset.name.clone();
             let (checked, report, data) = tokio::task::spawn_blocking(move || {

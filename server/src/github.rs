@@ -319,10 +319,21 @@ pub async fn repo_info(state: &AppState, owner: &str, repo: &str) -> Result<Opti
     Ok(found)
 }
 
+pub const BACKGROUND_MAX_BYTES: usize = 30 * 1024 * 1024;
+static HEAVY: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(1);
+
+pub async fn heavy_work() -> Option<tokio::sync::SemaphorePermit<'static>> {
+    HEAVY.acquire().await.ok()
+}
+
+pub fn background_jobs_enabled() -> bool {
+    !matches!(std::env::var("BRANCH_BACKGROUND_JOBS").map(|v| v.to_ascii_lowercase()).as_deref(), Ok("off" | "0" | "false" | "no"))
+}
+
 pub fn pick_asset(assets: &[Asset]) -> Option<&Asset> {
     let usable = |a: &&Asset| {
         let lower = a.name.to_ascii_lowercase();
-        !lower.contains("source") && a.size.is_none_or(|s| s as usize <= crate::uploads::MAX_MOD_FILE_BYTES)
+        !lower.contains("source") && a.size.is_none_or(|s| s as usize <= BACKGROUND_MAX_BYTES)
     };
     assets
         .iter()
@@ -355,14 +366,14 @@ pub async fn download_asset(owner: &str, repo: &str, url: &str) -> Result<Vec<u8
     if !response.status().is_success() {
         return Err(format!("github answered with an error ({})", response.status().as_u16()));
     }
-    if response.content_length().is_some_and(|l| l as usize > crate::uploads::MAX_MOD_FILE_BYTES) {
-        return Err("the file is bigger than 50 MB".into());
+    if response.content_length().is_some_and(|l| l as usize > BACKGROUND_MAX_BYTES) {
+        return Err("the file is bigger than 30 MB".into());
     }
     let mut data = Vec::new();
     while let Some(chunk) = response.chunk().await.map_err(|_| "the download from github stopped".to_string())? {
         data.extend_from_slice(&chunk);
-        if data.len() > crate::uploads::MAX_MOD_FILE_BYTES {
-            return Err("the file is bigger than 50 MB".into());
+        if data.len() > BACKGROUND_MAX_BYTES {
+            return Err("the file is bigger than 30 MB".into());
         }
     }
     Ok(data)
@@ -416,10 +427,20 @@ pub async fn sync_all(state: &AppState) -> ApiResult<()> {
     )
     .fetch_all(&state.db)
     .await?;
+    if let Some(crashed) = sqlx::query_scalar::<_, Value>("select value from app_settings where key = 'github_sync_inflight'").fetch_optional(&state.db).await?.and_then(|v| v.as_str().and_then(|s| Uuid::parse_str(s).ok())) {
+        tracing::warn!(mod_id = %crashed, "the server stopped while syncing this mod last time, so its automatic github updates are turned off");
+        sqlx::query("update mods set github_sync = false where id = $1").bind(crashed).execute(&state.db).await?;
+        sqlx::query("delete from app_settings where key = 'github_sync_inflight'").execute(&state.db).await?;
+    }
     for row in rows {
+        sqlx::query("insert into app_settings (key, value) values ('github_sync_inflight', $1) on conflict (key) do update set value = excluded.value")
+            .bind(serde_json::json!(row.id.to_string()))
+            .execute(&state.db)
+            .await?;
         if let Err(err) = sync_one(state, &row).await {
             tracing::warn!(error = %err, mod_id = %row.id, "couldn't check a mod's github releases");
         }
+        sqlx::query("delete from app_settings where key = 'github_sync_inflight'").execute(&state.db).await?;
         sqlx::query("update mods set github_checked_at = now() where id = $1").bind(row.id).execute(&state.db).await?;
         tokio::time::sleep(Duration::from_millis(400)).await;
     }
@@ -466,6 +487,7 @@ async fn sync_one(state: &AppState, row: &SyncRow) -> Result<(), String> {
         let Some(asset) = pick_asset(&release.assets) else {
             return set_tag(state, row.id, &release.tag).await.map_err(|e| e.message);
         };
+        let _heavy = heavy_work().await;
         let data = download_asset(&owner, &repo, &asset.url).await?;
         let name = asset.name.clone();
         let (checked, report, data) = tokio::task::spawn_blocking(move || {
