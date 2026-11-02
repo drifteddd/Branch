@@ -20,6 +20,9 @@ pub fn router() -> Router<AppState> {
         .route("/api/polls/{id}/vote", post(vote))
         .route("/api/admin/polls", get(admin_list).post(create))
         .route("/api/admin/polls/{id}", post(admin_update).delete(remove))
+        .route("/api/popup", get(current_popup))
+        .route("/api/admin/popups", get(admin_popups).post(create_popup))
+        .route("/api/admin/popups/{id}/end", post(end_popup))
 }
 
 #[derive(FromRow)]
@@ -190,5 +193,122 @@ async fn remove(State(state): State<AppState>, Admin(admin): Admin, Path(id): Pa
     let question: Option<String> = sqlx::query_scalar("delete from polls where id = $1 returning question").bind(id).fetch_optional(&state.db).await?;
     let question = question.ok_or_else(|| AppError::not_found("that poll doesn't exist"))?;
     audit(&state.db, &admin, "delete_poll", &question, "").await;
+    Ok(Json(json!({ "ok": true })))
+}
+
+#[derive(FromRow, Serialize)]
+struct PopupRow {
+    id: Uuid,
+    kind: String,
+    title: String,
+    body: String,
+    poll_id: Option<Uuid>,
+    ends_at: DateTime<Utc>,
+    ended: bool,
+    created_at: DateTime<Utc>,
+}
+
+const POPUP_SELECT: &str = "select id, kind, title, body, poll_id, ends_at, ended, created_at from popups";
+
+async fn current_popup(State(state): State<AppState>, visitor: Visitor) -> ApiResult<Json<Value>> {
+    let row: Option<PopupRow> = sqlx::query_as(&format!("{POPUP_SELECT} where not ended and ends_at > now() order by created_at desc limit 1"))
+        .fetch_optional(&state.db)
+        .await?;
+    let Some(row) = row else { return Ok(Json(json!({ "popup": null }))) };
+    let poll = match row.poll_id {
+        Some(poll_id) => load(&state, Some(&visitor.id), 50).await?.into_iter().find(|p| p.id == poll_id),
+        None => None,
+    };
+    if row.kind == "poll" && poll.as_ref().is_none_or(|p| !p.open) {
+        return Ok(Json(json!({ "popup": null })));
+    }
+    Ok(Json(json!({ "popup": { "id": row.id, "kind": row.kind, "title": row.title, "body": row.body, "ends_at": row.ends_at, "poll": poll } })))
+}
+
+async fn admin_popups(State(state): State<AppState>, Admin(_): Admin) -> ApiResult<Json<Value>> {
+    let rows: Vec<PopupRow> = sqlx::query_as(&format!("{POPUP_SELECT} order by created_at desc limit 100")).fetch_all(&state.db).await?;
+    let polls = load(&state, None, 200).await?;
+    let now = Utc::now();
+    let items: Vec<Value> = rows
+        .iter()
+        .map(|r| {
+            let poll = r.poll_id.and_then(|id| polls.iter().find(|p| p.id == id));
+            json!({ "id": r.id, "kind": r.kind, "title": r.title, "body": r.body, "ends_at": r.ends_at, "live": !r.ended && r.ends_at > now, "created_at": r.created_at, "poll": poll })
+        })
+        .collect();
+    Ok(Json(json!({ "popups": items })))
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct NewPopup {
+    kind: String,
+    title: String,
+    body: String,
+    options: Vec<String>,
+    days: i64,
+}
+
+async fn create_popup(State(state): State<AppState>, Admin(admin): Admin, Json(input): Json<NewPopup>) -> ApiResult<Json<Value>> {
+    let poll = input.kind == "poll";
+    let title = input.title.trim();
+    let body = input.body.trim();
+    let options: Vec<String> = input.options.iter().map(|o| o.trim().to_string()).filter(|o| !o.is_empty()).collect();
+    let mut errors = FieldErrors::default();
+    errors.check(title.chars().count() >= 3, "title", if poll { "write a question" } else { "write a title" });
+    errors.check(!too_long(title, 200), "title", "keep it under 200 characters");
+    errors.check(!too_long(body, 2000), "body", "keep the message under 2000 characters");
+    errors.check(poll || body.chars().count() >= 3, "body", "write the message");
+    if poll {
+        errors.check(options.len() >= 2, "options", "add at least 2 options");
+        errors.check(options.len() <= 8, "options", "use 8 options or fewer");
+        errors.check(options.iter().all(|o| !too_long(o, 80)), "options", "keep each option under 80 characters");
+    }
+    errors.check((1..=60).contains(&input.days), "days", "pick between 1 and 60 days");
+    errors.finish()?;
+
+    let id = Uuid::new_v4();
+    let mut tx = state.db.begin().await?;
+    let poll_id = if poll {
+        let poll_id = Uuid::new_v4();
+        sqlx::query("insert into polls (id, question, closes_at, created_by) values ($1, $2, now() + make_interval(days => $3::int), $4)")
+            .bind(poll_id)
+            .bind(title)
+            .bind(input.days)
+            .bind(admin.id)
+            .execute(&mut *tx)
+            .await?;
+        for (i, label) in options.iter().enumerate() {
+            sqlx::query("insert into poll_options (id, poll_id, label, sort_order) values ($1, $2, $3, $4)")
+                .bind(Uuid::new_v4())
+                .bind(poll_id)
+                .bind(label)
+                .bind(i as i32)
+                .execute(&mut *tx)
+                .await?;
+        }
+        Some(poll_id)
+    } else {
+        None
+    };
+    sqlx::query("insert into popups (id, kind, title, body, poll_id, ends_at, created_by) values ($1, $2, $3, $4, $5, now() + make_interval(days => $6::int), $7)")
+        .bind(id)
+        .bind(if poll { "poll" } else { "message" })
+        .bind(title)
+        .bind(body)
+        .bind(poll_id)
+        .bind(input.days)
+        .bind(admin.id)
+        .execute(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    audit(&state.db, &admin, "create_popup", title, &format!("{} days", input.days)).await;
+    Ok(Json(json!({ "ok": true, "id": id })))
+}
+
+async fn end_popup(State(state): State<AppState>, Admin(admin): Admin, Path(id): Path<Uuid>) -> ApiResult<Json<Value>> {
+    let title: Option<String> = sqlx::query_scalar("update popups set ended = true where id = $1 returning title").bind(id).fetch_optional(&state.db).await?;
+    let title = title.ok_or_else(|| AppError::not_found("that pop-up doesn't exist"))?;
+    audit(&state.db, &admin, "end_popup", &title, "").await;
     Ok(Json(json!({ "ok": true })))
 }

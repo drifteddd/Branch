@@ -250,6 +250,7 @@ const NAV = [
   ["requests", "Requests"],
   ["forum", "Forum"],
   ["polls", "Polls"],
+  ["popups", "Pop-ups"],
   ["rewards", "Rewards"],
   ["categories", "Categories & tags"],
   ["activity", "Activity"],
@@ -306,6 +307,7 @@ async function route() {
     else if (section === "import") await renderImport();
     else if (section === "forum") await renderForum();
     else if (section === "polls") await renderPolls();
+    else if (section === "popups") await renderPopups();
     else if (section === "rewards") await renderRewardsAdmin();
     else if (section === "categories") await renderCategories();
     else if (section === "activity") await renderActivity();
@@ -1555,6 +1557,86 @@ async function renderPolls() {
     h("div", { class: "page-head" }, h("h1", null, "Polls")),
     form,
     polls.length ? h("div", { class: "poll-admin-list" }, polls.map(pollCard)) : h("div", { class: "card" }, h("p", { class: "muted" }, "no polls yet.")),
+  ]);
+}
+
+async function renderPopups() {
+  const { popups } = await api("/api/admin/popups");
+  let kind = "message";
+  const kindPick = h(
+    "div",
+    { class: "upload-row popup-kind", role: "radiogroup", "aria-label": "Pop-up type" },
+    [["message", "Message"], ["poll", "Poll"]].map(([value, label]) =>
+      h("label", { class: "checks" }, h("input", { type: "radio", name: "popup-kind", value, checked: value === kind, onchange: () => { kind = value; sync(); } }), label),
+    ),
+  );
+  const title = h("input", { class: "input", id: "popup-title", maxlength: "200" });
+  const body = h("textarea", { class: "textarea", id: "popup-body", rows: "5", maxlength: "2000" });
+  const options = h("textarea", { class: "textarea", id: "popup-options", rows: "4", placeholder: "one option per line (2 to 8)" });
+  const days = h("select", { class: "select", id: "popup-days" }, [["1", "1 day"], ["2", "2 days"], ["3", "3 days"], ["5", "5 days"], ["7", "1 week"], ["14", "2 weeks"], ["30", "1 month"]].map(([v, t]) => h("option", { value: v, selected: v === "3" }, t)));
+  const titleLabel = h("span");
+  const bodyHint = h("span");
+  const optionsWrap = h("div", { class: "full" }, field("popup-options", "Options", options, { required: true, hint: "people can vote or press Skip. the results also show in the Community tab's polls." }));
+  const error = h("p", { class: "form-error hidden", role: "alert" });
+  const send = h("button", { class: "btn btn-primary", type: "submit" }, "Start pop-up");
+  function sync() {
+    titleLabel.textContent = kind === "poll" ? "Question" : "Title";
+    title.placeholder = kind === "poll" ? "e.g. what should we add next?" : "e.g. 50 new mods just landed";
+    body.placeholder = kind === "poll" ? "optional extra text under the question" : "the message. markdown works (**bold**, lists, links).";
+    optionsWrap.hidden = kind !== "poll";
+  }
+  const form = h(
+    "form",
+    { class: "card form-grid" },
+    h("h2", { class: "full" }, "New pop-up"),
+    h("p", { class: "full card-intro" }, "shows up once on the screen when people open the app, until it runs out. if a few are running, people see the newest one."),
+    h("div", { class: "full" }, kindPick),
+    h("div", { class: "full" }, h("div", { class: "field" }, h("label", { for: "popup-title" }, titleLabel, h("span", { class: "req" }, " *")), title)),
+    h("div", { class: "full" }, field("popup-body", "Text", body)),
+    optionsWrap,
+    field("popup-days", "Show it for", days),
+    h("div", { class: "full" }, error, send),
+  );
+  sync();
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    error.classList.add("hidden");
+    send.disabled = true;
+    try {
+      await api("/api/admin/popups", { method: "POST", body: { kind, title: title.value, body: body.value, options: kind === "poll" ? options.value.split("\n") : [], days: Number(days.value) } });
+      toast("Pop-up started");
+      renderPopups();
+    } catch (err) {
+      error.textContent = err.message;
+      error.classList.remove("hidden");
+      send.disabled = false;
+    }
+  });
+  const card = (p) =>
+    h(
+      "div",
+      { class: "card poll-admin" },
+      h("div", { class: "poll-admin-head" }, h("h2", null, p.title), h("span", { class: `pill ${p.live ? "published" : "draft"}` }, p.live ? "showing" : "ended")),
+      h("p", { class: "muted small" }, `${p.kind === "poll" ? "poll" : "message"} · started ${fmtTime(p.created_at)} · ${p.live ? "ends" : "ran until"} ${fmtTime(p.ends_at)}${p.poll ? ` · ${p.poll.total} vote${p.poll.total === 1 ? "" : "s"}` : ""}`),
+      p.body ? h("p", null, p.body) : null,
+      p.poll
+        ? h(
+            "ul",
+            { class: "poll-admin-options" },
+            p.poll.options.map((o) => {
+              const pct = p.poll.total ? Math.round((o.votes / p.poll.total) * 100) : 0;
+              return h("li", null, h("div", { class: "poll-admin-bar", style: `--pct:${pct}%` }), h("span", null, o.label), h("strong", null, `${pct}% (${o.votes})`));
+            }),
+          )
+        : null,
+      p.live
+        ? h("div", { class: "upload-row" }, h("button", { class: "btn", type: "button", onclick: async () => { if (await confirmDialog("End this pop-up now?", "people who haven't seen it yet won't see it.", "End it")) { await api(`/api/admin/popups/${p.id}/end`, { method: "POST", body: {} }); toast("Pop-up ended"); renderPopups(); } } }, "End now"))
+        : null,
+    );
+  shell("popups", [
+    h("div", { class: "page-head" }, h("h1", null, "Pop-ups")),
+    form,
+    popups.length ? h("div", { class: "poll-admin-list" }, popups.map(card)) : h("div", { class: "card" }, h("p", { class: "muted" }, "no pop-ups yet.")),
   ]);
 }
 

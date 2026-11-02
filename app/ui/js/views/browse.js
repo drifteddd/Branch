@@ -2,7 +2,7 @@ import { h, clear, formatDate, plural } from "../dom.js";
 import { icon } from "../icons.js";
 import { api } from "../platform.js";
 import { favorites, recent, changes } from "../store.js";
-import { compatBadge, errorBlock, skeletonRows, stateBlock, thumbnail, showCompatHelp, setBusy } from "../ui.js";
+import { compatBadge, errorBlock, skeletonRows, stateBlock, thumbnail, showCompatHelp, setBusy, libraryTabs } from "../ui.js";
 
 const PAGE_SIZE = 20;
 
@@ -31,6 +31,7 @@ export function createBrowseView(ctx) {
 
   const title = h("h1", { class: "view-title", id: "browse-title" });
   const count = h("p", { class: "view-count" });
+  const tabsSlot = h("div");
 
   const categorySelect = h("select", { class: "select", id: "filter-category" });
   const compatSelect = h("select", { class: "select", id: "filter-compat" });
@@ -48,6 +49,7 @@ export function createBrowseView(ctx) {
   const el = h(
     "section",
     { class: "view browse", "aria-labelledby": "browse-title" },
+    tabsSlot,
     h("header", { class: "view-head" }, title, count),
     h(
       "div",
@@ -377,6 +379,7 @@ export function createBrowseView(ctx) {
     title: () => MODES[state.mode].title,
     show() {
       title.textContent = MODES[state.mode].title;
+      tabsSlot.replaceChildren(...(state.mode === "favorites" || state.mode === "recent" ? [libraryTabs(state.mode)] : []));
       fillFilterOptions();
       if (currentKey() !== loadedKey) {
         load(true);

@@ -56,6 +56,7 @@ const githubImport = { running: false, publish: true, items: [] };
 const creatorNotices = [];
 const polls = [];
 const pollVotes = new Map();
+const popups = [];
 const VIDEO_THUMB = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360"><rect width="480" height="360" fill="#202124"/><text x="240" y="190" fill="#9aa0a6" font-size="28" text-anchor="middle" font-family="sans-serif">demo video</text></svg>');
 const voterOf = (req) => req.socket.remoteAddress || "local";
 const pollOut = (poll, voter) => {
@@ -468,6 +469,35 @@ async function adminApi(req, res, path, url) {
     if (parts[1] === "reports") forum.reports = forum.reports.filter((r) => r.id !== parts[2]);
     return send(res, 200, { ok: true });
   }
+  if (parts[0] === "popups") {
+    if (!parts[1] && method === "GET") {
+      const now = new Date();
+      return send(res, 200, { popups: popups.map((x) => ({ ...x, live: !x.ended && new Date(x.ends_at) > now, poll: x.poll_id ? pollOut(polls.find((o) => o.id === x.poll_id)) : null })) });
+    }
+    if (!parts[1] && method === "POST") {
+      const body = await json(req);
+      const poll = body.kind === "poll";
+      const options = (body.options || []).map((o) => o.trim()).filter(Boolean);
+      const errors = {};
+      if ((body.title || "").trim().length < 3) errors.title = poll ? "write a question" : "write a title";
+      if (!poll && (body.body || "").trim().length < 3) errors.body = "write the message";
+      if (poll && options.length < 2) errors.options = "add at least 2 options";
+      if (Object.keys(errors).length) return fail(res, 422, Object.values(errors)[0], errors);
+      const ends_at = new Date(Date.now() + (body.days || 3) * 86400000).toISOString();
+      let poll_id = null;
+      if (poll) {
+        poll_id = randomUUID();
+        polls.unshift({ id: poll_id, question: body.title.trim(), closed: false, closes_at: ends_at, created_at: new Date().toISOString(), options: options.map((label) => ({ id: randomUUID(), label })) });
+      }
+      const popup = { id: randomUUID(), kind: poll ? "poll" : "message", title: body.title.trim(), body: (body.body || "").trim(), poll_id, ends_at, ended: false, created_at: new Date().toISOString() };
+      popups.unshift(popup);
+      return send(res, 200, { ok: true, id: popup.id });
+    }
+    const popup = popups.find((x) => x.id === parts[1]);
+    if (!popup) return fail(res, 404, "that pop-up doesn't exist");
+    popup.ended = true;
+    return send(res, 200, { ok: true });
+  }
   if (parts[0] === "polls") {
     if (!parts[1] && method === "GET") return send(res, 200, { polls: polls.map((x) => pollOut(x)) });
     if (!parts[1] && method === "POST") {
@@ -830,6 +860,12 @@ async function publicApi(req, res, path, url) {
     return send(res, 200, { matches });
   }
   if (path.startsWith("/api/yt/")) return send(res, 200, VIDEO_THUMB, { "content-type": "image/svg+xml" });
+  if (path === "/api/popup") {
+    const live = popups.find((x) => !x.ended && new Date(x.ends_at) > new Date());
+    if (!live) return send(res, 200, { popup: null });
+    const poll = live.poll_id ? pollOut(polls.find((o) => o.id === live.poll_id), voterOf(req)) : null;
+    return send(res, 200, { popup: { id: live.id, kind: live.kind, title: live.title, body: live.body, ends_at: live.ends_at, poll } });
+  }
   if (path === "/api/polls") return send(res, 200, { polls: polls.map((x) => pollOut(x, voterOf(req))) });
   if (path.startsWith("/api/polls/") && path.endsWith("/vote") && req.method === "POST") {
     const poll = polls.find((x) => x.id === path.split("/")[3]);

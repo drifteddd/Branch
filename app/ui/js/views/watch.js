@@ -1,7 +1,7 @@
 import { h, clear, formatDate, formatBytes, formatNumber } from "../dom.js";
 import { icon } from "../icons.js";
 import { api, openExternal } from "../platform.js";
-import { errorBlock, stateBlock, toast, thumbnail } from "../ui.js";
+import { errorBlock, stateBlock, toast, thumbnail, libraryTabs } from "../ui.js";
 import { renderMarkdown } from "../../shared/markdown.js";
 
 const STORE_KEY = "branch.watchlist";
@@ -328,6 +328,7 @@ export function createWatchView(ctx) {
       submit.replaceChildren(icon("search"), "Find mod");
     });
     clear(el).append(
+      libraryTabs("watch"),
       h("header", { class: "view-head" }, h("h1", { class: "view-title", id: "watch-title" }, "Watchlist")),
       h("p", { class: "muted wt-intro" }, "paste a github link to any mod. Branch finds out what it is, gets you the newest version, and lets you know whenever a new one comes out."),
       form,

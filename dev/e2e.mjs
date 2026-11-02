@@ -1266,6 +1266,45 @@ await test("two days after a download, a small prompt asks you to rate the mod",
   assert(await evaluate(`JSON.parse(localStorage.getItem("branch.ratePrompts"))[${JSON.stringify(mod.slug)}].done === true && JSON.parse(localStorage.getItem("branch.ratePrompts"))["fresh-one"].done === false`), "only the old download is asked about, once");
 });
 
+await test("admin starts a poll pop-up and a message pop-up, each shows once when the app opens", async () => {
+  await go(`${BASE}/admin#/popups`);
+  await waitFor(`document.querySelector("#popup-title")`, "admin pop-ups page");
+  await evaluate(click('input[name="popup-kind"][value="poll"]'));
+  await evaluate(type("#popup-title", "which mod type do you want more of?"));
+  await evaluate(type("#popup-options", "cosmetics\nmaps\nmenus"));
+  await evaluate(click(".card button[type=submit]"));
+  await waitFor(`document.querySelector(".poll-admin h2")?.textContent.includes("more of")`, "pop-up listed for admin");
+  await go(`${BASE}/#/browse`);
+  await waitFor(`document.querySelector(".popup-sheet[open]")?.textContent.includes("more of")`, "poll pop-up on open", 8000);
+  await sleep(600);
+  await screenshot("popup-poll");
+  await evaluate(clickText(".popup-option", "maps"));
+  await waitFor(`document.querySelector(".popup-results li.mine")?.textContent.includes("maps")`, "results after voting");
+  await evaluate(clickText(".popup-sheet button", "Done"));
+  await go(`${BASE}/#/browse`);
+  await sleep(2500);
+  assert(await evaluate(`!document.querySelector(".popup-sheet")`), "the pop-up should only show once");
+
+  await go(`${BASE}/admin#/popups`);
+  await waitFor(`document.querySelector("#popup-title")`, "admin pop-ups page");
+  await evaluate(type("#popup-title", "50 new mods just landed"));
+  await evaluate(type("#popup-body", "check out the **newest** mods in the list."));
+  await evaluate(click(".card button[type=submit]"));
+  await waitFor(`document.querySelectorAll(".poll-admin").length === 2`, "two pop-ups listed");
+  await go(`${BASE}/#/browse`);
+  await waitFor(`document.querySelector(".popup-sheet[open]")?.textContent.includes("50 new mods") && document.querySelector(".popup-text strong")`, "message pop-up", 8000);
+  await sleep(600);
+  await screenshot("popup-message");
+  await evaluate(clickText(".popup-sheet button", "Got it"));
+  await waitFor(`!document.querySelector(".popup-sheet")`, "closed");
+  await go(`${BASE}/admin#/popups`);
+  await waitFor(`document.querySelector(".poll-admin button")`, "end button");
+  await evaluate(clickText(".poll-admin button", "End now"));
+  await waitFor(`document.querySelector("dialog[open]")`, "confirm");
+  await evaluate(clickText("dialog[open] button", "End it"));
+  await waitFor(`document.querySelector(".poll-admin .pill")?.textContent === "ended"`, "pop-up ended");
+});
+
 ws.close();
 browser.kill();
 server.close();

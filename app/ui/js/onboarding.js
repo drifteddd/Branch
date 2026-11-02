@@ -50,13 +50,14 @@ const INTERESTS = [
 const TOUR = [
   { use: "find", selector: '[data-nav="all"]', title: "All mods", text: "every mod on Branch, best rated first. filter by category or compatibility." },
   { use: "find", selector: "#search", title: "Search", text: "find any mod by name, author or tag. press Ctrl+F from anywhere." },
+  { use: null, selector: '[data-nav="library"]', title: "Library", text: "your favorites, recently viewed mods and watchlist, all in one place." },
   { use: "find", selector: '[data-nav="tree"]', title: "Tree of Life", text: "every mod drawn as a node on one big tree. zoom in and explore." },
   { use: "tracker", selector: '[data-nav="tracker"]', title: "Player Tracker", text: "a live stream of players spotted in public rooms. free beta." },
   { use: "assistant", selector: '[data-nav="ask"]', title: "Ask Branch", text: "a free AI that knows every mod, the app and the tracker." },
   { use: "upload", selector: '[data-nav="upload"]', title: "Upload a mod", text: "share your own mod. just drop the file and the AI sets up the listing." },
   { use: "checker", selector: '[data-nav="check"]', title: "Mod checker", text: "check any .dll for viruses and stealers before you use it." },
   { use: "community", selector: '[data-nav="forum"]', title: "Community", text: "a forum and one big live chat. no account needed." },
-  { use: "rewards", selector: '[data-nav="rewards"]', title: "Rewards", text: "upload unique mods and earn Robux while the program runs." },
+  { use: "rewards", selector: '[data-nav="rewards"]', title: "Creator hub", text: "make a free creator account to manage your uploads and earn Robux while the program runs." },
   { use: null, selector: '[data-nav="inbox"]', title: "Inbox", text: "announcements, what's new in each update, and replies to your reports." },
   { use: null, selector: '[data-nav="settings"]', title: "Settings", text: "change your name, theme and background any time. you can run this setup again here too." },
 ];

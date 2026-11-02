@@ -611,6 +611,26 @@ async fn full_flow() {
     assert_eq!(c.json("POST", "/api/rewards/me", json!({ "key": member_key })).await.json["enabled"], false);
     c.json("POST", "/api/admin/rewards/settings", json!({ "enabled": true })).await;
 
+    assert!(c.get("/api/popup").await.json["popup"].is_null(), "no pop-up until the admin makes one");
+    let r = c.json("POST", "/api/admin/popups", json!({ "kind": "poll", "title": "What next?", "options": ["only one"], "days": 3 })).await;
+    assert_eq!(r.status, StatusCode::UNPROCESSABLE_ENTITY, "{}", r.json);
+    let r = c.json("POST", "/api/admin/popups", json!({ "kind": "poll", "title": "What should Branch add next?", "options": ["mod packs", "profiles"], "days": 3 })).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    let popup_id = r.json["id"].as_str().unwrap().to_string();
+    let r = c.get("/api/popup").await;
+    assert_eq!(r.json["popup"]["kind"], "poll", "{}", r.json);
+    let option = r.json["popup"]["poll"]["options"][1]["id"].as_str().unwrap().to_string();
+    let poll_id = r.json["popup"]["poll"]["id"].as_str().unwrap().to_string();
+    let r = c.json("POST", &format!("/api/polls/{poll_id}/vote"), json!({ "option_id": option })).await;
+    assert_eq!(r.json["poll"]["total"], 1, "{}", r.json);
+    let r = c.json("POST", "/api/admin/popups", json!({ "kind": "message", "title": "Welcome back", "body": "new mods every week", "days": 2 })).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    assert_eq!(c.get("/api/popup").await.json["popup"]["title"], "Welcome back", "the newest pop-up wins");
+    let message_id = r.json["id"].as_str().unwrap().to_string();
+    c.json("POST", &format!("/api/admin/popups/{message_id}/end"), json!({})).await;
+    assert_eq!(c.get("/api/popup").await.json["popup"]["id"], popup_id.as_str(), "ending one shows the one before it");
+    assert_eq!(c.get("/api/admin/popups").await.json["popups"].as_array().unwrap().len(), 2);
+
     let key = "ab12".repeat(16);
     let r = c.json("POST", "/api/forum/me", json!({ "key": key })).await;
     assert_eq!(r.status, StatusCode::OK, "{}", r.json);

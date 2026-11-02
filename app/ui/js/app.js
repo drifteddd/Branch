@@ -24,6 +24,7 @@ import { createWatchView, checkWatchlist, watchUnseen } from "./views/watch.js";
 import { createManagerView } from "./views/manager.js";
 import { createEditView } from "./views/edit.js";
 import { checkRatePrompt } from "./rate-prompt.js";
+import { showPopupOnce } from "./popup.js";
 
 const root = document.documentElement;
 const main = document.getElementById("main");
@@ -171,10 +172,15 @@ function markSidebar() {
   if (!route) return;
   let active = null;
   if (route.name === "browse") {
-    if (route.mode === "all" && ctx.browse.category) active = categoryNav.querySelector(`[data-category="${CSS.escape(ctx.browse.category)}"]`);
+    if (route.mode === "all" && ctx.browse.category) {
+      active = categoryNav.querySelector(`[data-category="${CSS.escape(ctx.browse.category)}"]`);
+      if (active) document.getElementById("categories-fold").open = true;
+    } else if (route.mode === "favorites" || route.mode === "recent") active = sidebar.querySelector('[data-nav="library"]');
     else active = sidebar.querySelector(`[data-nav="${route.mode}"]`);
-  } else if (["settings", "about", "upload", "check", "forum", "rewards", "tree", "tracker", "ask", "inbox", "watch", "manager"].includes(route.name)) {
+  } else if (["settings", "about", "upload", "check", "forum", "rewards", "tree", "tracker", "ask", "inbox", "manager"].includes(route.name)) {
     active = sidebar.querySelector(`[data-nav="${route.name}"]`);
+  } else if (route.name === "watch") {
+    active = sidebar.querySelector('[data-nav="library"]');
   } else if (route.name === "edit") {
     active = sidebar.querySelector('[data-nav="rewards"]');
   } else if (route.name === "legal") {
@@ -190,7 +196,7 @@ function renderCategories() {
       h("li", null, h("a", { href: `#/browse?category=${encodeURIComponent(c.slug)}`, dataset: { category: c.slug } }, h("span", { class: "nav-dot", "aria-hidden": "true" }), c.name, c.mod_count ? h("span", { class: "nav-count" }, String(c.mod_count)) : null)),
     );
   }
-  document.getElementById("categories-heading").hidden = !(ctx.meta?.categories || []).length;
+  document.getElementById("categories-fold").hidden = !(ctx.meta?.categories || []).length;
   markSidebar();
 }
 
@@ -410,6 +416,7 @@ async function start() {
   else views.browse.metaChanged();
   startAutoRefresh();
   updateInboxBadge();
+  setTimeout(showPopupOnce, 1200);
 }
 
 start();

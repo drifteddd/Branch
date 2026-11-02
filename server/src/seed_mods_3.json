@@ -1,0 +1,408 @@
+[
+ {
+  "repo": "KyleTheScientist/Bark",
+  "name": "Bark",
+  "category": "menus",
+  "tags": ["mod menu", "movement", "modded lobbies", "fun"],
+  "description": "Bark lets you summon a floating 3D menu in Gorilla Tag and switch fun mechanics on and off, like airplane flying, platforms, nail gun climbing and more. It only turns on in modded lobbies, so it's safe to use online.\n\n- big set of movement and fun modules\n- summon the menu with your hands in VR\n- needs Utilla\n\nthis is the original Bark release by KyleTheScientist. newer game updates may need a newer build."
+ },
+ {
+  "repo": "Seralyth/Seralyth-Menu",
+  "name": "Seralyth Menu",
+  "category": "menus",
+  "tags": ["mod menu", "open source", "community"],
+  "description": "Seralyth is a community-made mod menu for Gorilla Tag with over a thousand mods, forked from ii's Stupid Menu. Branch hosts the \"Legal\" build from the latest release.\n\n- huge list of movement, visual and fun mods\n- lots of customisation for the menu itself\n- open source and updated often"
+ },
+ {
+  "repo": "developer9998/DevMinecraftMod",
+  "name": "Dev's Minecraft Mod",
+  "category": "gameplay",
+  "tags": ["minecraft", "building", "modded lobbies"],
+  "description": "Dev's Minecraft Mod turns Gorilla Tag into a little Minecraft: place and break blocks around the map with your hands. Set the gamemode to any MODDED mode at the stump and join a lobby to use it.\n\n- place and break blocks\n- works in modded public and private lobbies\n- needs Utilla and Computer Interface\n\nan older mod (2023), so it may not work with the newest game update."
+ },
+ {
+  "repo": "AHauntedArmy/HauntedModMenu",
+  "name": "Haunted Mod Menu",
+  "category": "utilities",
+  "tags": ["mod toggles", "quality of life", "modded lobbies"],
+  "description": "Haunted Mod Menu lets you turn your other mods on and off without walking back to the computer. Tap your palm while looking at it to open the menu, tap again to close it.\n\n- pick which hand the menu shows on\n- optional auto close when you look away\n- works with mods that support it\n- modded rooms only"
+ },
+ {
+  "repo": "KyleTheScientist/ComputerPlusPlus",
+  "name": "Computer++",
+  "category": "utilities",
+  "tags": ["computer", "mod toggles", "quality of life"],
+  "description": "Computer++ upgrades the in-game computer in Gorilla Tag. You can turn mods on and off from it and even set your own wallpaper.\n\n- enable or disable mods from the computer\n- custom wallpaper\n- needs Utilla\n\nmade by KyleTheScientist, the creator of Bark."
+ },
+ {
+  "repo": "KyleTheScientist/LightsCameraAction",
+  "name": "Lights Camera Action",
+  "category": "utilities",
+  "tags": ["camera", "recording", "content creation"],
+  "description": "Lights Camera Action is a camera mod for recording Gorilla Tag. Press the left stick to open the mode picker.\n\n- **First person:** a smooth, stabilised view from your eyes\n- **Selfie stick:** film yourself while you climb\n- **Stationary cam:** drop a camera with a little monitor next to it\n- great for YouTube and TikTok clips"
+ },
+ {
+  "repo": "Lualttt/Lualts-Camera-Mod",
+  "name": "Lualt's Camera Mod",
+  "category": "utilities",
+  "tags": ["camera", "recording", "gopro"],
+  "description": "An improved take on Wryser's GoPro camera mod for Gorilla Tag, with some extra camera modes added, including a 360 mode. Handy for recording smooth clips of yourself playing.\n\n- several camera modes\n- open source, pull requests welcome"
+ },
+ {
+  "repo": "gizmogoat/MarioMonkeMadness",
+  "name": "Mario Monke Madness",
+  "category": "gameplay",
+  "tags": ["mario", "funny", "crossover"],
+  "description": "Mario Monke Madness puts a playable Super Mario 64 Mario into Gorilla Tag using libsm64, so Mario can run and jump around the real Gorilla Tag maps.\n\n**setup:** extract the zip into your plugins folder. the mod needs a Super Mario 64 [US] .z64 ROM placed next to the plugin, which you have to supply yourself from a copy you own. Branch doesn't include it."
+ },
+ {
+  "repo": "PineappleJohn/PineappleTerminal",
+  "name": "Pineapple Console",
+  "category": "utilities",
+  "tags": ["console", "commands", "developers"],
+  "description": "Pineapple Console adds a command line to Gorilla Tag. Type commands to change settings, disconnect from rooms and interact with the game, and other mods can add their own commands to it.\n\n- built-in room and debug commands\n- addon support for new commands\n- handy for modders and power users"
+ },
+ {
+  "repo": "fchb1239/MonkeTV",
+  "name": "MonkeTV",
+  "category": "gameplay",
+  "tags": ["videos", "tv", "chill"],
+  "description": "MonkeTV adds a TV to Gorilla Tag that plays your own videos. Drop your video files into the mod's folder and watch them in game.\n\n- play your own videos in VR\n- just for you, nobody else sees it\n\nan older mod (2023), so it may need an update for the newest game version."
+ },
+ {
+  "repo": "BrokenSt0ne/phosphorite",
+  "name": "Phosphorite",
+  "category": "utilities",
+  "tags": ["lighting", "visuals", "pc"],
+  "description": "Phosphorite is an experimental real-time lighting mod for Gorilla Tag. Place your own lights around the map and change their colour and brightness.\n\n- real-time lights using the game's own lighting system\n- set position, colour and intensity\n- save and load light setups as JSON\n- press V on your keyboard to open the menu\n- works in normal and modded lobbies since it gives no advantage\n\nstill a work in progress."
+ },
+ {
+  "repo": "developer9998/DevBlinkMod",
+  "name": "Dev's Blink Mod",
+  "category": "cosmetics",
+  "tags": ["face", "client side", "funny"],
+  "description": "A tiny mod that makes your gorilla blink every now and then. It's fully client side and doesn't touch networking, so only you see it.\n\n- random, natural looking blinks\n- no setup, just drop it in plugins"
+ },
+ {
+  "repo": "RhosynCelyn/GorillaCamera",
+  "name": "Gorilla Camera",
+  "category": "utilities",
+  "tags": ["camera", "spectator", "casting"],
+  "description": "Gorilla Camera is a simple camera mod with lots of views for recording or watching matches.\n\n- first, second and third person views\n- follow mode that tracks you smoothly\n- random player, random tagged player and random survivor views, great for casting\n- hand camera modes"
+ },
+ {
+  "repo": "developer9998/GorillaFaces",
+  "name": "Gorilla Faces",
+  "category": "cosmetics",
+  "tags": ["face", "custom", "cosmetics"],
+  "description": "Gorilla Faces lets you swap the standard gorilla face for fan-made faces. Made by developer9998, who also made GorillaShirts.\n\n- load custom faces\n- extract the zip into your plugins folder"
+ },
+ {
+  "repo": "developer9998/GorillaAvatarCatalog",
+  "name": "Gorilla Avatar Catalog",
+  "category": "cosmetics",
+  "tags": ["outfits", "cosmetics", "quality of life"],
+  "description": "Gorilla Avatar Catalog lets you save your current look and load it again later, so you can switch between your favourite outfits in a couple of clicks instead of re-equipping everything by hand.\n\n- save and load outfits\n- by developer9998"
+ },
+ {
+  "repo": "developer9998/FaceScarfPatch",
+  "name": "Face Scarf Patch",
+  "category": "cosmetics",
+  "tags": ["fix", "cosmetics"],
+  "description": "Fixes the Face Scarf, one of the buggiest cosmetics in Gorilla Tag.\n\n- stops the chest piece from being overwritten and disappearing\n- hides the duplicate scarf that can block your view and look messy"
+ },
+ {
+  "repo": "developer9998/GorillaCoconection",
+  "name": "Gorilla Coconection",
+  "category": "utilities",
+  "tags": ["camera", "nametags", "lck"],
+  "description": "Ever wondered who dropped that coconut camera? Gorilla Coconection links LCK (LIV Creator Kit) coconut cameras to the player who placed them, using a little nametag.\n\nthe author says it's still unfinished, and nametags don't always appear yet."
+ },
+ {
+  "repo": "kinomonke/BetterComputerCommands",
+  "name": "Better Computer Commands",
+  "category": "utilities",
+  "tags": ["computer", "commands"],
+  "description": "Adds extra commands and info screens to Computer Interface, so you can see more useful information right on the in-game computer.\n\n- needs Computer Interface"
+ },
+ {
+  "repo": "AHauntedArmy/YURFitGorillaTag",
+  "name": "YUR.fit for Gorilla Tag",
+  "category": "utilities",
+  "tags": ["fitness", "watch", "calories"],
+  "description": "Turns Gorilla Tag into a workout tracker. It adds a watch to your wrist that shows your YUR.fit stats like heart rate and calories burned while you play.\n\n- live fitness stats on your wrist\n- needs a YUR.fit account\n\nif login fails, some VPNs block it. try allowing the mod's two dll files through your firewall."
+ },
+ {
+  "repo": "TheKnownPerson/HandController",
+  "name": "Hand Controller",
+  "category": "utilities",
+  "tags": ["pc", "freecam", "modded lobbies"],
+  "description": "Hand Controller is a PC mod that adds a freecam and lets you control your hands and click in-game buttons with your mouse. Made for modded rooms.\n\n- freecam\n- mouse hand control and UI clicking\n- not compatible with the Oculus PC version or other desktop camera mods"
+ },
+ {
+  "repo": "musaed-dev/GorillaHurouf",
+  "name": "Gorilla Hurouf (Arabic text)",
+  "category": "utilities",
+  "tags": ["arabic", "language", "library", "accessibility"],
+  "description": "Gorilla Tag can't show Arabic properly: letters come out separated and backwards. Gorilla Hurouf fixes that. غوريلا حروف\n\n- joins Arabic letters and puts them in the right order\n- mixes in English and numbers correctly\n- auto-fix mode for all Arabic text in the game\n- also a library other mods can use for Arabic notifications and translations"
+ },
+ {
+  "repo": "itsreallyhex/Ayah",
+  "name": "Ayah",
+  "category": "utilities",
+  "tags": ["motd", "islamic", "board"],
+  "description": "Ayah replaces the Message of the Day board with a random Quranic verse or authentic Hadith every time you load in.\n\n- 50 verses and 45 hadiths, and growing\n- download both Ayah.dll and ayahs.json from the release and put them in plugins"
+ },
+ {
+  "repo": "sevvy-wevvy/Monke-Monke-Music",
+  "name": "Monke Monke Music",
+  "category": "gameplay",
+  "tags": ["music", "chill"],
+  "description": "Monke Monke Music adds music controls near the spawn so you can listen to your own tracks while you play.\n\n- play and pause\n- skip to the next track or rewind\n- open source, pull requests welcome"
+ },
+ {
+  "repo": "Frogrilla/MonkeMaze",
+  "name": "Monke Maze",
+  "category": "gameplay",
+  "tags": ["maze", "exploration", "gamemodes"],
+  "description": "Explore randomly generated mazes with your friends and find secrets along the way. Walk through the tunnel (outside a room or in the Monke Maze gamemode) to enter.\n\n- a new maze every room\n- find the relic to escape\n- a compass helps, but watch out for fake paths\n\nan older mod (2022), so it may not work with the newest game update."
+ },
+ {
+  "repo": "miniusbhater/Gorilla-Startup-Sound",
+  "name": "Gorilla Startup Sound",
+  "category": "utilities",
+  "tags": ["audio", "startup", "custom"],
+  "description": "Plays an mp3 of your choice from a folder whenever you open Gorilla Tag. Pick a hype song, a meme sound or anything you like."
+ },
+ {
+  "repo": "itsreallyhex/ValyxJarvis",
+  "name": "Valyx Jarvis",
+  "category": "utilities",
+  "tags": ["voice", "assistant", "pc", "arabic"],
+  "description": "Valyx Jarvis is a free voice assistant for Gorilla Tag on PC. Say \"Jarvis, make it night\" and it happens.\n\n- change the time and weather, try on cosmetics, travel and ask about your room\n- works in English and Arabic\n- everything it changes is on your screen only\n\nyou need a microphone and your own AI key. Jarvis doesn't come with one."
+ },
+ {
+  "repo": "shlingusjambo-glitch/GorillaOG-V2-Mod",
+  "name": "Gorilla OG V2",
+  "category": "gameplay",
+  "tags": ["nostalgia", "maps", "2023"],
+  "description": "Step back into August 2023. Gorilla OG V2 brings back the old player look, Stump, Forest, Canyon, Caves, Mountain and the 2023 City store inside the current version of the game.\n\n- classic 2023 maps and look\n- open source (GPL-3.0)\n- extract the zip into your Gorilla Tag folder as the readme explains"
+ },
+ {
+  "repo": "poopoovr/BetterLogger",
+  "name": "Better Logger",
+  "category": "utilities",
+  "tags": ["developers", "console", "logs"],
+  "description": "Cleans up the BepInEx console by filtering out useless log spam, so you can actually see the messages that matter. Great if you make mods or need to track down an error."
+ },
+ {
+  "repo": "developer9998/GorillaGhostVision",
+  "name": "Gorilla Ghost Vision",
+  "category": "cosmetics",
+  "tags": ["ghosts", "halloween", "modded lobbies"],
+  "description": "Lets you always see the ghosts and skeletons in Gorilla Tag, not just at the usual moments. Works in modded rooms only."
+ },
+ {
+  "repo": "elligurt/PropWardrobe",
+  "name": "Prop Wardrobe",
+  "category": "gameplay",
+  "tags": ["maps", "prop haunt", "hidden"],
+  "description": "Turns on a wardrobe in the Bayou / Prop Haunt map that the game has but keeps switched off.\n\nheads up: it has colliders, so you can bump into it."
+ },
+ {
+  "repo": "developer9998/GTBubblerMod",
+  "name": "Bubbler Sounds",
+  "category": "cosmetics",
+  "tags": ["audio", "bubbler", "custom"],
+  "description": "Customise the sounds of the Bubbler cosmetic. Swap in your own audio and set the volume.\n\n- set the audio file and volume in BepInEx/config/dev.gtbubblermod.cfg\n- put your sound file next to the mod"
+ },
+ {
+  "repo": "auralius-dev/MonkeCosmeticsHider",
+  "name": "Monke Cosmetics Hider",
+  "category": "cosmetics",
+  "tags": ["client side", "visibility", "quality of life"],
+  "description": "Hides your own cosmetics from your VR view so big hats and face items don't block what you see. Other players still see your cosmetics as normal.\n\nan older mod (2021), so it may not work with the newest game update."
+ },
+ {
+  "repo": "ryanmoddrz/StepCounter",
+  "name": "Step Counter",
+  "category": "utilities",
+  "tags": ["watch", "fitness", "stats"],
+  "description": "Counts every step (hand hit) you make and shows the total on a watch on your wrist. See how much you really move in a session."
+ },
+ {
+  "repo": "codyiscoder/MonkeyWallWalk",
+  "name": "Monkey Wall Walk",
+  "category": "gameplay",
+  "tags": ["movement", "gravity", "modded lobbies"],
+  "description": "Walk on walls and ceilings! Monkey Wall Walk rotates your gravity smoothly to whatever surface you're on.\n\n- smooth gravity transitions\n- controls on the Hunt Watch\n- turns itself off outside supported modded lobbies and in Hunt"
+ },
+ {
+  "repo": "Juggler847/CarMonke",
+  "name": "Car Monke",
+  "category": "gameplay",
+  "tags": ["cars", "driving", "funny"],
+  "description": "Ever wanted to drive in Gorilla Tag? Car Monke adds a car you can drive around the maps.\n\nan older mod (2023), so it may not work with the newest game update."
+ },
+ {
+  "repo": "AHauntedArmy/MonkeSwim",
+  "name": "Monke Swim",
+  "category": "gameplay",
+  "tags": ["maps", "swimming", "gravity"],
+  "description": "Monke Swim is a mapping add-on for the Monke Map Loader. It lets custom maps use gravity zones, planet zones and swim zones, so you can float and swim in low or no gravity.\n\n- needed by custom maps that use these zones\n- map makers can add support with the Monke Swim editor"
+ },
+ {
+  "repo": "GreenMnokey/Green-Monkeys-Time-Changer",
+  "name": "Green Monkey's Time Changer",
+  "category": "utilities",
+  "tags": ["time", "weather", "pc"],
+  "description": "Switch the time of day and the weather in Gorilla Tag. Press T to open and close the menu, then pick bright daytime, evening, night or rain."
+ },
+ {
+  "repo": "steepvr/MyInfo",
+  "name": "MyInfo",
+  "category": "utilities",
+  "tags": ["voice", "info", "rooms"],
+  "description": "MyInfo tells you more about your player and your room, and you control it with your voice. Ask for info out loud instead of digging through menus."
+ },
+ {
+  "repo": "comfortdevv/FPCToggle",
+  "name": "First Person Camera Toggle",
+  "category": "utilities",
+  "tags": ["camera", "pc", "streaming"],
+  "description": "Adds a button in the top-left corner of your PC screen that switches the desktop view between first person and the third-person camera. Handy when streaming or recording."
+ },
+ {
+  "repo": "KyleTheScientist/SpectatorCamTweaks",
+  "name": "Spectator Cam Tweaks",
+  "category": "utilities",
+  "tags": ["camera", "size", "fix"],
+  "description": "Fixes the third-person spectator camera so it shrinks with you when you get smaller, instead of staying huge. Extract the zip into your game folder."
+ },
+ {
+  "repo": "defaultuser0-nerd/PCSpectate",
+  "name": "PC Spectate",
+  "category": "utilities",
+  "tags": ["camera", "pc", "freecam"],
+  "description": "Move the desktop camera around freely with WASD while you play. Turn it on with a small button in the top-right corner.\n\n- change FOV and speed in the config file\n- works with the LIV camera"
+ },
+ {
+  "repo": "OculaDotNET/SimpleDeathSoundsV2",
+  "name": "Simple Death Sounds V2",
+  "category": "gameplay",
+  "tags": ["audio", "infection", "custom"],
+  "description": "Plays a sound of your choice every time you tag someone. Works in any infection lobby, modded or not.\n\n**setup:** make a folder called SimpleDeath in your Gorilla Tag folder, put .ogg files in it, then pick one from the small window in the bottom-left corner."
+ },
+ {
+  "repo": "RusJJ/NoAmbient",
+  "name": "No Ambient",
+  "category": "utilities",
+  "tags": ["audio", "quiet", "quality of life"],
+  "description": "Turns off a map's ambient sounds, like forest birds, canyon wind and cave water. Good if you play with music or just want it quiet.\n\n- settings in BepInEx/config/NoAmbient.cfg\n- optional Computer Interface support\n\nan older mod (2021), so it may not work with the newest game update."
+ },
+ {
+  "repo": "ShinyGorilla/Man-Behind-The-Slaughter",
+  "name": "Man Behind The Slaughter",
+  "category": "gameplay",
+  "tags": ["funny", "fnaf", "meme"],
+  "description": "A meme mod that puts a dancing William Afton from Five Nights at Freddy's on the walls of the forest, with a song you can hear from Stump. Works in modded lobbies."
+ },
+ {
+  "repo": "GermanEmpire0/Portal-Gun",
+  "name": "Portal Gun",
+  "category": "gameplay",
+  "tags": ["portals", "funny", "utilla"],
+  "description": "A portal gun for Gorilla Tag. Shoot a blue and an orange portal and jump between them.\n\n- A: blue portal, B: orange portal\n- Y: reset the portals, X: music\n- needs Utilla and a modded lobby\n\nheads up: it plays a loud sound when it switches on."
+ },
+ {
+  "repo": "CoderLunar/RainbowSky",
+  "name": "Rainbow Sky",
+  "category": "cosmetics",
+  "tags": ["sky", "color", "client side"],
+  "description": "Changes the colour of the sky to match your gorilla's colour. A small, fun visual mod that only you see."
+ },
+ {
+  "repo": "CoderLunar/BetterBoards",
+  "name": "Better Boards",
+  "category": "cosmetics",
+  "tags": ["boards", "color", "visuals"],
+  "description": "Recolours all the boards in the game. It's the author's first mod, so it can be a bit buggy and may cause small lag spikes on some PCs."
+ },
+ {
+  "repo": "SaberLight1111/SimpleStatus",
+  "name": "Simple Status",
+  "category": "utilities",
+  "tags": ["fps", "ping", "hud"],
+  "description": "A small overlay in the top-left of your monitor that shows your FPS, ping and whether your connection is online."
+ },
+ {
+  "repo": "FlyinC4T/GT-RawJumps",
+  "name": "Raw Jumps",
+  "category": "gameplay",
+  "tags": ["movement", "old movement", "nostalgia"],
+  "description": "Brings back the old Gorilla Tag movement by removing the newer jump and slide speed limits. Drop the dll in your plugins folder and play."
+ },
+ {
+  "repo": "developer9998/GorillaChatBox",
+  "name": "Gorilla Chat Box",
+  "category": "utilities",
+  "tags": ["chat", "infowatch", "messages"],
+  "description": "Adds customisable message boxes you can use to talk with other modded players, controlled from the GorillaInfoWatch.\n\n- needs GorillaInfoWatch"
+ },
+ {
+  "repo": "Elmishhh/GorillaFPV",
+  "name": "Gorilla FPV",
+  "category": "gameplay",
+  "tags": ["drone", "flying", "camera"],
+  "description": "Fly an FPV drone around Gorilla Tag with your controllers. Left stick is throttle, and pushing past 95% kicks in an overdrive boost for fast flips.\n\n- realistic drone controls\n- Haunted Mod Menu toggle support\n- needs Utilla"
+ },
+ {
+  "repo": "baggZ-idk/PCUtils",
+  "name": "PC Utils",
+  "category": "utilities",
+  "tags": ["pc", "keyboard", "noclip"],
+  "description": "Play Gorilla Tag on PC without a headset. Move with WASD, look around with right click and click buttons with left click.\n\n- Tab: toggle the mod, H: menu, Esc: leave the room\n- Space and Ctrl to fly up and down, Alt for no-clip\n- turns itself off outside safe rooms\n- needs Utilla or GorillaLibrary"
+ },
+ {
+  "repo": "skellondev/MonkeModDownloader",
+  "name": "Monke Mod Downloader",
+  "category": "utilities",
+  "tags": ["computer", "mod installer"],
+  "description": "Download mods straight from the in-game computer while you play. An add-on for Computer Interface.\n\n- needs Computer Interface\n- as always, only install mods you trust"
+ },
+ {
+  "repo": "developer9998/GorillaHandsFree",
+  "name": "Gorilla Hands Free",
+  "category": "gameplay",
+  "tags": ["hands", "modded lobbies"],
+  "description": "Removes hand holding in modded rooms, so other players can't grab your hands."
+ },
+ {
+  "repo": "GT13thmodguy/cone-holdable",
+  "name": "Cone Holdable",
+  "category": "cosmetics",
+  "tags": ["holdable", "funny", "client side"],
+  "description": "Puts a traffic cone in your right hand. That's it. It's client side, so only you see it."
+ },
+ {
+  "repo": "gold011/Bad-Graphics",
+  "name": "Bad Graphics",
+  "category": "cosmetics",
+  "tags": ["funny", "graphics", "meme"],
+  "description": "A joke mod that makes Gorilla Tag look terrible on purpose. Great for a laugh or a cursed video."
+ },
+ {
+  "repo": "hollowvr/GTskybox",
+  "name": "GT Skybox",
+  "category": "cosmetics",
+  "tags": ["sky", "visuals"],
+  "description": "Changes the Gorilla Tag skybox to a different sky. A simple visual change that only you see."
+ },
+ {
+  "repo": "RaginggYT/Gravity-Monke",
+  "name": "Gravity Monke",
+  "category": "gameplay",
+  "tags": ["gravity", "movement", "modded lobbies"],
+  "description": "Customise your gravity in Gorilla Tag. Float around in low gravity or make yourself heavy. Drop the dll in plugins and use it in modded lobbies.\n\nan older mod (2022), so it may not work with the newest game update."
+ }
+]

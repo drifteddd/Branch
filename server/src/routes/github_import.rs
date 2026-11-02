@@ -313,6 +313,7 @@ pub struct SeedMod {
 
 const SEED: &str = include_str!("../seed_mods.json");
 const SEED_2: &str = include_str!("../seed_mods_2.json");
+const SEED_3: &str = include_str!("../seed_mods_3.json");
 pub const HOSTED_NOTE: &str = "hosted by Branch with credit to the author. the original is on github. creators can ask for it to be removed at any time at drifted1000@outlook.com.";
 const MENU_NOTE: &str = "\n\n**heads up:** mod menus change how the game plays for you and sometimes for others. only use them in private or modded lobbies; using them in public lobbies can get your account banned.";
 
@@ -327,6 +328,7 @@ fn category_fallback(slug: &str) -> &str {
 fn seed_list() -> Result<Vec<SeedMod>, serde_json::Error> {
     let mut mods: Vec<SeedMod> = serde_json::from_str(SEED)?;
     mods.extend(serde_json::from_str::<Vec<SeedMod>>(SEED_2)?);
+    mods.extend(serde_json::from_str::<Vec<SeedMod>>(SEED_3)?);
     Ok(mods)
 }
 const SEED_KEY: &str = "github_seed_done";

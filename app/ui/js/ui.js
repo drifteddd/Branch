@@ -194,6 +194,15 @@ export function setBusy(el, busy) {
 
 export { clear };
 
+export function libraryTabs(active) {
+  const tabs = [["favorites", "#/favorites", "star", "Favorites"], ["recent", "#/recent", "clock", "Recently viewed"], ["watch", "#/watch", "bell", "Watchlist"]];
+  return h(
+    "nav",
+    { class: "library-tabs", "aria-label": "Library" },
+    tabs.map(([key, href, iconName, label]) => h("a", { href, class: key === active ? "active" : "", "aria-current": key === active ? "page" : null }, icon(iconName), label)),
+  );
+}
+
 export function youtubeId(raw) {
   const s = String(raw || "").trim();
   if (/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
