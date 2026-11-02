@@ -1373,10 +1373,6 @@ svg.thumb, svg.hero-img, svg.ch-thumb, svg.wt-branch-thumb, svg.ob-pick-thumb { 
 @keyframes rate-out { to { opacity: 0; transform: translateY(12px); } }
 @media (prefers-reduced-motion: reduce) { .rate-prompt, .rate-prompt.leaving { animation: none; } }
 
-.nav-upload { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 34px; margin: 0 4px 12px; border-radius: var(--r-m); background: var(--accent); color: var(--on-accent); font-weight: 600; text-decoration: none; box-shadow: var(--shadow-1); transition: filter var(--fast) var(--ease); }
-.nav-upload:hover { filter: brightness(1.06); }
-.nav-upload svg { width: 16px; height: 16px; }
-.nav-upload[aria-current="page"] { box-shadow: 0 0 0 2px var(--focus-soft), var(--shadow-1); }
 .nav-fold > summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; border-radius: var(--r-m); }
 .nav-fold > summary::-webkit-details-marker { display: none; }
 .nav-fold > summary::after { content: ""; width: 7px; height: 7px; margin-right: 2px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform var(--fast) var(--ease); }
@@ -1414,3 +1410,5 @@ svg.thumb, svg.hero-img, svg.ch-thumb, svg.wt-branch-thumb, svg.ob-pick-thumb { 
 .av-result.caution svg { color: #c46a00; }
 .av-result.flagged { background: rgba(214, 60, 40, 0.12); }
 .av-result.flagged svg { color: #c4392b; }
+.community-tabs .community-inbox-badge { display: inline-block; min-width: 18px; margin-left: 4px; padding: 0 6px; border-radius: 980px; background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; line-height: 17px; text-align: center; }
+.community-tabs .community-inbox-badge[hidden] { display: none; }

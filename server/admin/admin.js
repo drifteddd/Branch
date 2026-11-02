@@ -1514,7 +1514,7 @@ async function renderPolls() {
     { class: "card form-grid" },
     h("h2", { class: "full" }, "New poll"),
     h("div", { class: "full" }, field("poll-question", "Question", question, { required: true })),
-    h("div", { class: "full" }, field("poll-options", "Options", options, { required: true, hint: "everyone sees the poll at the top of the Community tab and can vote once (they can change their vote while it's open)." })),
+    h("div", { class: "full" }, field("poll-options", "Options", options, { required: true, hint: "it pops up once for everyone when they open the app (they can vote or skip), and stays in the Community tab where people can change their vote until it closes. polls that never close pop up for 7 days." })),
     field("poll-days", "Closes", days),
     h("div", { class: "full" }, error, send),
   );

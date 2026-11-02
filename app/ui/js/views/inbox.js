@@ -5,6 +5,7 @@ import { forumKey } from "../forum-identity.js";
 import { errorBlock, stateBlock } from "../ui.js";
 import { renderMarkdown } from "../../shared/markdown.js";
 import { watchInboxItems } from "./watch.js";
+import { communityTabs } from "./forum.js";
 
 const SEEN_KEY = "branch.inboxSeen";
 const FILTERS = [["all", "All"], ["announcement", "Announcements"], ["update", "Updates"], ["mods", "Mod updates"], ["report", "My reports"]];
@@ -35,7 +36,7 @@ function toItems(data) {
   }
   for (const r of data.releases || []) {
     if (!r.published_at) continue;
-    items.push({ type: "update", kind: "release", id: `r-${r.id}`, title: `Branch ${r.version}`, body: r.notes || "", date: new Date(r.published_at) });
+    items.push({ type: "update", kind: "release", id: `r-${r.id}`, title: r.title && !/^Branch /.test(r.title) ? `${r.title} · ${r.version}` : `Branch ${r.version}`, body: r.notes || "", date: new Date(r.published_at) });
   }
   for (const r of data.reports || []) {
     items.push({ type: "report", id: `p-${r.id}`, report: r, date: new Date(r.resolved_at || r.created_at) });
@@ -122,12 +123,12 @@ export function createInboxView(ctx) {
   }
 
   async function render() {
-    clear(el).append(h("header", { class: "view-head" }, h("h1", { class: "view-title", id: "inbox-title" }, "Inbox")), h("div", { class: "spinner", role: "progressbar", "aria-label": "Loading inbox" }));
+    clear(el).append(communityTabs("inbox"), h("header", { class: "view-head" }, h("h1", { class: "view-title", id: "inbox-title" }, "Inbox")), h("div", { class: "spinner", role: "progressbar", "aria-label": "Loading inbox" }));
     let data;
     try {
       data = await api("/api/inbox", { method: "POST", body: { key: forumKey() } });
     } catch (err) {
-      clear(el).append(h("header", { class: "view-head" }, h("h1", { class: "view-title", id: "inbox-title" }, "Inbox")), errorBlock(err, render));
+      clear(el).append(communityTabs("inbox"), h("header", { class: "view-head" }, h("h1", { class: "view-title", id: "inbox-title" }, "Inbox")), errorBlock(err, render));
       return;
     }
     since = seenAt();
@@ -147,7 +148,7 @@ export function createInboxView(ctx) {
       }),
     );
     clear(el).append(
-      h("header", { class: "view-head" }, h("h1", { class: "view-title", id: "inbox-title" }, "Inbox")),
+      communityTabs("inbox"), h("header", { class: "view-head" }, h("h1", { class: "view-title", id: "inbox-title" }, "Inbox")),
       h("p", { class: "muted inbox-intro" }, "news from the Branch team, what's new in each update, new versions of mods you watch, and replies to the reports you've sent."),
       tabs,
       list,

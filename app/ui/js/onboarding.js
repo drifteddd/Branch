@@ -56,9 +56,8 @@ const TOUR = [
   { use: "assistant", selector: '[data-nav="ask"]', title: "Ask Branch", text: "a free AI that knows every mod, the app and the tracker." },
   { use: "upload", selector: '[data-nav="upload"]', title: "Upload a mod", text: "share your own mod. just drop the file and the AI sets up the listing." },
   { use: "checker", selector: '[data-nav="check"]', title: "Mod checker", text: "check any .dll for viruses and stealers before you use it." },
-  { use: "community", selector: '[data-nav="forum"]', title: "Community", text: "a forum and one big live chat. no account needed." },
+  { use: "community", selector: '[data-nav="forum"]', title: "Community", text: "a forum, one big live chat, polls, and your inbox with announcements and replies to your reports." },
   { use: "rewards", selector: '[data-nav="rewards"]', title: "Creator hub", text: "make a free creator account to manage your uploads and earn Robux while the program runs." },
-  { use: null, selector: '[data-nav="inbox"]', title: "Inbox", text: "announcements, what's new in each update, and replies to your reports." },
   { use: null, selector: '[data-nav="settings"]', title: "Settings", text: "change your name, theme and background any time. you can run this setup again here too." },
 ];
 

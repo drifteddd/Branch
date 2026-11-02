@@ -101,6 +101,50 @@ struct MyReport {
 }
 
 static RELEASES: Mutex<Option<(Instant, Value)>> = Mutex::new(None);
+const CHANGELOG: &str = include_str!("../changelog.json");
+
+fn version_number(v: &str) -> Vec<u64> {
+    v.trim_start_matches('v').split('.').map(|p| p.parse().unwrap_or(0)).collect()
+}
+
+fn clean_notes(notes: &str) -> String {
+    let mut out = notes;
+    for marker in ["
+
+Download **", "
+
+**Windows:**", "
+
+If you already have Branch"] {
+        if let Some(i) = out.find(marker) {
+            out = &out[..i];
+        }
+    }
+    out.trim().to_string()
+}
+
+fn with_changelog(fetched: &[Value]) -> Value {
+    let history: Vec<Value> = serde_json::from_str(CHANGELOG).unwrap_or_default();
+    let newest = history.iter().filter_map(|h| h["version"].as_str()).map(version_number).max().unwrap_or_default();
+    let mut items: Vec<Value> = fetched
+        .iter()
+        .filter(|r| r["version"].as_str().is_some_and(|v| version_number(v) > newest))
+        .map(|r| {
+            let mut r = r.clone();
+            if let Some(notes) = r["notes"].as_str().map(clean_notes) {
+                r["notes"] = json!(notes);
+            }
+            r
+        })
+        .collect();
+    items.extend(history.into_iter().map(|mut h| {
+        let version = h["version"].as_str().unwrap_or("").to_string();
+        h["id"] = json!(format!("v{version}"));
+        h["url"] = json!(format!("https://github.com/drifteddd/Branch/releases/tag/v{version}"));
+        h
+    }));
+    Value::Array(items)
+}
 static LAST_TRY: Mutex<Option<Instant>> = Mutex::new(None);
 
 async fn releases(state: &AppState) -> Value {
@@ -161,6 +205,7 @@ async fn releases(state: &AppState) -> Value {
         }
         .await,
     };
+    let fetched = fetched.map(|v| with_changelog(v.as_array().map(Vec::as_slice).unwrap_or(&[])));
     match fetched {
         Some(value) => {
             if let Ok(mut cache) = RELEASES.lock() {
@@ -168,7 +213,7 @@ async fn releases(state: &AppState) -> Value {
             }
             value
         }
-        None => RELEASES.lock().ok().and_then(|c| c.as_ref().map(|(_, v)| v.clone())).unwrap_or_else(|| json!([])),
+        None => RELEASES.lock().ok().and_then(|c| c.as_ref().map(|(_, v)| v.clone())).unwrap_or_else(|| with_changelog(&[])),
     }
 }
 
@@ -260,7 +305,23 @@ async fn delete_announcement(State(state): State<AppState>, Admin(admin): Admin,
 
 #[cfg(test)]
 mod tests {
-    use super::parse_feed;
+    use super::{parse_feed, with_changelog};
+    use serde_json::json;
+
+    #[test]
+    fn changelog_replaces_old_releases_and_cleans_new_ones() {
+        let fetched = vec![
+            json!({ "id": 1, "version": "99.0.0", "title": "Branch 99.0.0", "notes": "- big thing
+
+**Windows:** download x below." }),
+            json!({ "id": 2, "version": "1.0.18", "title": "Branch 1.0.18", "notes": "old notes" }),
+        ];
+        let items = with_changelog(&fetched);
+        let items = items.as_array().unwrap();
+        assert_eq!(items[0]["notes"], "- big thing");
+        assert!(items.iter().all(|i| i["notes"] != "old notes"));
+        assert!((8..=12).contains(&(items.len() - 1)));
+    }
 
     #[test]
     fn reads_the_release_feed() {

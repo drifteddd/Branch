@@ -463,12 +463,23 @@ export function createForumView(ctx) {
   };
 }
 
-function communityTabs(active) {
+let inboxCount = 0;
+
+export function setCommunityInboxCount(count) {
+  inboxCount = count;
+  for (const badge of document.querySelectorAll(".community-inbox-badge")) {
+    badge.textContent = count > 99 ? "99+" : String(count);
+    badge.hidden = !count;
+  }
+}
+
+export function communityTabs(active) {
   return h(
     "nav",
     { class: "community-tabs", "aria-label": "Community" },
-    h("a", { href: "#/forum", "aria-current": active === "forum" ? "page" : null }, icon("inbox"), "Forum"),
+    h("a", { href: "#/forum", "aria-current": active === "forum" ? "page" : null }, icon("layers"), "Forum"),
     h("a", { href: "#/forum/chat", "aria-current": active === "chat" ? "page" : null }, icon("chat"), "Chat"),
     h("a", { href: "#/forum/polls", "aria-current": active === "polls" ? "page" : null }, icon("poll"), "Polls"),
+    h("a", { href: "#/inbox", "aria-current": active === "inbox" ? "page" : null }, icon("inbox"), "Inbox", h("span", { class: "inbox-tab-count community-inbox-badge", hidden: !inboxCount }, inboxCount > 99 ? "99+" : String(inboxCount))),
   );
 }

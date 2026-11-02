@@ -168,6 +168,15 @@ async fn create(State(state): State<AppState>, Admin(admin): Admin, Json(input):
             .execute(&mut *tx)
             .await?;
     }
+    sqlx::query(
+        "insert into popups (id, kind, title, poll_id, ends_at, created_by)
+         select $1, 'poll', question, id, coalesce(closes_at, now() + interval '7 days'), $3 from polls where id = $2",
+    )
+    .bind(Uuid::new_v4())
+    .bind(id)
+    .bind(admin.id)
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
     audit(&state.db, &admin, "create_poll", question, &options.join(" / ")).await;
     Ok(Json(json!({ "ok": true, "id": id })))

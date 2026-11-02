@@ -13,7 +13,7 @@ import { createBrowseView } from "./views/browse.js";
 import { createDetailView } from "./views/detail.js";
 import { createSettingsView, createAboutView, createLegalView } from "./views/pages.js";
 import { createUploadView } from "./views/upload.js";
-import { createForumView } from "./views/forum.js";
+import { createForumView, setCommunityInboxCount } from "./views/forum.js";
 import { createRewardsView } from "./views/rewards.js";
 import { createCheckerView } from "./views/checker.js";
 import { createTreeView } from "./views/tree.js";
@@ -74,6 +74,7 @@ const ctx = {
     refreshAmbient();
   },
   setInboxCount(count) {
+    setCommunityInboxCount(count);
     const badge = document.getElementById("inbox-count");
     if (!badge) return;
     badge.textContent = count > 9 ? "9+" : String(count);
@@ -177,8 +178,10 @@ function markSidebar() {
       if (active) document.getElementById("categories-fold").open = true;
     } else if (route.mode === "favorites" || route.mode === "recent") active = sidebar.querySelector('[data-nav="library"]');
     else active = sidebar.querySelector(`[data-nav="${route.mode}"]`);
-  } else if (["settings", "about", "upload", "check", "forum", "rewards", "tree", "tracker", "ask", "inbox", "manager"].includes(route.name)) {
+  } else if (["settings", "about", "upload", "check", "forum", "rewards", "tree", "tracker", "ask", "manager"].includes(route.name)) {
     active = sidebar.querySelector(`[data-nav="${route.name}"]`);
+  } else if (route.name === "inbox") {
+    active = sidebar.querySelector('[data-nav="forum"]');
   } else if (route.name === "watch") {
     active = sidebar.querySelector('[data-nav="library"]');
   } else if (route.name === "edit") {

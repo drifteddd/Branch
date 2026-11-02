@@ -289,9 +289,20 @@ pub async fn load_detail(db: &PgPool, lookup: Lookup<'_>) -> Result<Option<ModDe
     .fetch_all(db)
     .await?;
 
-    let code_review: Option<(String, String, Option<String>, DateTime<Utc>)> = match releases.first().and_then(|r| r.file_sha256.clone()) {
-        Some(sha) => sqlx::query_as("select verdict, notes, source_url, reviewed_at from code_reviews where sha256 = $1").bind(sha).fetch_optional(db).await?,
-        None => None,
+    let sha = releases.first().and_then(|r| r.file_sha256.clone());
+    let repo = crate::github::repo_of(m.source_url.as_deref(), m.project_url.as_deref()).map(|(owner, name)| format!("{owner}/{name}").to_lowercase());
+    let code_review: Option<(String, String, Option<String>, DateTime<Utc>)> = if sha.is_some() || repo.is_some() {
+        sqlx::query_as(
+            "select verdict, notes, source_url, reviewed_at from code_reviews
+             where ($1::text is not null and sha256 = $1) or ($2::text is not null and lower(repo) = $2)
+             order by (sha256 is not distinct from $1) desc, reviewed_at desc limit 1",
+        )
+        .bind(&sha)
+        .bind(&repo)
+        .fetch_optional(db)
+        .await?
+    } else {
+        None
     };
     let code_review = code_review.map(|(verdict, notes, source_url, reviewed_at)| serde_json::json!({ "verdict": verdict, "notes": notes, "source_url": source_url, "reviewed_at": reviewed_at }));
 

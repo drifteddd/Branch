@@ -1,0 +1,62 @@
+[
+ {
+  "version": "1.0.31",
+  "title": "Branch on Linux",
+  "published_at": "2026-11-02T02:17:13Z",
+  "notes": "- Branch now runs on Linux. the AppImage updates itself like the Windows version\n- the mod manager finds Gorilla Tag in Linux Steam folders"
+ },
+ {
+  "version": "1.0.30",
+  "title": "New sidebar and Library",
+  "published_at": "2026-11-02T01:54:23Z",
+  "notes": "- cleaned up the sidebar\n- favorites, recently viewed and your watchlist now live together in Library\n- 58 more mods"
+ },
+ {
+  "version": "1.0.27",
+  "title": "Creator accounts",
+  "published_at": "2026-11-02T00:41:07Z",
+  "notes": "- optional accounts, just a username and password\n- edit your mods after uploading them and post new versions\n- the creator hub and robux rewards need an account. uploading doesn't"
+ },
+ {
+  "version": "1.0.26",
+  "title": "Mod manager",
+  "published_at": "2026-11-01T22:47:02Z",
+  "notes": "- link your Gorilla Tag folder to turn mods on and off, update them, remove them or scan them\n- install mods into the game with one click\n- screenshots and youtube videos on mod pages\n- polls in Community"
+ },
+ {
+  "version": "1.0.25",
+  "title": "Hundreds of new mods",
+  "published_at": "2026-11-01T19:35:12Z",
+  "notes": "- 300+ new mods, including a Menus category\n- every mod downloads straight from Branch now\n- mods without a thumbnail get a generated cover"
+ },
+ {
+  "version": "1.0.24",
+  "title": "Creator hub and Watchlist",
+  "published_at": "2026-11-01T18:22:17Z",
+  "notes": "- creator hub with levels, badges and download stats\n- mods linked to github update themselves\n- watchlist: paste any github link and get told when a new version is out"
+ },
+ {
+  "version": "1.0.23",
+  "title": "First-time setup",
+  "published_at": "2026-10-31T18:18:32Z",
+  "notes": "- new setup and tour when you first open Branch\n- you can turn Branch AI off completely in settings\n- safety scores are fairer"
+ },
+ {
+  "version": "1.0.21",
+  "title": "Inbox",
+  "published_at": "2026-10-31T17:10:03Z",
+  "notes": "- inbox for announcements, update notes and replies to your reports\n- new backgrounds\n- redesigned Tree of Life"
+ },
+ {
+  "version": "1.0.19",
+  "title": "Easy upload and ratings",
+  "published_at": "2026-10-31T04:53:01Z",
+  "notes": "- drop in a .dll and the listing gets written for you\n- star ratings, and Featured is now the top rated mods\n- upload mods from the Discord server"
+ },
+ {
+  "version": "1.0.18",
+  "title": "Auto updates",
+  "published_at": "2026-10-31T03:46:36Z",
+  "notes": "- Branch updates itself now\n- Ask Branch, a free AI helper\n- Player Tracker (beta)\n- animated backgrounds"
+ }
+]

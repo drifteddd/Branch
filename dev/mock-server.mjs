@@ -507,6 +507,7 @@ async function adminApi(req, res, path, url) {
       if (options.length < 2) return fail(res, 422, "add at least 2 options", { options: "add at least 2 options" });
       const poll = { id: randomUUID(), question: body.question.trim(), closed: false, closes_at: body.days ? new Date(Date.now() + body.days * 86400000).toISOString() : null, created_at: new Date().toISOString(), options: options.map((label) => ({ id: randomUUID(), label })) };
       polls.unshift(poll);
+      popups.unshift({ id: randomUUID(), kind: "poll", title: poll.question, body: "", poll_id: poll.id, ends_at: poll.closes_at || new Date(Date.now() + 7 * 86400000).toISOString(), ended: false, created_at: new Date().toISOString() });
       return send(res, 200, { ok: true, id: poll.id });
     }
     const poll = polls.find((x) => x.id === parts[1]);
