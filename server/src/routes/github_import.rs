@@ -334,6 +334,26 @@ fn seed_list() -> Result<Vec<SeedMod>, serde_json::Error> {
     Ok(mods)
 }
 const SEED_KEY: &str = "github_seed_done";
+const SEED_INFLIGHT_KEY: &str = "github_seed_inflight";
+const REHOST_INFLIGHT_KEY: &str = "github_rehost_inflight";
+const REHOST_SKIP_KEY: &str = "github_rehost_skip";
+
+async fn get_setting(state: &AppState, key: &str) -> Result<Option<Value>, sqlx::Error> {
+    sqlx::query_scalar("select value from app_settings where key = $1").bind(key).fetch_optional(&state.db).await
+}
+
+async fn set_setting(state: &AppState, key: &str, value: &Value) -> Result<(), sqlx::Error> {
+    sqlx::query("insert into app_settings (key, value) values ($1, $2) on conflict (key) do update set value = excluded.value")
+        .bind(key)
+        .bind(value)
+        .execute(&state.db)
+        .await
+        .map(|_| ())
+}
+
+async fn clear_setting(state: &AppState, key: &str) -> Result<(), sqlx::Error> {
+    sqlx::query("delete from app_settings where key = $1").bind(key).execute(&state.db).await.map(|_| ())
+}
 
 pub fn spawn_seed(state: AppState) {
     tokio::spawn(async move {
@@ -351,6 +371,14 @@ async fn run_seed(state: &AppState) -> Result<(), Skip> {
     let mods = seed_list().map_err(|e| Skip(e.to_string()))?;
     let done_value: Option<Value> = sqlx::query_scalar("select value from app_settings where key = $1").bind(SEED_KEY).fetch_optional(&state.db).await?;
     let mut done: Vec<String> = done_value.and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default();
+    if let Some(crashed) = get_setting(state, SEED_INFLIGHT_KEY).await?.and_then(|v| v.as_str().map(str::to_string)) {
+        tracing::warn!(repo = %crashed, "the server stopped while importing this mod last time, so it is skipped");
+        if !done.contains(&crashed) {
+            done.push(crashed);
+            set_setting(state, SEED_KEY, &json!(done)).await?;
+        }
+        clear_setting(state, SEED_INFLIGHT_KEY).await?;
+    }
     let todo: Vec<&SeedMod> = mods.iter().filter(|m| !done.contains(&m.repo.to_ascii_lowercase())).collect();
     if todo.is_empty() {
         return Ok(());
@@ -370,10 +398,12 @@ async fn run_seed(state: &AppState) -> Result<(), Skip> {
     for (i, m) in todo.iter().enumerate() {
         let Some((owner, repo)) = parse_repo(&m.repo) else { continue };
         update(i, "working", "checking github", None);
+        set_setting(state, SEED_INFLIGHT_KEY, &json!(m.repo.to_ascii_lowercase())).await?;
         let result = match rewrite_imported(state, &owner, &repo, m).await? {
             Some(id) => Ok((id, format!("{} · listing rewritten", m.name))),
             None => import_one(state, &owner, &repo, true, Some(m)).await,
         };
+        clear_setting(state, SEED_INFLIGHT_KEY).await?;
         let finished = match result {
             Ok((id, message)) => {
                 update(i, "done", message, Some(id));
@@ -445,6 +475,14 @@ async fn rehost_external(state: &AppState) -> Result<(), Skip> {
     )
     .fetch_all(&state.db)
     .await?;
+    let mut skip: Vec<String> = get_setting(state, REHOST_SKIP_KEY).await?.and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default();
+    if let Some(crashed) = get_setting(state, REHOST_INFLIGHT_KEY).await?.and_then(|v| v.as_str().map(str::to_string)) {
+        tracing::warn!(mod_id = %crashed, "the server stopped while hosting this mod's file last time, so it is skipped");
+        skip.push(crashed);
+        set_setting(state, REHOST_SKIP_KEY, &json!(skip)).await?;
+        clear_setting(state, REHOST_INFLIGHT_KEY).await?;
+    }
+    let rows: Vec<ExternalRow> = rows.into_iter().filter(|r| !skip.contains(&r.mod_id.to_string())).collect();
     if rows.is_empty() {
         return Ok(());
     }
@@ -452,6 +490,7 @@ async fn rehost_external(state: &AppState) -> Result<(), Skip> {
     let mut moved = 0;
     for row in rows {
         let Some((owner, repo)) = repo_of(row.source_url.as_deref(), row.project_url.as_deref()) else { continue };
+        set_setting(state, REHOST_INFLIGHT_KEY, &json!(row.mod_id.to_string())).await?;
         let result: Result<(), String> = async {
             let release = latest_release(state, &owner, &repo).await?.ok_or("no releases on github")?;
             if crate::github::normalize_version(&release.version) != crate::github::normalize_version(&row.version) && crate::github::normalize_version(&release.tag) != crate::github::normalize_version(&row.version) {
@@ -491,6 +530,7 @@ async fn rehost_external(state: &AppState) -> Result<(), Skip> {
             Ok(())
         }
         .await;
+        clear_setting(state, REHOST_INFLIGHT_KEY).await?;
         match result {
             Ok(()) => moved += 1,
             Err(reason) => tracing::info!(mod_id = %row.mod_id, reason = %reason, "kept the github link"),

@@ -7,8 +7,8 @@ use crate::util::{sanitize_filename, sha256_hex};
 
 pub const MAX_CHECK_BYTES: usize = 50 * 1024 * 1024;
 const MAX_ZIP_ENTRIES: usize = 2000;
-const MAX_ENTRY_BYTES: u64 = 25 * 1024 * 1024;
-const MAX_UNZIPPED_TOTAL: u64 = 120 * 1024 * 1024;
+const MAX_ENTRY_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_UNZIPPED_TOTAL: u64 = 48 * 1024 * 1024;
 
 #[derive(Serialize, Clone, Debug)]
 pub struct Indicator {
