@@ -1,7 +1,7 @@
 import { h, clear } from "../dom.js";
 import { icon } from "../icons.js";
 import { renderMarkdown } from "../../shared/markdown.js";
-import { appVersion, assetUrl, isDesktop, openExternal } from "../platform.js";
+import { appVersion, isDesktop, openAdmin, openExternal } from "../platform.js";
 import { showStory } from "../story.js";
 import { AMBIENT_STYLES } from "../ambient.js";
 import { checkNow, updatesSupported } from "../updater.js";
@@ -17,8 +17,8 @@ function adminDoor() {
     timer = setTimeout(() => { clicks = 0; }, 1500);
     if (clicks >= 7) {
       clicks = 0;
-      toast("Opening the admin panel in your browser");
-      openExternal(new URL(assetUrl("/admin"), location.href).href).catch(() => toast("couldn't open your browser", { tone: "error" }));
+      toast("Opening the admin panel");
+      openAdmin().catch(() => toast("couldn't open the admin panel", { tone: "error" }));
     }
   });
   return img;

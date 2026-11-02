@@ -136,6 +136,11 @@ export async function openExternal(url) {
   else window.open(url, "_blank", "noopener,noreferrer");
 }
 
+export async function openAdmin() {
+  if (isDesktop) await tauri.core.invoke("open_admin");
+  else window.open("/admin", "_blank", "noopener,noreferrer");
+}
+
 export function outboundUrl(releaseId) {
   return `${apiBase || location.origin}/api/releases/${encodeURIComponent(releaseId)}/out`;
 }

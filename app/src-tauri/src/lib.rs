@@ -66,6 +66,26 @@ fn api_base() -> &'static str {
 }
 
 #[tauri::command]
+fn open_admin(app: AppHandle) -> Result<(), CmdError> {
+    if let Some(window) = app.get_webview_window("admin") {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        return Ok(());
+    }
+    let url = tauri::Url::parse(&format!("{}/admin", base_url())).map_err(|_| CmdError::new("app", "bad admin address"))?;
+    let origin = url.origin();
+    tauri::WebviewWindowBuilder::new(&app, "admin", tauri::WebviewUrl::External(url))
+        .title("Branch admin")
+        .inner_size(1240.0, 840.0)
+        .min_inner_size(720.0, 520.0)
+        .center()
+        .on_navigation(move |next| next.origin() == origin)
+        .build()
+        .map_err(|e| CmdError::new("app", e.to_string()))?;
+    Ok(())
+}
+
+#[tauri::command]
 fn window_material(material: State<'_, Material>) -> &'static str {
     material.0
 }
@@ -521,6 +541,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             api_base,
+            open_admin,
             window_material,
             api_request,
             api_upload,
