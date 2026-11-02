@@ -1,8 +1,8 @@
 # Copyright and Takedown Policy
 
-**Effective October 29, 2026**
+**Effective November 2, 2026**
 
-Drifted (the "**Operator**") respects the intellectual property rights of others and expects users of Branch to do the same. Branch hosts Mods uploaded by users. This policy explains how rights holders may request removal of material and how uploaders may respond.
+Drifted (the "**Operator**") respects the intellectual property rights of others and expects users of Branch to do the same. Branch hosts Mods uploaded by users, and copies of Mods that their authors published on GitHub, credited to those authors. This policy explains how rights holders may request removal of material and how uploaders may respond.
 
 ## 1. Submitting a Takedown Notice
 
@@ -38,4 +38,6 @@ The Operator may, in appropriate circumstances and at its sole discretion, restr
 
 ## 5. Distribution Permission
 
-Crediting an author does not by itself grant permission to redistribute their work. Users who upload a Mod must confirm that they created it or have the right to distribute it. Where permission to host a copy is unclear, the Operator links to the author's original release instead of hosting a copy.
+Crediting an author does not by itself grant permission to redistribute their work. Users who upload a Mod must confirm that they created it or have the right to distribute it.
+
+For Mods listed from GitHub, Branch hosts a copy of the author's published release, credits the author and links to the original repository where possible. If you are the author of a Mod listed this way and you don't want Branch to host it, email **drifted1000@outlook.com** from an address or account that shows you control the repository (or open an issue on the repository mentioning Branch), and the Operator will remove the copy, or replace it with a link to your release if you prefer. A formal notice under Section 1 is not required for this.

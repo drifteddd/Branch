@@ -1,6 +1,6 @@
 # Terms of Use
 
-**Version 10** · Effective October 31, 2026
+**Version 11** · Effective November 2, 2026
 
 These Terms of Use (the "**Terms**") form a binding agreement between you and Drifted (the "**Operator**," "**we**," "**us**"), the operator of the Branch application, its server and related services (together, "**Branch**" or the "**Service**"). By selecting "Agree and continue," or by accessing or using the Service, you confirm that you have read, understood and agree to be bound by these Terms and by the Privacy Notice, which is incorporated by reference. If you do not agree, you must not access or use the Service.
 
@@ -12,7 +12,7 @@ These Terms of Use (the "**Terms**") form a binding agreement between you and Dr
 
 ## 2. Description of the Service
 
-2.1 Branch is a free directory and distribution platform for user-generated modifications ("**Mods**") for the video game Gorilla Tag. The Service also provides an automated malware-analysis tool (the "**Mod Checker**"), the ability for users to upload Mods ("**User Submissions**"), and a public discussion forum with a shared live chat room (together, the "**Community Forum**").
+2.1 Branch is a free directory and distribution platform for user-generated modifications ("**Mods**") for the video game Gorilla Tag. The Service also provides an automated malware-analysis tool (the "**Mod Checker**"), the ability for users to upload Mods ("**User Submissions**"), and a public discussion forum with a shared live chat room (together, the "**Community Forum**"). It also offers optional creator accounts, a Mod manager for the Mods installed on your computer, a Watchlist for Mods published on GitHub, polls, and an AI assistant.
 
 2.2 Branch is an independent project. It is not affiliated with, endorsed by, sponsored by or otherwise connected to Another Axiom Inc. or the developers of Gorilla Tag. All trademarks, names and logos are the property of their respective owners and are used solely for identification.
 
@@ -25,6 +25,12 @@ These Terms of Use (the "**Terms**") form a binding agreement between you and Dr
 3.2 You acknowledge that downloading, installing or using any Mod is done entirely at your own risk. Mods may contain defects or harmful code, may damage your device, software or data, may cease to function after game updates, and may violate the terms of service of Gorilla Tag or other platforms, which can result in suspension or termination of your game account. You are solely responsible for complying with all third-party terms that apply to you.
 
 3.3 Compatibility labels, descriptions, download counts and other information displayed on the Service are provided for convenience only and may be inaccurate or out of date.
+
+3.4 **Mods from GitHub.** The Service lists and may host copies of Mods that their authors have published on GitHub, credited to those authors and linked to the original where possible. These Mods are not uploaded by the Operator's users and are listed for convenience. Authors and other rights holders may ask for a Mod to be removed under the Copyright and Takedown Policy.
+
+3.5 **Source code reviews.** Some Mod pages show a review of the Mod's published source code. A review reflects what the Operator found in the published source at the time it was checked. It does not cover every possible build, cannot confirm that a downloaded file was built from that source, and is not a guarantee that a Mod is safe or works.
+
+3.6 **Mod manager.** If you link your Gorilla Tag folder, the Mod manager can rename, move, add and remove Mod files in that folder when you ask it to. Removed files are moved to a backup folder rather than deleted. You are responsible for what you install and for keeping your own backups.
 
 ## 4. User Submissions
 
@@ -41,6 +47,12 @@ These Terms of Use (the "**Terms**") form a binding agreement between you and Dr
 4.5A **Uploads through Discord.** Files posted in the upload channel of the official Branch Discord server are User Submissions under these Terms and are published to the Service automatically. By posting a file there, you make the representations and warranties in Section 4.2 and grant the license in Section 4.3, exactly as if you had uploaded it in the app. Your use of Discord is also governed by Discord's own terms.
 
 4.5B **Ratings.** You may rate listed Mods from one (1) to five (5) stars. Ratings are anonymous, one per person per Mod, and are used to order Mods and to select Featured Mods automatically. You must not manipulate ratings, for example by using multiple devices or networks to rate the same Mod more than once. The Operator may remove ratings that appear to be manipulated.
+
+4.5C **Creator accounts.** Creator accounts are optional and are needed only for the Creator hub, the Rewards Program and editing your uploads. You must keep your password private and you are responsible for activity on your account. Branch does not collect an email address, so a forgotten password cannot be recovered. Accounts are personal and may not be sold or transferred. The Operator may suspend or remove an account that breaks these Terms.
+
+4.5D **Editing and new versions.** If you edit a User Submission or post a new version of it, everything you change or add is a User Submission under these Terms, and the representations and warranties in Section 4.2 and the license in Section 4.3 apply to it. New versions go through the same automated safety check.
+
+4.5E **Profile pictures.** If you upload a profile picture, you must have the right to use it, and it must not be unlawful, hateful, sexual, harassing, or a picture of another person without their permission. The Operator may remove a profile picture that breaks these Terms.
 
 4.6 **Automatically generated listing content.** When you upload a User Submission, the Service may use automated and artificial-intelligence systems to generate and publish information alongside it, including an overview, feature highlights, tags, a category, required dependencies, an estimated in-game ban risk, an assessment of whether the description matches the file, and a safety risk score (together, "**Automated Listing Content**"). Automated Listing Content is shown separately from, and does not replace, the material you provide. It is generated by software, may be incomplete or inaccurate, and is provided for information only. It is not a review, certification or endorsement by the Operator, and you must not rely on it as a guarantee that a Mod is safe, works as described or complies with any game's rules. The Operator may edit or remove Automated Listing Content at any time.
 
@@ -92,7 +104,7 @@ You agree that you will not: (a) upload or distribute malicious code of any kind
 
 ## 10. Disclaimer of Warranties
 
-TO THE FULLEST EXTENT PERMITTED BY APPLICABLE LAW, THE SERVICE, ALL MODS, USER SUBMISSIONS, MOD CHECKER RESULTS AND ALL OTHER CONTENT ARE PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY OR SECURITY. THE OPERATOR DOES NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE OR FREE OF HARMFUL COMPONENTS.
+TO THE FULLEST EXTENT PERMITTED BY APPLICABLE LAW, THE SERVICE, ALL MODS, USER SUBMISSIONS, MOD CHECKER RESULTS, SOURCE CODE REVIEWS AND ALL OTHER CONTENT ARE PROVIDED "AS IS" AND "AS AVAILABLE," WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS, IMPLIED OR STATUTORY, INCLUDING ANY IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE, NON-INFRINGEMENT, ACCURACY OR SECURITY. THE OPERATOR DOES NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE OR FREE OF HARMFUL COMPONENTS.
 
 ## 11. Limitation of Liability
 

@@ -17,10 +17,11 @@ the desktop app is built with these open source projects. their licenses still a
 - **reqwest**, **tokio**, **serde**, **serde_json**, **futures-util**, **sha2**, **hex**, **url** (MIT or Apache-2.0)
 - **window-vibrancy** (MIT or Apache-2.0)
 - **Microsoft Edge WebView2** runtime, which Windows provides to show the app's interface (Microsoft's license)
+- on Linux, **WebKitGTK** (LGPL-2.1), which the app uses to show its interface. the AppImage includes a copy of it and its libraries, each under its own license
 
 the Branch server uses axum, tokio, sqlx, object_store, image, zip, reqwest, argon2, tower-http and other Rust crates, mostly under MIT or Apache-2.0. the exact list of every package and version is in each project's Cargo.lock in the source code.
 
-the app uses the fonts that already come with Windows (Segoe UI). no fonts are bundled.
+the app uses the fonts that already come with your system (Segoe UI on Windows, your desktop's default font on Linux). no fonts are bundled.
 
 ## the mod checker
 

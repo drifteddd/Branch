@@ -1,14 +1,14 @@
 # Privacy Notice
 
-**Version 12** · Effective October 31, 2026
+**Version 13** · Effective November 2, 2026
 
 This Privacy Notice explains how Drifted (the "**Operator**," "**we**," "**us**") collects, uses, stores and shares information in connection with the Branch application and its related services (the "**Service**"). Contact: **drifted1000@outlook.com**.
 
-The Service does not require an account, does not display advertising, and does not use analytics, advertising trackers or tracking cookies.
+The Service does not require an account (creator accounts are optional), does not display advertising, and does not use analytics, advertising trackers or tracking cookies.
 
 ## 1. Information Stored on Your Device
 
-The following information is stored locally within the application on your device and is not transmitted to the Operator: your favorites, recently viewed Mods, display preferences, a record that you accepted the Terms of Use, and the secret Community Forum key described in Section 5. You may clear favorites and history in Settings, and all locally stored information is removed when you uninstall the application. Files you download are saved only to the location you choose.
+The following information is stored locally within the application on your device and is not transmitted to the Operator: your favorites, recently viewed Mods, display preferences, a record that you accepted the Terms of Use, the secret Community Forum key described in Section 5, your profile picture (unless you have a creator account), the Mods on your Watchlist, the location of your Gorilla Tag folder if you link it in the Mod manager, which Mods you downloaded and when (used only to ask you to rate them later), and which announcements and polls you have already seen. You may clear favorites and history in Settings, and all locally stored information is removed when you uninstall the application. Files you download are saved only to the location you choose.
 
 ## 2. Information Processed by the Service
 
@@ -60,9 +60,13 @@ If you submit a report or a mod request, we store the related Mod, the reason or
 
 **Creator hub and GitHub updates.** The Creator hub shows statistics about Mods you uploaded, worked out from the download and rating records described above. If a Mod you uploaded has a GitHub link, our server checks that GitHub repository for new releases about every thirty (30) minutes and, when one appears, adds it to your Mod after the automatic safety check described in Section 4. You can turn this off for each Mod in the Creator hub. Messages about these updates are linked to your Community Forum identity, shown in your Inbox, and deleted after ninety (90) days.
 
-**Profile picture.** Branch gives you a random profile picture (a colour and an icon) the first time you open it. Without a creator account it is saved only on your computer.
+**Profile picture.** The first time you open Branch, you get a profile picture made of the Branch logo on a random colour. You can pick another colour or upload your own picture, which the app crops and shrinks to a small image on your computer before using it. Without a creator account your profile picture is saved only on your computer. With a creator account it is saved to your account (see below). Only upload pictures you have the right to use, and don't upload pictures of other people without their permission.
 
-**Creator accounts.** Creator accounts are optional. If you make one, we store the username you choose, the profile picture you pick (a colour and an icon), a salted Argon2 hash of your password (never the password itself), when the account was made and when it last logged in, and a SHA-256 hash of the community key of each computer that is logged in to it. We do not ask for an email address or any other personal information. Mods you upload while logged in are linked to your account so you can edit them. Logging out removes that computer's login. To delete your account, email us at drifted1000@outlook.com.
+**Creator accounts.** Creator accounts are optional. If you make one, we store the username you choose, your profile picture (a colour, or the small picture you uploaded), a salted Argon2 hash of your password (never the password itself), when the account was made and when it last logged in, and a SHA-256 hash of the community key of each computer that is logged in to it. We do not ask for an email address or any other personal information. Mods you upload while logged in are linked to your account so you can edit them. Logging out removes that computer's login. To delete your account, email us at drifted1000@outlook.com.
+
+**Rating reminders.** When you download or install a Mod, the app remembers the Mod and the date on your computer so it can ask you to rate it about two days later. This record is not sent to us. If you rate the Mod, the rating is handled as described under Ratings.
+
+**Pop-ups.** The Operator can show an announcement or poll in a pop-up when you open the app. Which pop-ups you have already seen is stored only on your computer. Votes cast in a pop-up poll are handled as described under Polls.
 
 **Mod manager.** If you link your Gorilla Tag folder, the app reads the mod files in your BepInEx plugins folder on your computer. The folder location is saved only on your computer. To show which of your mods are on Branch and which have updates, the app sends the SHA-256 checksums (fingerprints) of those files to our server; the files themselves and their names are not sent, and the checksums are not stored. A file is only uploaded if you press Scan, in which case it is handled like any other Mod Checker upload (Section 4). Turning a mod off renames it on your computer, and removing it moves it to a backup folder; nothing is deleted.
 
@@ -78,7 +82,7 @@ If you submit a report or a mod request, we store the related Mod, the reason or
 
 ## 8. Third-Party Service Providers
 
-We rely on the following providers to operate the Service: **Railway** (server hosting and database storage), **Roblox** (where Rewards are delivered by purchasing your Payout Item), **Discord** (the Player Tracker reads room reports from a Discord channel), **SiliconFlow** (artificial-intelligence analysis for the Mod Checker, upload safety checks and Ask Branch; information extracted from submitted files, and for uploads the Mod name and description, may be sent to SiliconFlow) and **GitHub** (when you choose to view a Mod's source code, the application retrieves it directly from GitHub). Each provider processes information under its own terms and policies and may keep its own logs. We do not sell personal information or share it for advertising purposes.
+We rely on the following providers to operate the Service: **Railway** (server hosting and database storage), **Roblox** (where Rewards are delivered by purchasing your Payout Item), **Discord** (the Player Tracker reads room reports from a Discord channel), **SiliconFlow** (artificial-intelligence analysis for the Mod Checker, upload safety checks and Ask Branch; information extracted from submitted files, and for uploads the Mod name and description, may be sent to SiliconFlow) and **GitHub** (app updates are downloaded from GitHub; when you choose to view a Mod's source code, the application retrieves it directly from GitHub; Watchlist lookups and the automatic GitHub updates are made by our server, so GitHub sees our server rather than you). When you press play on a Mod's video, **YouTube** loads it under its own privacy policy. Each provider processes information under its own terms and policies and may keep its own logs. We do not sell personal information or share it for advertising purposes.
 
 ## 9. Data Retention Summary
 
@@ -95,6 +99,11 @@ We rely on the following providers to operate the Service: **Railway** (server h
 | Player Tracker room reports | only the newest 50 are kept |
 | Ask Branch conversations | not stored |
 | Ask Branch usage records | 1 day |
+| Chat messages | 30 days |
+| Creator accounts and profile pictures | until you ask us to delete the account |
+| Computers logged in to a creator account | until that computer logs out or the password is changed |
+| Mod update notices in the Inbox | 90 days |
+| Poll votes | until the poll is deleted |
 
 ## 10. Children
 
@@ -102,7 +111,7 @@ The Service is intended for users aged thirteen (13) and older. We do not knowin
 
 ## 11. Your Rights and Choices
 
-Depending on where you live, you may have rights to access, correct or delete personal information we hold about you, or to object to or restrict its processing. Because the Service does not use accounts, please identify the relevant report, request or upload (for example, by Mod name and approximate date) when you contact us so that we can locate it. You may contact us at **drifted1000@outlook.com** to exercise these rights.
+Depending on where you live, you may have rights to access, correct or delete personal information we hold about you, or to object to or restrict its processing. If you have a creator account, tell us its username. Otherwise, please identify the relevant report, request or upload (for example, by Mod name and approximate date) when you contact us so that we can locate it. You may contact us at **drifted1000@outlook.com** to exercise these rights.
 
 ## 12. Security
 
