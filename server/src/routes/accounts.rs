@@ -187,10 +187,15 @@ async fn logout(State(state): State<AppState>, Json(input): Json<KeyInput>) -> A
     Ok(Json(json!({ "ok": true })))
 }
 
-pub(crate) fn valid_avatar(color: &str, icon: &str) -> bool {
+pub(crate) const MAX_AVATAR_IMAGE: usize = 60_000;
+
+pub(crate) fn valid_avatar(color: &str, image: Option<&str>) -> bool {
     let color_ok = color.len() == 7 && color.starts_with('#') && color[1..].chars().all(|c| c.is_ascii_hexdigit());
-    let icon_ok = (2..=20).contains(&icon.len()) && icon.chars().all(|c| c.is_ascii_alphanumeric());
-    color_ok && icon_ok
+    let image_ok = image.is_none_or(|img| {
+        img.len() <= MAX_AVATAR_IMAGE
+            && img.strip_prefix("data:image/jpeg;base64,").is_some_and(|b64| !b64.is_empty() && b64.chars().all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/' || c == '='))
+    });
+    color_ok && image_ok
 }
 
 #[derive(Deserialize, Default)]
@@ -198,16 +203,17 @@ pub(crate) fn valid_avatar(color: &str, icon: &str) -> bool {
 struct AvatarInput {
     key: String,
     color: String,
-    icon: String,
+    image: Option<String>,
 }
 
 async fn set_avatar(State(state): State<AppState>, visitor: Visitor, Json(input): Json<AvatarInput>) -> ApiResult<Json<Value>> {
     let (poster, _) = account_poster(&state, &input.key, &visitor).await?;
-    if !valid_avatar(&input.color, &input.icon) {
-        return Err(AppError::bad_request("that profile picture isn't valid"));
+    let image = input.image.as_deref().filter(|i| !i.is_empty());
+    if !valid_avatar(&input.color, image) {
+        return Err(AppError::bad_request("that profile picture isn't valid. use a picture under 60 KB."));
     }
     sqlx::query("update creator_accounts set avatar = $1 where poster_id = $2")
-        .bind(json!({ "color": input.color.to_lowercase(), "icon": input.icon }))
+        .bind(json!({ "color": input.color.to_lowercase(), "image": image }))
         .bind(poster.id)
         .execute(&state.db)
         .await?;
@@ -258,9 +264,11 @@ mod tests {
 
     #[test]
     fn avatars_are_checked() {
-        assert!(super::valid_avatar("#1fa889", "sprout"));
-        assert!(!super::valid_avatar("red", "sprout"));
-        assert!(!super::valid_avatar("#1fa889", "<script>"));
+        assert!(super::valid_avatar("#1fa889", None));
+        assert!(super::valid_avatar("#1fa889", Some("data:image/jpeg;base64,/9j/4AAQ")));
+        assert!(!super::valid_avatar("red", None));
+        assert!(!super::valid_avatar("#1fa889", Some("data:image/svg+xml;base64,PHN2Zz4=")));
+        assert!(!super::valid_avatar("#1fa889", Some("javascript:alert(1)")));
     }
 
     #[test]

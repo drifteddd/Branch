@@ -703,11 +703,11 @@ async function publicApi(req, res, path, url) {
     return send(res, 200, { ok: true, username: acct.username });
   }
   if (path === "/api/account/avatar" && req.method === "POST") {
-    const { key, color = "", icon = "" } = await json(req);
+    const { key, color = "", image = null } = await json(req);
     const acct = accountOf(key);
     if (!acct) return fail(res, 403, "make a free creator account (just a username and password) to do this.");
-    if (!/^#[0-9a-fA-F]{6}$/.test(color) || !/^[a-z0-9]{2,20}$/i.test(icon)) return fail(res, 400, "that profile picture isn't valid");
-    acct.avatar = { color: color.toLowerCase(), icon };
+    if (!/^#[0-9a-fA-F]{6}$/.test(color) || (image && (!image.startsWith("data:image/jpeg;base64,") || image.length > 60000))) return fail(res, 400, "that profile picture isn't valid");
+    acct.avatar = { color: color.toLowerCase(), image: image || null };
     return send(res, 200, { ok: true });
   }
   if (path === "/api/account/logout" && req.method === "POST") {

@@ -1335,6 +1335,25 @@ await test("home dashboard: profile, featured mods, inbox, chat and ask branch",
   await waitFor(`document.querySelector(".home-profile .avatar")`, "home again");
   const after = await evaluate(`getComputedStyle(document.querySelector(".home-profile .avatar")).getPropertyValue("--avatar").trim()`);
   assert(before !== after, "the new profile picture should show on home");
+  assert(await evaluate(`Boolean(document.querySelector(".home-profile .avatar .avatar-mark"))`), "the default picture is the branch logo on a colour");
+  await go(`${BASE}/#/settings`);
+  await waitFor(`document.querySelector("#avatar-file")`, "upload button");
+  await evaluate(`(async () => {
+    const c = document.createElement("canvas"); c.width = 900; c.height = 600;
+    const g = c.getContext("2d"); g.fillStyle = "#c33"; g.fillRect(0, 0, 900, 600); g.fillStyle = "#fff"; g.fillRect(300, 150, 300, 300);
+    const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+    const dt = new DataTransfer(); dt.items.add(new File([blob], "me.png", { type: "image/png" }));
+    const input = document.querySelector("#avatar-file"); input.files = dt.files; input.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  })()`);
+  await waitFor(`document.querySelector(".avatar-preview .avatar.has-image img")`, "uploaded picture preview");
+  await go(`${BASE}/#/home`);
+  await waitFor(`document.querySelector(".home-profile .avatar.has-image img")?.src.startsWith("data:image/jpeg")`, "uploaded picture on home");
+  await screenshot("home-picture");
+  await go(`${BASE}/#/settings`);
+  await waitFor(`[...document.querySelectorAll(".avatar-picker button")].some(b => b.textContent.includes("Remove picture") && !b.hidden)`, "remove button");
+  await evaluate(clickText(".avatar-picker button", "Remove picture"));
+  await waitFor(`document.querySelector(".avatar-preview .avatar-mark")`, "back to the default picture");
 });
 
 ws.close();

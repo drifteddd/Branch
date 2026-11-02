@@ -1414,16 +1414,17 @@ svg.thumb, svg.hero-img, svg.ch-thumb, svg.wt-branch-thumb, svg.ob-pick-thumb { 
 .community-tabs .community-inbox-badge[hidden] { display: none; }
 
 .avatar { display: inline-grid; place-items: center; flex: none; border-radius: 50%; background: var(--avatar); color: #fff; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.18); }
-.avatar svg { width: 52%; height: 52%; }
+.avatar-mark { width: 58%; height: 58%; background: #fff; -webkit-mask: url(../shared/branch-glyph.svg) center / contain no-repeat; mask: url(../shared/branch-glyph.svg) center / contain no-repeat; }
+.avatar.has-image { overflow: hidden; background: var(--surface-2); }
+.avatar.has-image img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-picker-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.avatar-picker-buttons svg { width: 14px; height: 14px; }
 .avatar-picker { display: grid; gap: 12px; padding: 4px 0 8px; }
 .avatar-picker-top { display: flex; align-items: center; gap: 14px; }
-.avatar-colors, .avatar-icons { display: flex; flex-wrap: wrap; gap: 8px; }
+.avatar-colors { display: flex; flex-wrap: wrap; gap: 8px; }
 .avatar-swatch { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: var(--avatar); cursor: pointer; box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px transparent; }
 .avatar-swatch.on { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); }
-.avatar-icon-btn { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text-2); cursor: pointer; }
-.avatar-icon-btn svg { width: 18px; height: 18px; }
-.avatar-icon-btn.on { border-color: var(--text); color: var(--text); background: var(--selected); }
-.avatar-swatch:focus-visible, .avatar-icon-btn:focus-visible { outline: 3px solid var(--focus-soft); outline-offset: 2px; }
+.avatar-swatch:focus-visible { outline: 3px solid var(--focus-soft); outline-offset: 2px; }
 .home-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; }
 .home-panel { display: grid; align-content: start; gap: 12px; min-width: 0; padding: 18px 20px; border-radius: var(--r-xl); background: var(--surface); box-shadow: var(--shadow-1); }
 .home-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

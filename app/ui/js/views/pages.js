@@ -79,7 +79,7 @@ export function createSettingsView(ctx) {
       group(
         "Profile picture",
         avatarPicker((_, err) => (err ? toast(err.message, { tone: "error" }) : toast("Profile picture saved", { tone: "ok" }))),
-        h("p", { class: "group-text small" }, "shows on your Home page. with a creator account it's saved to your account, otherwise it's kept on this computer."),
+        h("p", { class: "group-text small" }, "you start with the Branch logo on a random colour. pick another colour or upload your own picture. with a creator account it's saved to your account, otherwise it's kept on this computer."),
       ),
       group(
         "Community name",

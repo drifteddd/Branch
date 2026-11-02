@@ -532,10 +532,11 @@ async fn full_flow() {
 
     let r = c.json("POST", "/api/account/me", json!({ "key": member_key })).await;
     assert_eq!(r.json["account"]["username"], "Hat_Maker");
-    let avatar = c.json("POST", "/api/account/avatar", json!({ "key": member_key, "color": "#1FA889", "icon": "sprout" })).await;
+    let avatar = c.json("POST", "/api/account/avatar", json!({ "key": member_key, "color": "#1FA889", "image": "data:image/jpeg;base64,/9j/4AAQ" })).await;
     assert_eq!(avatar.status, StatusCode::OK, "{}", avatar.json);
-    assert_eq!(c.json("POST", "/api/account/avatar", json!({ "key": member_key, "color": "nope", "icon": "sprout" })).await.status, StatusCode::BAD_REQUEST);
-    assert_eq!(c.json("POST", "/api/account/me", json!({ "key": member_key })).await.json["account"]["avatar"], json!({ "color": "#1fa889", "icon": "sprout" }), "the profile picture is saved on the account");
+    assert_eq!(c.json("POST", "/api/account/avatar", json!({ "key": member_key, "color": "nope" })).await.status, StatusCode::BAD_REQUEST);
+    assert_eq!(c.json("POST", "/api/account/avatar", json!({ "key": member_key, "color": "#1fa889", "image": "data:image/svg+xml;base64,PHN2Zz4=" })).await.status, StatusCode::BAD_REQUEST, "only jpeg pictures");
+    assert_eq!(c.json("POST", "/api/account/me", json!({ "key": member_key })).await.json["account"]["avatar"], json!({ "color": "#1fa889", "image": "data:image/jpeg;base64,/9j/4AAQ" }), "the profile picture is saved on the account");
     assert!(r.json["mods"].as_array().unwrap().len() >= 9, "uploads from this computer join the new account: {}", r.json);
     let mine = r.json["mods"][0].as_str().unwrap().to_string();
     assert_eq!(c.json("POST", "/api/creator/me", json!({ "key": member_key })).await.json["name"], "Hat_Maker");
