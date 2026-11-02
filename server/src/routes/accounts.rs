@@ -21,6 +21,7 @@ pub fn router() -> Router<AppState> {
         .route("/api/account/login", post(login))
         .route("/api/account/logout", post(logout))
         .route("/api/account/password", post(change_password))
+        .route("/api/account/avatar", post(set_avatar))
 }
 
 pub(crate) fn username_problem(name: &str) -> Option<&'static str> {
@@ -66,18 +67,18 @@ async fn me(State(state): State<AppState>, visitor: Visitor, Json(input): Json<K
     let Ok(poster) = poster_for(&state, &input.key, &visitor, false).await else {
         return Ok(Json(json!({ "account": null, "mods": [] })));
     };
-    let account: Option<(String, DateTime<Utc>)> = sqlx::query_as("select username, created_at from creator_accounts where poster_id = $1")
+    let account: Option<(String, DateTime<Utc>, Option<Value>)> = sqlx::query_as("select username, created_at, avatar from creator_accounts where poster_id = $1")
         .bind(poster.id)
         .fetch_optional(&state.db)
         .await?;
-    let Some((username, created_at)) = account else {
+    let Some((username, created_at, avatar)) = account else {
         return Ok(Json(json!({ "account": null, "mods": [] })));
     };
     let mods: Vec<String> = sqlx::query_scalar("select slug from mods where uploader_poster = $1 and status in ('published', 'unpublished') order by created_at desc limit 500")
         .bind(poster.id)
         .fetch_all(&state.db)
         .await?;
-    Ok(Json(json!({ "account": { "username": username, "created_at": created_at }, "mods": mods })))
+    Ok(Json(json!({ "account": { "username": username, "created_at": created_at, "avatar": avatar }, "mods": mods })))
 }
 
 #[derive(Deserialize, Default)]
@@ -186,6 +187,33 @@ async fn logout(State(state): State<AppState>, Json(input): Json<KeyInput>) -> A
     Ok(Json(json!({ "ok": true })))
 }
 
+pub(crate) fn valid_avatar(color: &str, icon: &str) -> bool {
+    let color_ok = color.len() == 7 && color.starts_with('#') && color[1..].chars().all(|c| c.is_ascii_hexdigit());
+    let icon_ok = (2..=20).contains(&icon.len()) && icon.chars().all(|c| c.is_ascii_alphanumeric());
+    color_ok && icon_ok
+}
+
+#[derive(Deserialize, Default)]
+#[serde(default)]
+struct AvatarInput {
+    key: String,
+    color: String,
+    icon: String,
+}
+
+async fn set_avatar(State(state): State<AppState>, visitor: Visitor, Json(input): Json<AvatarInput>) -> ApiResult<Json<Value>> {
+    let (poster, _) = account_poster(&state, &input.key, &visitor).await?;
+    if !valid_avatar(&input.color, &input.icon) {
+        return Err(AppError::bad_request("that profile picture isn't valid"));
+    }
+    sqlx::query("update creator_accounts set avatar = $1 where poster_id = $2")
+        .bind(json!({ "color": input.color.to_lowercase(), "icon": input.icon }))
+        .bind(poster.id)
+        .execute(&state.db)
+        .await?;
+    Ok(Json(json!({ "ok": true })))
+}
+
 #[derive(Deserialize, Default)]
 #[serde(default)]
 struct PasswordInput {
@@ -226,6 +254,13 @@ mod tests {
         assert!(username_problem("ab").is_some());
         assert!(username_problem("has space").is_some());
         assert!(username_problem("BranchAdmin").is_some());
+    }
+
+    #[test]
+    fn avatars_are_checked() {
+        assert!(super::valid_avatar("#1fa889", "sprout"));
+        assert!(!super::valid_avatar("red", "sprout"));
+        assert!(!super::valid_avatar("#1fa889", "<script>"));
     }
 
     #[test]

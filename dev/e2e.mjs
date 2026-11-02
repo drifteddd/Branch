@@ -186,7 +186,7 @@ await test("terms must be accepted before using the app, once", async () => {
 });
 
 await test("browse list loads with skeletons first", async () => {
-  await go(`${BASE}/`);
+  await go(`${BASE}/#/browse`);
   await waitFor(`${rows}.length >= 10`, "mod rows");
   assert(await evaluate(`document.querySelector('.view-count').textContent.includes('mods')`), "count text missing");
   assert(await evaluate(`document.querySelectorAll('#category-nav a').length === 5`), "sidebar categories missing");
@@ -1310,6 +1310,31 @@ await test("admin starts a poll pop-up and a message pop-up, each shows once whe
   await waitFor(`document.querySelector("dialog[open]")`, "confirm");
   await evaluate(clickText("dialog[open] button", "End it"));
   await waitFor(`document.querySelector(".poll-admin .pill")?.textContent === "ended"`, "pop-up ended");
+});
+
+await test("home dashboard: profile, featured mods, inbox, chat and ask branch", async () => {
+  await go(`${BASE}/`);
+  await waitFor(`document.querySelector(".home-profile h1")?.textContent.length > 1 && document.querySelector(".home-profile .avatar")`, "home profile");
+  assert(await evaluate(`location.hash === "" || location.hash === "#/home"`), "home should be the start page");
+  await waitFor(`document.querySelectorAll(".home-mod").length > 0`, "featured mods on home");
+  await waitFor(`document.querySelector(".home-inbox-item, .home-inbox p")`, "inbox preview");
+  await evaluate(type(".home-chat-form input", "hello from home"));
+  await evaluate(click(".home-chat-form button[type=submit]"));
+  await waitFor(`document.querySelector(".home-chat-log")?.textContent.includes("hello from home")`, "chat message on home");
+  await evaluate(type(".home-ask-form input", "what is a good camera mod?"));
+  await evaluate(click(".home-ask-form button[type=submit]"));
+  await waitFor(`document.querySelector(".home-ask-answer")?.textContent.length > 20 && !document.querySelector(".home-ask-answer").textContent.includes("thinking")`, "ask branch answer on home", 15000);
+  await sleep(400);
+  await screenshot("home");
+  const before = await evaluate(`getComputedStyle(document.querySelector(".home-profile .avatar")).getPropertyValue("--avatar").trim()`);
+  await go(`${BASE}/#/settings`);
+  await waitFor(`document.querySelector(".avatar-swatch")`, "avatar picker in settings");
+  await evaluate(`[...document.querySelectorAll(".avatar-swatch")].find(b => !b.classList.contains("on")).click()`);
+  await waitFor(`[...document.querySelectorAll(".toast")].some(t => t.textContent.includes("Profile picture saved"))`, "avatar saved");
+  await go(`${BASE}/#/home`);
+  await waitFor(`document.querySelector(".home-profile .avatar")`, "home again");
+  const after = await evaluate(`getComputedStyle(document.querySelector(".home-profile .avatar")).getPropertyValue("--avatar").trim()`);
+  assert(before !== after, "the new profile picture should show on home");
 });
 
 ws.close();

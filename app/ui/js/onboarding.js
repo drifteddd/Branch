@@ -48,6 +48,7 @@ const INTERESTS = [
 ];
 
 const TOUR = [
+  { use: null, selector: '[data-nav="home"]', title: "Home", text: "your starting point: featured mods, your inbox, the global chat and Ask Branch in one place." },
   { use: "find", selector: '[data-nav="all"]', title: "All mods", text: "every mod on Branch, best rated first. filter by category or compatibility." },
   { use: "find", selector: "#search", title: "Search", text: "find any mod by name, author or tag. press Ctrl+F from anywhere." },
   { use: null, selector: '[data-nav="library"]', title: "Library", text: "your favorites, recently viewed mods and watchlist, all in one place." },

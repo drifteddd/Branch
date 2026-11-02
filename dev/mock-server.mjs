@@ -679,7 +679,7 @@ async function publicApi(req, res, path, url) {
   if (path === "/api/account/me" && req.method === "POST") {
     const { key } = await json(req);
     const acct = accountOf(key);
-    return send(res, 200, acct ? { account: { username: acct.username, created_at: acct.created_at }, mods: mods.filter((x) => x.uploader_key === acct.owner && x.status !== "archived").map((x) => x.slug) } : { account: null, mods: [] });
+    return send(res, 200, acct ? { account: { username: acct.username, created_at: acct.created_at, avatar: acct.avatar || null }, mods: mods.filter((x) => x.uploader_key === acct.owner && x.status !== "archived").map((x) => x.slug) } : { account: null, mods: [] });
   }
   if (path === "/api/account/signup" && req.method === "POST") {
     const { key, username = "", password = "" } = await json(req);
@@ -701,6 +701,14 @@ async function publicApi(req, res, path, url) {
     if (!accountOf(key)) for (const m of mods) if (m.uploader_key === key) m.uploader_key = acct.owner;
     logins.set(key, acct.owner);
     return send(res, 200, { ok: true, username: acct.username });
+  }
+  if (path === "/api/account/avatar" && req.method === "POST") {
+    const { key, color = "", icon = "" } = await json(req);
+    const acct = accountOf(key);
+    if (!acct) return fail(res, 403, "make a free creator account (just a username and password) to do this.");
+    if (!/^#[0-9a-fA-F]{6}$/.test(color) || !/^[a-z0-9]{2,20}$/i.test(icon)) return fail(res, 400, "that profile picture isn't valid");
+    acct.avatar = { color: color.toLowerCase(), icon };
+    return send(res, 200, { ok: true });
   }
   if (path === "/api/account/logout" && req.method === "POST") {
     const { key } = await json(req);

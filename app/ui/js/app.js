@@ -23,6 +23,8 @@ import { createInboxView, inboxUnread } from "./views/inbox.js";
 import { createWatchView, checkWatchlist, watchUnseen } from "./views/watch.js";
 import { createManagerView } from "./views/manager.js";
 import { createEditView } from "./views/edit.js";
+import { createHomeView } from "./views/home.js";
+import { localAvatar } from "./profile.js";
 import { checkRatePrompt } from "./rate-prompt.js";
 import { showPopupOnce } from "./popup.js";
 
@@ -93,6 +95,7 @@ const ctx = {
 };
 
 const views = {
+  home: createHomeView(ctx),
   browse: createBrowseView(ctx),
   detail: createDetailView(ctx),
   settings: createSettingsView(ctx),
@@ -115,12 +118,13 @@ let currentRoute = null;
 let currentView = null;
 
 function parseRoute() {
-  const raw = location.hash.replace(/^#/, "") || "/browse";
+  const raw = location.hash.replace(/^#/, "") || "/home";
   const [path, query = ""] = raw.split("?");
   const params = new URLSearchParams(query);
   const parts = path.split("/").filter(Boolean);
   const first = parts[0] || "browse";
 
+  if (first === "home") return { name: "home", path };
   if (BROWSE_MODES[first]) return { name: "browse", path: `/${first}`, mode: BROWSE_MODES[first], category: params.get("category") || "" };
   if (first === "mod" && parts[1]) return { name: "detail", path, slug: decodeURIComponent(parts[1]) };
   if (first === "settings") return { name: "settings", path };
@@ -158,8 +162,8 @@ function route() {
   currentRoute = next;
   currentView = view;
 
-  backButton.hidden = next.name === "browse";
-  ctx.setTitle(next.name === "browse" ? null : view.title());
+  backButton.hidden = next.name === "browse" || next.name === "home";
+  ctx.setTitle(next.name === "browse" || next.name === "home" ? null : view.title());
   markSidebar();
   closeSidebar();
 
@@ -178,7 +182,7 @@ function markSidebar() {
       if (active) document.getElementById("categories-fold").open = true;
     } else if (route.mode === "favorites" || route.mode === "recent") active = sidebar.querySelector('[data-nav="library"]');
     else active = sidebar.querySelector(`[data-nav="${route.mode}"]`);
-  } else if (["settings", "about", "upload", "check", "forum", "rewards", "tree", "tracker", "ask", "manager"].includes(route.name)) {
+  } else if (["home", "settings", "about", "upload", "check", "forum", "rewards", "tree", "tracker", "ask", "manager"].includes(route.name)) {
     active = sidebar.querySelector(`[data-nav="${route.name}"]`);
   } else if (route.name === "inbox") {
     active = sidebar.querySelector('[data-nav="forum"]');
@@ -413,6 +417,7 @@ async function start() {
   await requireTerms();
   await showStoryOnce();
   await runOnboardingOnce(ctx);
+  localAvatar();
 
   if (!currentRoute) route();
   if (!ctx.meta) loadMeta();

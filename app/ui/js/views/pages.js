@@ -25,6 +25,7 @@ function adminDoor() {
 }
 import { settings, favorites, recent } from "../store.js";
 import { myIdentity, rename as renameIdentity, randomName as randomIdentityName } from "../forum-identity.js";
+import { avatarPicker } from "../profile.js";
 import { confirmDialog, toast, stateBlock } from "../ui.js";
 
 export const REPO_URL = "https://github.com/drifteddd/Branch";
@@ -74,6 +75,11 @@ export function createSettingsView(ctx) {
       group(
         "Setup",
         row(h("span", null, "Run setup again", h("span", { class: "row-hint" }, "pick a name and background, get mod suggestions and take the tour again.")), h("button", { class: "btn", type: "button", onclick: async () => { await runOnboarding(ctx); render(); } }, icon("compass"), "Start setup")),
+      ),
+      group(
+        "Profile picture",
+        avatarPicker((_, err) => (err ? toast(err.message, { tone: "error" }) : toast("Profile picture saved", { tone: "ok" }))),
+        h("p", { class: "group-text small" }, "shows on your Home page. with a creator account it's saved to your account, otherwise it's kept on this computer."),
       ),
       group(
         "Community name",

@@ -48,6 +48,13 @@ function toItems(data) {
   return items.sort((a, b) => b.date - a.date);
 }
 
+export async function inboxPreview(limit = 4) {
+  const data = await api("/api/inbox", { method: "POST", body: { key: forumKey() } });
+  const since = seenAt();
+  const items = toItems(data).sort((a, b) => b.date - a.date);
+  return { items: items.slice(0, limit), unread: items.filter((i) => i.date.getTime() > since).length, since };
+}
+
 export async function inboxUnread() {
   const data = await api("/api/inbox", { method: "POST", body: { key: forumKey() } });
   const since = seenAt();
