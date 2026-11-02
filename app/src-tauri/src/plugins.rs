@@ -80,9 +80,19 @@ fn resolve(state: &Plugins, id: &str) -> Result<PathBuf, CmdError> {
     Ok(path)
 }
 
+fn steam_roots() -> Vec<PathBuf> {
+    let mut roots = vec![PathBuf::from(r"C:\Program Files (x86)\Steam"), PathBuf::from(r"C:\Program Files\Steam")];
+    if let Some(home) = std::env::var_os("HOME").map(PathBuf::from) {
+        for dir in [".steam/steam", ".steam/root", ".local/share/Steam", ".var/app/com.valvesoftware.Steam/.local/share/Steam", "snap/steam/common/.local/share/Steam"] {
+            roots.push(home.join(dir));
+        }
+    }
+    roots
+}
+
 #[tauri::command]
 pub fn plugins_detect() -> Vec<String> {
-    let mut libraries: Vec<PathBuf> = vec![PathBuf::from(r"C:\Program Files (x86)\Steam"), PathBuf::from(r"C:\Program Files\Steam")];
+    let mut libraries = steam_roots();
     for steam in libraries.clone() {
         if let Ok(vdf) = std::fs::read_to_string(steam.join("steamapps").join("libraryfolders.vdf")) {
             for line in vdf.lines() {
@@ -105,7 +115,7 @@ pub fn plugins_detect() -> Vec<String> {
     }
     for c in candidates {
         if c.join("Gorilla Tag.exe").is_file() {
-            let s = c.display().to_string();
+            let s = if cfg!(windows) { c.display().to_string() } else { std::fs::canonicalize(&c).unwrap_or(c).display().to_string() };
             if !found.iter().any(|f| f.eq_ignore_ascii_case(&s)) {
                 found.push(s);
             }

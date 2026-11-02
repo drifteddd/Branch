@@ -475,6 +475,9 @@ async fn update_check(app: AppHandle) -> Result<Option<UpdateInfo>, CmdError> {
 
 #[tauri::command]
 async fn update_install(app: AppHandle) -> Result<(), CmdError> {
+    if cfg!(target_os = "linux") && std::env::var_os("APPIMAGE").is_none() {
+        return Err(update_error("this copy of Branch was installed from the .deb package, so it can't update itself. download the new version from github.com/drifteddd/Branch/releases, or use the AppImage, which updates itself."));
+    }
     let updater = app.updater().map_err(|e| update_error(format!("updates aren't available: {e}")))?;
     let update = updater
         .check()
