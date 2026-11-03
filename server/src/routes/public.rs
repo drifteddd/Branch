@@ -611,13 +611,17 @@ pub fn verdict_label(score: u8) -> &'static str {
 
 pub async fn check_mod(State(state): State<AppState>, visitor: Visitor, headers: axum::http::HeaderMap, mut multipart: Multipart) -> ApiResult<Json<Value>> {
     let allow_ai = !crate::util::ai_opted_out(&headers);
-    if !state.limiter.check(&format!("check:{}", visitor.id), 30, Duration::from_secs(3600)) {
+    if !state.limiter.check(&format!("check:{}", visitor.id), 6, Duration::from_secs(600)) {
         return Err(AppError::too_many("slow down a little. try again in a few minutes."));
     }
     let limit = state.config.ai_daily_per_visitor;
     if usage_today(&state, &visitor.id).await? >= limit {
         return Err(AppError::too_many(format!("you've used all {limit} checks for today. they reset at midnight (UTC).")));
     }
+    if !state.limiter.check("check:everyone", 240, Duration::from_secs(3600)) {
+        return Err(AppError::too_many("the mod checker is very busy right now. try again in a little while."));
+    }
+    let _slot = crate::uploads::upload_slot(&headers, crate::scan::MAX_CHECK_BYTES + 64 * 1024)?;
 
     let mut upload: Option<(String, bytes::Bytes)> = None;
     loop {
@@ -1110,6 +1114,10 @@ pub async fn create_submission(State(state): State<AppState>, visitor: Visitor, 
     if uploads_today(&state, &visitor.id).await? >= UPLOADS_PER_DAY {
         return Err(AppError::too_many(format!("you can upload up to {UPLOADS_PER_DAY} mods a day. try again tomorrow.")));
     }
+    if !state.limiter.check("submit:everyone", 300, Duration::from_secs(3600)) {
+        return Err(AppError::too_many("uploads are very busy right now. try again in a little while."));
+    }
+    let _slot = crate::uploads::upload_slot(&headers, crate::scan::MAX_CHECK_BYTES + crate::uploads::MAX_IMAGE_BYTES * (1 + MAX_SCREENSHOTS) + 128 * 1024)?;
 
     let mut file: Option<(String, bytes::Bytes)> = None;
     let mut thumbnail: Option<bytes::Bytes> = None;

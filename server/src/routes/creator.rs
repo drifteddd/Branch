@@ -308,10 +308,11 @@ async fn read_form(multipart: &mut Multipart) -> ApiResult<FormParts> {
     Ok((fields, files))
 }
 
-async fn edit_listing(State(state): State<AppState>, visitor: Visitor, Path(slug): Path<String>, mut multipart: Multipart) -> ApiResult<Json<Value>> {
+async fn edit_listing(State(state): State<AppState>, visitor: Visitor, headers: axum::http::HeaderMap, Path(slug): Path<String>, mut multipart: Multipart) -> ApiResult<Json<Value>> {
     if !state.limiter.check(&format!("creator-edit:{}", visitor.id), 60, Duration::from_secs(3600)) {
         return Err(AppError::too_many("slow down a little and try again in a few minutes."));
     }
+    let _slot = crate::uploads::upload_slot(&headers, crate::uploads::MAX_IMAGE_BYTES * (1 + MAX_SCREENSHOTS) + 128 * 1024)?;
     let (fields, files) = read_form(&mut multipart).await?;
     let get = |key: &str| fields.get(key).map(|v| v.trim().to_string()).unwrap_or_default();
     let (mod_id, _) = owned_mod(&state, &get("key"), &visitor, &slug).await?;
@@ -452,10 +453,11 @@ async fn edit_listing(State(state): State<AppState>, visitor: Visitor, Path(slug
     Ok(Json(json!({ "ok": true, "slug": slug })))
 }
 
-async fn new_release(State(state): State<AppState>, visitor: Visitor, Path(slug): Path<String>, mut multipart: Multipart) -> ApiResult<Json<Value>> {
+async fn new_release(State(state): State<AppState>, visitor: Visitor, headers: axum::http::HeaderMap, Path(slug): Path<String>, mut multipart: Multipart) -> ApiResult<Json<Value>> {
     if !state.limiter.check(&format!("creator-release:{}", visitor.id), 20, Duration::from_secs(3600)) {
         return Err(AppError::too_many("slow down a little and try again in a few minutes."));
     }
+    let _slot = crate::uploads::upload_slot(&headers, crate::scan::MAX_CHECK_BYTES + 64 * 1024)?;
     let (fields, files) = read_form(&mut multipart).await?;
     let get = |key: &str| fields.get(key).map(|v| v.trim().to_string()).unwrap_or_default();
     let (mod_id, name) = owned_mod(&state, &get("key"), &visitor, &slug).await?;

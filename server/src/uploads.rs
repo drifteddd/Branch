@@ -8,6 +8,16 @@ use image::{DynamicImage, ImageFormat, ImageReader, Limits};
 use crate::util::{sanitize_filename, sha256_hex};
 
 pub const MAX_IMAGE_BYTES: usize = 8 * 1024 * 1024;
+const UPLOAD_SLOTS: usize = 2;
+static SLOTS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(UPLOAD_SLOTS);
+
+pub fn upload_slot(headers: &axum::http::HeaderMap, max_bytes: usize) -> Result<tokio::sync::SemaphorePermit<'static>, crate::error::AppError> {
+    let declared = headers.get(axum::http::header::CONTENT_LENGTH).and_then(|v| v.to_str().ok()).and_then(|v| v.parse::<usize>().ok());
+    if declared.is_some_and(|len| len > max_bytes) {
+        return Err(crate::error::AppError::new(axum::http::StatusCode::PAYLOAD_TOO_LARGE, "too_large", "that upload is too big"));
+    }
+    SLOTS.try_acquire().map_err(|_| crate::error::AppError::new(axum::http::StatusCode::SERVICE_UNAVAILABLE, "busy", "Branch is busy checking other files right now. try again in a minute."))
+}
 pub const MAX_MOD_FILE_BYTES: usize = 50 * 1024 * 1024;
 
 #[derive(Clone, Copy)]
