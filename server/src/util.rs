@@ -125,10 +125,45 @@ pub fn visitor_hash(secret: &str, ip: &str) -> String {
     hex::encode(&mac.finalize().into_bytes()[..16])
 }
 
+const CLOUDFLARE_RANGES: &[&str] = &[
+    "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22", "141.101.64.0/18", "108.162.192.0/18", "190.93.240.0/20", "188.114.96.0/20",
+    "197.234.240.0/22", "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13", "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
+    "2400:cb00::/32", "2606:4700::/32", "2803:f800::/32", "2405:b500::/32", "2405:8100::/32", "2a06:98c0::/29", "2c0f:f248::/32",
+];
+
+fn in_range(ip: std::net::IpAddr, cidr: &str) -> bool {
+    let Some((base, bits)) = cidr.split_once('/') else { return false };
+    let (Ok(base), Ok(bits)) = (base.parse::<std::net::IpAddr>(), bits.parse::<u32>()) else { return false };
+    match (ip, base) {
+        (std::net::IpAddr::V4(a), std::net::IpAddr::V4(b)) => {
+            let mask = if bits == 0 { 0 } else { u32::MAX << (32 - bits) };
+            (u32::from(a) & mask) == (u32::from(b) & mask)
+        }
+        (std::net::IpAddr::V6(a), std::net::IpAddr::V6(b)) => {
+            let mask = if bits == 0 { 0 } else { u128::MAX << (128 - bits) };
+            (u128::from(a) & mask) == (u128::from(b) & mask)
+        }
+        _ => false,
+    }
+}
+
+pub fn from_cloudflare(ip: &str) -> bool {
+    ip.parse::<std::net::IpAddr>().is_ok_and(|ip| CLOUDFLARE_RANGES.iter().any(|r| in_range(ip, r)))
+}
+
+fn behind_cloudflare() -> bool {
+    matches!(std::env::var("BRANCH_BEHIND_CLOUDFLARE").map(|v| v.to_ascii_lowercase()).as_deref(), Ok("1" | "true" | "yes" | "on"))
+}
+
 pub fn client_ip(headers: &HeaderMap, peer: Option<SocketAddr>, trust_proxy: bool) -> String {
     if trust_proxy {
         if let Some(forwarded) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
             if let Some(last) = forwarded.rsplit(',').map(str::trim).find(|s| !s.is_empty()) {
+                if behind_cloudflare() && from_cloudflare(last) {
+                    if let Some(real) = headers.get("cf-connecting-ip").and_then(|v| v.to_str().ok()).map(str::trim).filter(|s| s.parse::<std::net::IpAddr>().is_ok()) {
+                        return real.to_string();
+                    }
+                }
                 return last.to_string();
             }
         }
@@ -153,6 +188,15 @@ impl FromRequestParts<AppState> for Visitor {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cloudflare_addresses_are_recognised() {
+        assert!(from_cloudflare("104.16.1.1"));
+        assert!(from_cloudflare("172.70.10.20"));
+        assert!(from_cloudflare("2606:4700::1"));
+        assert!(!from_cloudflare("8.8.8.8"));
+        assert!(!from_cloudflare("not an ip"));
+    }
 
     #[test]
     fn slugs() {
