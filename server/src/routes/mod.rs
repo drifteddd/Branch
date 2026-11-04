@@ -1,6 +1,7 @@
 pub mod accounts;
 pub mod admin;
 pub mod assistant;
+pub mod blocks;
 pub mod creator;
 pub mod forum;
 pub mod github_import;
@@ -61,6 +62,7 @@ pub fn router(state: AppState) -> Router {
         .merge(watch::router())
         .merge(github_import::router())
         .merge(polls::router())
+        .merge(blocks::router())
         .merge(admin_ui::router())
         .layer(middleware::from_fn_with_state(state.clone(), rate_limit))
         .layer(DefaultBodyLimit::max(256 * 1024))
@@ -76,8 +78,28 @@ pub fn router(state: AppState) -> Router {
 }
 
 async fn rate_limit(State(state): State<AppState>, visitor: Visitor, request: Request, next: Next) -> Response {
-    if request.uri().path() != "/health" && !state.limiter.check(&format!("all:{}", visitor.id), 600, Duration::from_secs(60)) {
+    let path = request.uri().path().to_string();
+    if crate::shield::exempt(&path) {
+        return next.run(request).await;
+    }
+    if crate::shield::is_blocked(&visitor.id) {
+        return AppError::forbidden("blocked", crate::shield::BLOCKED_MESSAGE).into_response();
+    }
+    if crate::shield::too_many_requests(&state, &visitor.id) {
+        crate::shield::block(&state, &visitor.id, "far too many requests in one minute").await;
+        return AppError::forbidden("blocked", crate::shield::BLOCKED_MESSAGE).into_response();
+    }
+    if !state.limiter.check(&format!("all:{}", visitor.id), 600, Duration::from_secs(60)) {
+        if crate::shield::too_many_rejections(&state, &visitor.id) {
+            crate::shield::block(&state, &visitor.id, "kept sending requests after being told to slow down").await;
+        }
         return AppError::too_many("too many requests. slow down a little and try again.").into_response();
     }
-    next.run(request).await
+    let post = request.method() == axum::http::Method::POST;
+    let response = next.run(request).await;
+    let status = response.status().as_u16();
+    if post && matches!(status, 413 | 429 | 503) && crate::shield::too_many_rejections(&state, &visitor.id) {
+        crate::shield::block(&state, &visitor.id, "kept sending uploads or checks after being told to slow down").await;
+    }
+    response
 }

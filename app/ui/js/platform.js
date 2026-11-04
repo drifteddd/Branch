@@ -17,10 +17,15 @@ export class ApiError extends Error {
   }
 }
 
+function flagBlocked(error) {
+  if (error.kind === "blocked") window.dispatchEvent(new CustomEvent("branch-blocked", { detail: error.message }));
+  return error;
+}
+
 function toApiError(err, fallback) {
-  if (err instanceof ApiError) return err;
+  if (err instanceof ApiError) return flagBlocked(err);
   if (err && typeof err === "object" && "message" in err) {
-    return new ApiError(err.message || fallback, { status: err.status ?? null, kind: err.kind || "http", fields: err.fields || null });
+    return flagBlocked(new ApiError(err.message || fallback, { status: err.status ?? null, kind: err.kind || "http", fields: err.fields || null }));
   }
   return new ApiError(typeof err === "string" ? err : fallback, { kind: "network" });
 }
@@ -60,10 +65,11 @@ export async function api(path, { method = "GET", body } = {}) {
   }
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new ApiError(data?.error || `the server answered with an error (${res.status})`, {
+    throw flagBlocked(new ApiError(data?.error || `the server answered with an error (${res.status})`, {
       status: res.status,
+      kind: data?.code === "blocked" ? "blocked" : "http",
       fields: data?.fields || null,
-    });
+    }));
   }
   return data;
 }
@@ -216,7 +222,7 @@ export async function uploadForm(path, form) {
     throw new ApiError("couldn't reach the Branch server. check your internet connection.", { kind: "network" });
   }
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(data?.error || `the upload failed (${res.status})`, { status: res.status, fields: data?.fields || null });
+  if (!res.ok) throw flagBlocked(new ApiError(data?.error || `the upload failed (${res.status})`, { status: res.status, kind: data?.code === "blocked" ? "blocked" : "http", fields: data?.fields || null }));
   return data;
 }
 

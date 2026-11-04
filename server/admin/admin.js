@@ -251,6 +251,7 @@ const NAV = [
   ["forum", "Forum"],
   ["polls", "Polls"],
   ["popups", "Pop-ups"],
+  ["blocked", "Blocked"],
   ["rewards", "Rewards"],
   ["categories", "Categories & tags"],
   ["activity", "Activity"],
@@ -308,6 +309,7 @@ async function route() {
     else if (section === "forum") await renderForum();
     else if (section === "polls") await renderPolls();
     else if (section === "popups") await renderPopups();
+    else if (section === "blocked") await renderBlocked();
     else if (section === "rewards") await renderRewardsAdmin();
     else if (section === "categories") await renderCategories();
     else if (section === "activity") await renderActivity();
@@ -1637,6 +1639,36 @@ async function renderPopups() {
     h("div", { class: "page-head" }, h("h1", null, "Pop-ups")),
     form,
     popups.length ? h("div", { class: "poll-admin-list" }, popups.map(card)) : h("div", { class: "card" }, h("p", { class: "muted" }, "no pop-ups yet.")),
+  ]);
+}
+
+async function renderBlocked() {
+  const { blocks, hours } = await api("/api/admin/blocks");
+  const rows = blocks.map((b) =>
+    h(
+      "tr",
+      null,
+      h("td", null, h("code", null, b.short)),
+      h("td", null, b.reason),
+      h("td", null, fmtTime(b.blocked_at)),
+      h("td", null, fmtTime(b.expires_at)),
+      h(
+        "td",
+        { class: "row-actions" },
+        h("button", { class: "btn", type: "button", onclick: async () => { if (await confirmDialog("Unblock this connection?", "they'll be able to use Branch again straight away.", "Unblock")) { await api(`/api/admin/blocks/${encodeURIComponent(b.visitor)}`, { method: "DELETE" }); toast("Unblocked"); renderBlocked(); } } }, "Unblock"),
+      ),
+    ),
+  );
+  shell("blocked", [
+    h("div", { class: "page-head" }, h("h1", null, "Blocked connections")),
+    h(
+      "div",
+      { class: "card" },
+      h("p", { class: "card-intro" }, `connections that look like a flood are blocked automatically for ${hours} hours: hundreds of requests a minute, or dozens of uploads and mod checks after being told to slow down. blocked people see a message that access from their network is paused while it's reviewed. connections are shown by their scrambled id, never their real ip address.`),
+      blocks.length
+        ? h("table", { class: "table" }, h("thead", null, h("tr", null, h("th", null, "Connection"), h("th", null, "Why"), h("th", null, "Blocked"), h("th", null, "Ends"), h("th", null, ""))), h("tbody", null, rows))
+        : h("p", { class: "muted" }, "nothing is blocked right now."),
+    ),
   ]);
 }
 

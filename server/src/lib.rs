@@ -10,6 +10,7 @@ pub mod pe;
 pub mod ratelimit;
 pub mod routes;
 pub mod scan;
+pub mod shield;
 pub mod state;
 pub mod storage;
 pub mod tracker;
@@ -37,6 +38,7 @@ pub async fn build_state(config: Config) -> anyhow::Result<AppState> {
         .context("couldn't connect to the database. check DATABASE_URL")?;
 
     sqlx::migrate!("./migrations").run(&db).await.context("the database migration failed")?;
+    shield::load(&db).await.context("couldn't load blocked connections")?;
     auth::bootstrap_admin(&db, &config).await?;
     let store = storage::build(&config)?;
 

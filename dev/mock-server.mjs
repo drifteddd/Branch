@@ -1143,12 +1143,18 @@ async function serveStatic(res, base, rel) {
   }
 }
 
+let devBlocked = false;
+
 export function startMockServer(port = 5173) {
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
     const path = decodeURIComponent(url.pathname);
     try {
+      if (path === "/api/admin/blocks" && req.method === "GET") return send(res, 200, { blocks: devBlocked ? [{ visitor: "a1b2c3d4e5f6", short: "a1b2c3d4e5", reason: "kept sending uploads or checks after being told to slow down", blocked_at: new Date().toISOString(), expires_at: new Date(Date.now() + 86400000).toISOString() }] : [], hours: 24 });
+      if (path.startsWith("/api/admin/blocks/") && req.method === "DELETE") { devBlocked = false; return send(res, 200, { ok: true }); }
       if (path.startsWith("/api/admin/")) return await adminApi(req, res, path, url);
+      if (path === "/api/dev/block" && req.method === "POST") { devBlocked = true; return send(res, 200, { ok: true }); }
+      if (devBlocked && path.startsWith("/api/")) return send(res, 403, { error: "Branch isn't available on your connection right now. we noticed unusual activity from your network, so access is paused while we review it. if you think this is a mistake, email drifted1000@outlook.com.", code: "blocked", fields: null });
       if (path.startsWith("/api/")) return await publicApi(req, res, path, url);
       if (path.startsWith("/files/uploaded/")) {
         const data = uploadedImages.get(path.slice("/files/uploaded/".length));

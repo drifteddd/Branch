@@ -709,6 +709,27 @@ async fn full_flow() {
     let r = c.json("POST", "/api/forum/threads", json!({ "key": other, "board": "general", "title": "new name, same person", "body": "trying to get around the ban" })).await;
     assert_eq!(r.status, StatusCode::FORBIDDEN, "a new key on the same connection is blocked too");
 
+    let mut blocked = false;
+    for _ in 0..60 {
+        let r = c.upload("/api/check", "flood.dll", b"MZ flood").await;
+        if r.status == StatusCode::FORBIDDEN {
+            assert_eq!(r.json["code"], "blocked", "{}", r.json);
+            blocked = true;
+            break;
+        }
+    }
+    assert!(blocked, "a connection that keeps flooding after being told to slow down gets blocked");
+    let r = c.get("/api/meta").await;
+    assert_eq!(r.status, StatusCode::FORBIDDEN, "a blocked connection can't use Branch at all");
+    assert_eq!(r.json["code"], "blocked");
+    let r = c.get("/api/admin/blocks").await;
+    let blocks = r.json["blocks"].as_array().unwrap().clone();
+    assert_eq!(blocks.len(), 1, "{}", r.json);
+    let visitor = blocks[0]["visitor"].as_str().unwrap().to_string();
+    let r = c.json("DELETE", &format!("/api/admin/blocks/{visitor}"), json!({})).await;
+    assert_eq!(r.status, StatusCode::OK, "{}", r.json);
+    assert_eq!(c.get("/api/meta").await.status, StatusCode::OK, "unblocking lets the connection back in");
+
     let actions: Vec<String> = c.get("/api/admin/audit").await.json["items"].as_array().unwrap().iter().map(|a| a["action"].as_str().unwrap().to_string()).collect();
     for action in ["login", "change_password", "create_mod", "set_status", "upload_file", "disable_download", "delete_mod", "accept_request"] {
         assert!(actions.iter().any(|a| a == action), "audit log is missing {action}");

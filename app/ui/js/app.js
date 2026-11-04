@@ -144,6 +144,26 @@ function parseRoute() {
   return { name: "browse", path: "/browse", mode: "all", category: "" };
 }
 
+let blockedShown = false;
+window.addEventListener("branch-blocked", (event) => {
+  if (blockedShown) return;
+  blockedShown = true;
+  document.body.append(
+    h(
+      "div",
+      { class: "blocked-screen", role: "alertdialog", "aria-modal": "true", "aria-labelledby": "blocked-title" },
+      h(
+        "div",
+        { class: "blocked-card" },
+        h("img", { src: "shared/branch-mark.svg", alt: "", width: "56", height: "56" }),
+        h("h1", { id: "blocked-title" }, "Access paused"),
+        h("p", null, event.detail || "Branch isn't available on your connection right now."),
+        h("button", { class: "btn", type: "button", onclick: () => location.reload() }, "Try again"),
+      ),
+    ),
+  );
+});
+
 function route() {
   const next = parseRoute();
   const view = views[next.name];

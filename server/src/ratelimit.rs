@@ -29,6 +29,10 @@ impl RateLimiter {
         window.count <= limit
     }
 
+    pub fn reset(&self, key: &str) {
+        self.hits.lock().unwrap().remove(key);
+    }
+
     pub fn prune(&self, older_than: Duration) {
         let now = Instant::now();
         self.hits.lock().unwrap().retain(|_, w| now.duration_since(w.started) < older_than);

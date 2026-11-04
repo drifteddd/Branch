@@ -1356,6 +1356,23 @@ await test("home dashboard: profile, featured mods, inbox, chat and ask branch",
   await waitFor(`document.querySelector(".avatar-preview .avatar-mark")`, "back to the default picture");
 });
 
+await test("a blocked connection sees the access paused screen, and the admin can unblock it", async () => {
+  await go(`${BASE}/#/browse`);
+  await evaluate(`fetch("/api/dev/block", { method: "POST" })`);
+  await go(`${BASE}/#/browse`);
+  await waitFor(`document.querySelector(".blocked-screen")?.textContent.includes("Access paused")`, "blocked screen");
+  await sleep(300);
+  await screenshot("blocked");
+  await go(`${BASE}/admin#/blocked`);
+  await waitFor(`document.querySelector(".row-actions button")`, "blocked list in admin");
+  await evaluate(clickText(".row-actions button", "Unblock"));
+  await waitFor(`document.querySelector("dialog[open]")`, "confirm");
+  await evaluate(clickText("dialog[open] button", "Unblock"));
+  await waitFor(`document.querySelector(".card p.muted")?.textContent.includes("nothing is blocked")`, "unblocked");
+  await go(`${BASE}/#/browse`);
+  await waitFor(`document.querySelectorAll(".mod-row, .mod-list li").length > 0 && !document.querySelector(".blocked-screen")`, "app works again");
+});
+
 ws.close();
 browser.kill();
 server.close();

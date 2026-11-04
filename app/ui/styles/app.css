@@ -1464,3 +1464,8 @@ svg.thumb, svg.hero-img, svg.ch-thumb, svg.wt-branch-thumb, svg.ob-pick-thumb { 
 @media (max-width: 900px) {
   .home-profile, .home-inbox-panel, .home-chat-panel, .home-ask-panel { grid-column: 1 / -1; }
 }
+
+.blocked-screen { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 24px; background: var(--bg, var(--surface)); }
+.blocked-card { display: grid; justify-items: center; gap: 12px; max-width: 440px; text-align: center; }
+.blocked-card h1 { font-family: var(--font-display); font-size: 24px; font-weight: 700; }
+.blocked-card p { margin: 0; color: var(--text-2); line-height: 1.5; }

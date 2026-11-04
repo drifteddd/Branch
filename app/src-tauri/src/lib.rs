@@ -132,7 +132,8 @@ async fn read_json(response: reqwest::Response) -> Result<serde_json::Value, Cmd
         .and_then(|v| v.as_str())
         .map(str::to_owned)
         .unwrap_or_else(|| format!("the server answered with an error ({})", status.as_u16()));
-    Err(CmdError { kind: "http", status: Some(status.as_u16()), message, fields: data.get("fields").cloned() })
+    let kind = if data.get("code").and_then(|c| c.as_str()) == Some("blocked") { "blocked" } else { "http" };
+    Err(CmdError { kind, status: Some(status.as_u16()), message, fields: data.get("fields").cloned() })
 }
 
 #[tauri::command]

@@ -18,6 +18,8 @@ The following information is stored locally within the application on your devic
 
 **2.3 Rate limiting.** Short-term counters associated with Hashed Identifiers are held in server memory and are discarded when the server restarts.
 
+**2.3A Automatic blocking.** If a connection sends a flood of requests, for example hundreds a minute, or keeps sending uploads or mod checks after being told to slow down, the Service blocks its Hashed Identifier for twenty-four (24) hours. We store the Hashed Identifier, the reason and the time, never the IP address itself. You can ask us to review a block at drifted1000@outlook.com.
+
 **2.4 Download statistics.** When you download a Mod or open its download page, we record the Hashed Identifier, the release and the date so that each person is counted once per day. These records are deleted after thirty (30) days; only aggregate totals are retained.
 
 **2.5 Server logs.** Our server logs request paths, response status and timing for security and troubleshooting. These logs do not include passwords, the content of reports or uploads, or contact information.
@@ -104,6 +106,7 @@ We rely on the following providers to operate the Service: **Railway** (server h
 | Computers logged in to a creator account | until that computer logs out or the password is changed |
 | Mod update notices in the Inbox | 90 days |
 | Poll votes | until the poll is deleted |
+| Blocked connections | 24 hours, or until unblocked |
 
 ## 10. Children
 
